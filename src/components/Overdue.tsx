@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
-import { Motorcycle, Asociado, CostCenter } from '../types/database';
+import { api } from '../lib/api';
+import { Motorcycle, Asociado, CostCenter, Payment } from '../types/database';
 import { AlertTriangle, Calendar } from 'lucide-react';
 
 type MotorcycleOverdue = Motorcycle & {
@@ -19,36 +19,35 @@ export function Overdue() {
 
   const loadOverdueMotorcycles = async () => {
     try {
-      const { data: motorcycles, error } = await supabase
-        .from('motorcycles')
-        .select('*, asociados(*, centros_costo(*))')
-        .eq('status', 'ACTIVE')
-        .order('plate');
+      const [allMotos, allAsociados, allPayments] = await Promise.all([
+        api.getMotorcycles(),
+        api.getAsociados(),
+        api.getPayments()
+      ]);
 
-      if (error) throw error;
+      const motorcycles = (allMotos || []).filter((m: Motorcycle) => m.status === 'ACTIVE');
+      const asociadosById = Object.fromEntries((allAsociados || []).map((a: Asociado) => [a.id, a]));
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
       const overdueList: MotorcycleOverdue[] = [];
 
-      for (const moto of (motorcycles as any[]) || []) {
-        const asociado = Array.isArray(moto.asociados) ? moto.asociados[0] : moto.asociados;
-
-        const { data: lastPayment } = await supabase
-          .from('payments')
-          .select('payment_date')
-          .eq('motorcycle_id', moto.id)
-          .order('payment_date', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        const lastPaymentData = lastPayment as { payment_date: string } | null;
+      for (const moto of motorcycles) {
+        // Enrich moto with asociado and centro_costo
+        const asociadoFull = asociadosById[moto.asociado_id];
+        
+        // Find last payment
+        const motoPayments = (allPayments || [])
+          .filter((p: Payment) => p.motorcycle_id === moto.id)
+          .sort((a: Payment, b: Payment) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime());
+        
+        const lastPayment = motoPayments.length > 0 ? motoPayments[0] : null;
 
         let daysOverdue = 0;
 
-        if (lastPaymentData) {
-          const lastPaymentDate = new Date(lastPaymentData.payment_date);
+        if (lastPayment) {
+          const lastPaymentDate = new Date(lastPayment.payment_date);
           lastPaymentDate.setHours(0, 0, 0, 0);
           const diffTime = today.getTime() - lastPaymentDate.getTime();
           const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
@@ -63,8 +62,11 @@ export function Overdue() {
         if (daysOverdue > 0) {
           overdueList.push({
             ...moto,
-            asociado,
-            lastPayment: lastPaymentData?.payment_date,
+            asociado: asociadoFull ? {
+              ...asociadoFull,
+              centros_costo: asociadoFull.centro_costo // Map from backend response structure
+            } : undefined,
+            lastPayment: lastPayment?.payment_date,
             daysOverdue,
           });
         }
@@ -84,39 +86,24 @@ export function Overdue() {
       return;
 
     try {
-      await (supabase.from('motorcycles') as any).update({ status: 'DEACTIVATED' }).eq('id', motorcycle.id);
+      await api.updateMotorcycle(motorcycle.id, { status: 'DEACTIVATED' });
 
-      await supabase.from('deactivations').insert([
-        {
-          motorcycle_id: motorcycle.id,
-          asociado_id: motorcycle.asociado_id,
-          deactivation_date: new Date().toISOString().split('T')[0],
-          days_overdue: motorcycle.daysOverdue,
-          reason: `Desactivación automática por ${motorcycle.daysOverdue} días sin pagar`,
-        },
-      ] as any);
+      await api.createDeactivation({
+        motorcycle_id: motorcycle.id,
+        asociado_id: motorcycle.asociado_id,
+        deactivation_date: new Date().toISOString().split('T')[0],
+        days_overdue: motorcycle.daysOverdue,
+        reason: `Desactivación automática por ${motorcycle.daysOverdue} días sin pagar`,
+      });
 
-      await supabase.from('notifications').insert([
-        {
-          asociado_id: motorcycle.asociado_id,
-          motorcycle_id: motorcycle.id,
-          type: 'DEACTIVATION',
-          message: `Su moto ha sido desactivada por mora de ${motorcycle.daysOverdue} días. Por favor acérquese a la oficina.`,
-          status: 'PENDING',
-          channel: 'WHATSAPP',
-        },
-      ] as any);
-
-      // Create warning notification as well if needed, or just deactivation
-      // The original code had another notification insert block below, let's keep it if it was there or check what I missed.
-      // Wait, the Read output showed:
-      /*
-      97      await supabase.from('notifications').insert([
-      98        {
-      99          asociado_id: motorcycle.asociado_id,
-      100          motorcycle_id: motorcycle.id,
-      */
-      // I will just cast the blocks I see.
+      await api.createNotification({
+        asociado_id: motorcycle.asociado_id,
+        motorcycle_id: motorcycle.id,
+        type: 'DEACTIVATION',
+        message: `Su moto ha sido desactivada por mora de ${motorcycle.daysOverdue} días. Por favor acérquese a la oficina.`,
+        status: 'PENDING',
+        channel: 'WHATSAPP',
+      });
 
       loadOverdueMotorcycles();
     } catch (error: any) {
@@ -126,16 +113,14 @@ export function Overdue() {
 
   const handleSendWarning = async (motorcycle: MotorcycleOverdue) => {
     try {
-      await supabase.from('notifications').insert([
-        {
-          asociado_id: motorcycle.asociado_id,
-          motorcycle_id: motorcycle.id,
-          type: 'WARNING',
-          message: `Recordatorio: Su moto ${motorcycle.plate} tiene ${motorcycle.daysOverdue} día(s) de mora. Por favor realice el pago para evitar la desactivación.`,
-          status: 'PENDING',
-          channel: 'SMS',
-        },
-      ] as any);
+      await api.createNotification({
+        asociado_id: motorcycle.asociado_id,
+        motorcycle_id: motorcycle.id,
+        type: 'WARNING',
+        message: `Recordatorio: Su moto ${motorcycle.plate} tiene ${motorcycle.daysOverdue} día(s) de mora. Por favor realice el pago para evitar la desactivación.`,
+        status: 'PENDING',
+        channel: 'SMS',
+      });
 
       alert('Notificación de advertencia programada');
     } catch (error: any) {

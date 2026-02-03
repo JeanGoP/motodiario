@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
 import { Payment, Motorcycle, Asociado, PaymentDistribution } from '../types/database';
+import { api } from '../lib/api';
 import { Plus, Receipt, DollarSign, TrendingUp, TrendingDown, Printer } from 'lucide-react';
 import { printReceipt } from '../utils/printReceipt';
 
@@ -17,6 +17,7 @@ type MotorcycleWithDetails = Motorcycle & {
 export function Payments() {
   const [payments, setPayments] = useState<PaymentWithDetails[]>([]);
   const [motorcycles, setMotorcycles] = useState<MotorcycleWithDetails[]>([]);
+  const [asociados, setAsociados] = useState<Asociado[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({
@@ -34,29 +35,30 @@ export function Payments() {
 
   const loadData = async () => {
     try {
-      const [paymentsRes, motorcyclesRes] = await Promise.all([
-        supabase
-          .from('payments')
-          .select('*, motorcycles(*), asociados(*), payment_distributions(*)')
-          .order('payment_date', { ascending: false })
-          .limit(50),
-        supabase.from('motorcycles').select('*, asociados(*)').eq('status', 'ACTIVE').order('plate'),
+      const [paymentsData, motorcyclesData, asociadosList] = await Promise.all([
+        api.getPayments(),
+        api.getMotorcycles(),
+        api.getAsociados(true),
       ]);
 
-      if (paymentsRes.error) throw paymentsRes.error;
-      if (motorcyclesRes.error) throw motorcyclesRes.error;
+      setAsociados(asociadosList || []);
+      
+      // Filter active motorcycles
+      const activeMotos = (motorcyclesData || []).filter((m: Motorcycle) => m.status === 'ACTIVE');
+      setMotorcycles(activeMotos);
 
+      const motoById = Object.fromEntries((motorcyclesData || []).map((m: Motorcycle) => [m.id, m]));
+      const asociadoById = Object.fromEntries((asociadosList || []).map((a: Asociado) => [a.id, a]));
+      
+      // The API returns payments with nested distribution
       setPayments(
-        (paymentsRes.data as any[]).map((p) => ({
+        (paymentsData || []).map((p: any) => ({
           ...p,
-          motorcycle: Array.isArray(p.motorcycles) ? p.motorcycles[0] : p.motorcycles,
-          asociado: Array.isArray(p.asociados) ? p.asociados[0] : p.asociados,
-          distribution: Array.isArray(p.payment_distributions)
-            ? p.payment_distributions[0]
-            : p.payment_distributions,
+          motorcycle: motoById[p.motorcycle_id],
+          asociado: asociadoById[p.asociado_id],
+          // distribution is already nested from API
         }))
       );
-      setMotorcycles(motorcyclesRes.data || []);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -78,37 +80,21 @@ export function Payments() {
         return;
       }
 
-      const { data: user } = await supabase.auth.getUser();
+      const newPayment = await api.createPayment({
+        ...formData,
+        asociado_id: selectedMoto.asociado_id,
+      });
 
-      const { error } = await supabase.from('payments').insert([
-        {
-          ...formData,
-          asociado_id: selectedMoto.asociado_id,
-          created_by: user.user?.id || null,
-        },
-      ] as any);
-
-      if (error) throw error;
-
-      const asociado = Array.isArray(selectedMoto.asociados)
-        ? selectedMoto.asociados[0]
-        : selectedMoto.asociados;
-
-      if (asociado && window.confirm('Pago registrado exitosamente. ¿Desea imprimir el recibo?')) {
-        printReceipt({
-          receipt_number: formData.receipt_number,
-          payment_date: formData.payment_date,
-          amount: formData.amount,
-          asociado: {
-            nombre: asociado.nombre,
-            documento: asociado.documento,
-          },
-          motorcycle: {
-            plate: selectedMoto.plate,
-            brand: selectedMoto.brand,
-            model: selectedMoto.model,
-          },
-        });
+      const asociado = asociados.find((a) => a.id === selectedMoto.asociado_id);
+      
+      if (confirm('Pago registrado correctamente. ¿Desea imprimir el recibo?')) {
+        const paymentWithDetails: PaymentWithDetails = {
+          ...newPayment,
+          motorcycle: selectedMoto,
+          asociado: asociado,
+          distribution: newPayment.distribution
+        };
+        printReceipt(paymentWithDetails);
       }
 
       setShowModal(false);
@@ -209,7 +195,7 @@ export function Payments() {
                   Recibo
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Cliente
+                  Asociado
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Moto
@@ -306,16 +292,24 @@ export function Payments() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Moto</label>
                 <select
                   value={formData.motorcycle_id}
-                  onChange={(e) => setFormData({ ...formData, motorcycle_id: e.target.value })}
+                  onChange={(e) => {
+                    const selectedId = e.target.value;
+                    const selectedMoto = motorcycles.find(m => m.id === selectedId);
+                    setFormData({ 
+                      ...formData, 
+                      motorcycle_id: selectedId,
+                      amount: selectedMoto ? Number(selectedMoto.daily_rate) : 0 
+                    });
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   required
                 >
                   <option value="">Seleccione una moto...</option>
                   {motorcycles.map((moto) => {
-                    const asociado = Array.isArray(moto.asociados) ? moto.asociados[0] : moto.asociados;
+                    const a = asociados.find((as) => as.id === moto.asociado_id);
                     return (
                       <option key={moto.id} value={moto.id}>
-                        {moto.plate} - {asociado?.nombre}
+                        {moto.plate} - {a?.nombre}
                       </option>
                     );
                   })}

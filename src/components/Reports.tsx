@@ -1,16 +1,16 @@
 import { useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 import { FileText, Download, Calendar, DollarSign } from 'lucide-react';
 import { Motorcycle, Asociado, CostCenter, Payment, PaymentDistribution } from '../types/database';
 
 type MotorcycleWithDetails = Motorcycle & {
-  asociados: (Asociado & { centros_costo: CostCenter | null }) | null;
+  asociado?: Asociado & { centros_costo?: CostCenter };
 };
 
 type PaymentWithDetails = Payment & {
-  motorcycles: Motorcycle | null;
-  asociados: (Asociado & { centros_costo: CostCenter | null }) | null;
-  payment_distributions: PaymentDistribution[];
+  motorcycle?: Motorcycle;
+  asociado?: Asociado & { centros_costo?: CostCenter };
+  distribution?: PaymentDistribution;
 };
 
 export function Reports() {
@@ -50,34 +50,36 @@ export function Reports() {
   const generateOverdueReport = async () => {
     setLoading(true);
     try {
-      const { data: motorcyclesData, error } = await supabase
-        .from('motorcycles')
-        .select('*, asociados(*, centros_costo(*))')
-        .order('plate');
+      // Get all active motorcycles
+      const allMotos = await api.getMotorcycles();
+      const motorcycles = (allMotos || []).filter((m: Motorcycle) => m.status === 'ACTIVE');
 
-      if (error) throw error;
-      
-      const motorcycles = motorcyclesData as unknown as MotorcycleWithDetails[];
+      // Get all payments (potentially slow if too many, but for now ok)
+      const allPayments = await api.getPayments();
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
       const reportData = [];
 
-      for (const moto of motorcycles || []) {
-        const asociado = Array.isArray(moto.asociados) ? moto.asociados[0] : moto.asociados;
-        const centroCosto = asociado?.centros_costo ?
-          (Array.isArray(asociado.centros_costo) ? asociado.centros_costo[0] : asociado.centros_costo) : null;
+      const [asociadosList, costCentersList] = await Promise.all([
+        api.getAsociados(true),
+        api.getCentrosCosto()
+      ]);
 
-        const { data: lastPaymentData } = await supabase
-          .from('payments')
-          .select('payment_date, amount')
-          .eq('motorcycle_id', moto.id)
-          .order('payment_date', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+      const centrosById = Object.fromEntries((costCentersList || []).map((c: CostCenter) => [c.id, c]));
+      const asociadosById = Object.fromEntries((asociadosList || []).map((a: Asociado) => [a.id, a]));
 
-        const lastPayment = lastPaymentData as { payment_date: string; amount: number } | null;
+      for (const moto of motorcycles) {
+        const asociado = asociadosById[moto.asociado_id];
+        const centroCosto = asociado ? centrosById[asociado.centro_costo_id] : null;
+
+        // Find last payment for this moto
+        const motoPayments = (allPayments || [])
+          .filter((p: Payment) => p.motorcycle_id === moto.id)
+          .sort((a: Payment, b: Payment) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime());
+        
+        const lastPayment = motoPayments.length > 0 ? motoPayments[0] : null;
 
         let daysOverdue = 0;
         let balance = 0;
@@ -93,7 +95,7 @@ export function Reports() {
           const createdDate = new Date(moto.created_at);
           createdDate.setHours(0, 0, 0, 0);
           const diffTime = today.getTime() - createdDate.getTime();
-          daysOverdue = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
           balance = daysOverdue * Number(moto.daily_rate);
         }
 
@@ -126,25 +128,20 @@ export function Reports() {
   const generatePaymentsReport = async () => {
     setLoading(true);
     try {
-      const { data: paymentsData, error } = await supabase
-        .from('payments')
-        .select('*, motorcycles(*), asociados(*, centros_costo(*)), payment_distributions(*)')
-        .gte('payment_date', dateFrom)
-        .lte('payment_date', dateTo)
-        .order('payment_date', { ascending: false });
+      const payments = await api.getPayments(dateFrom, dateTo);
 
-      if (error) throw error;
+      const [asociadosList, costCentersList] = await Promise.all([
+        api.getAsociados(true),
+        api.getCentrosCosto()
+      ]);
 
-      const payments = paymentsData as unknown as PaymentWithDetails[];
+      const centrosById = Object.fromEntries((costCentersList || []).map((c: CostCenter) => [c.id, c]));
+      const asociadosById = Object.fromEntries((asociadosList || []).map((a: Asociado) => [a.id, a]));
 
-      const reportData = payments?.map(payment => {
-        const asociado = Array.isArray(payment.asociados) ? payment.asociados[0] : payment.asociados;
-        const motorcycle = Array.isArray(payment.motorcycles) ? payment.motorcycles[0] : payment.motorcycles;
-        const distribution = Array.isArray(payment.payment_distributions)
-          ? payment.payment_distributions[0]
-          : payment.payment_distributions;
-        const centroCosto = asociado?.centros_costo ?
-          (Array.isArray(asociado.centros_costo) ? asociado.centros_costo[0] : asociado.centros_costo) : null;
+      const reportData = (payments || []).map((payment: any) => {
+        const asociado = payment.asociado_id ? asociadosById[payment.asociado_id] : null;
+        const centroCosto = asociado ? centrosById[asociado.centro_costo_id] : null;
+        const distribution = payment.distribution;
 
         return {
           'Fecha': payment.payment_date,
@@ -152,13 +149,13 @@ export function Reports() {
           'Centro de Costo': centroCosto?.nombre || 'N/A',
           'Asociado': asociado?.nombre || 'N/A',
           'Documento': asociado?.documento || 'N/A',
-          'Placa': motorcycle?.plate || 'N/A',
+          'Placa': payment.motorcycle?.plate || 'N/A',
           'Monto Total': payment.amount,
           'Asociado (70%)': distribution?.associate_amount || 0,
           'Empresa (30%)': distribution?.company_amount || 0,
           'Notas': payment.notes || '',
         };
-      }) || [];
+      });
 
       exportToCSV(reportData, `reporte_pagos_${dateFrom}_${dateTo}`);
     } catch (error) {
@@ -172,24 +169,20 @@ export function Reports() {
   const generateDistributionsReport = async () => {
     setLoading(true);
     try {
-      const { data: paymentsData, error } = await supabase
-        .from('payments')
-        .select('*, payment_distributions(*), asociados(*, centros_costo(*))')
-        .gte('payment_date', dateFrom)
-        .lte('payment_date', dateTo)
-        .order('payment_date', { ascending: false });
+      const payments = await api.getPayments(dateFrom, dateTo);
 
-      if (error) throw error;
+      const [asociadosList, costCentersList] = await Promise.all([
+        api.getAsociados(true),
+        api.getCentrosCosto()
+      ]);
 
-      const payments = paymentsData as unknown as PaymentWithDetails[];
+      const centrosById = Object.fromEntries((costCentersList || []).map((c: CostCenter) => [c.id, c]));
+      const asociadosById = Object.fromEntries((asociadosList || []).map((a: Asociado) => [a.id, a]));
 
-      const reportData = payments?.map(payment => {
-        const asociado = Array.isArray(payment.asociados) ? payment.asociados[0] : payment.asociados;
-        const distribution = Array.isArray(payment.payment_distributions)
-          ? payment.payment_distributions[0]
-          : payment.payment_distributions;
-        const centroCosto = asociado?.centros_costo ?
-          (Array.isArray(asociado.centros_costo) ? asociado.centros_costo[0] : asociado.centros_costo) : null;
+      const reportData = (payments || []).map((payment: any) => {
+        const asociado = payment.asociado_id ? asociadosById[payment.asociado_id] : null;
+        const centroCosto = asociado ? centrosById[asociado.centro_costo_id] : null;
+        const distribution = payment.distribution;
 
         return {
           'Centro de Costo': centroCosto?.nombre || 'N/A',
@@ -198,11 +191,12 @@ export function Reports() {
           'Monto Total': payment.amount,
           'Asociado (70%)': distribution?.associate_amount || 0,
           'Empresa (30%)': distribution?.company_amount || 0,
+          'Placa': payment.motorcycle?.plate || 'N/A',
         };
-      }) || [];
+      });
 
       const totals = reportData.reduce(
-        (acc, row) => ({
+        (acc: any, row: any) => ({
           total: acc.total + Number(row['Monto Total']),
           associate: acc.associate + Number(row['Asociado (70%)']),
           company: acc.company + Number(row['Empresa (30%)']),
@@ -217,9 +211,10 @@ export function Reports() {
         'Monto Total': totals.total.toFixed(2),
         'Asociado (70%)': totals.associate.toFixed(2),
         'Empresa (30%)': totals.company.toFixed(2),
-      } as any);
+        'Placa': '',
+      });
 
-      exportToCSV(reportData, `reporte_distribuciones_${dateFrom}_${dateTo}`);
+      exportToCSV(reportData, `reporte_distribucion_${dateFrom}_${dateTo}`);
     } catch (error) {
       console.error('Error generating report:', error);
       alert('Error al generar el reporte');

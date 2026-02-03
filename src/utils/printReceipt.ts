@@ -173,17 +173,29 @@ export const printReceipt = (data: {
       </div>
 
       <script>
-        window.onload = function() {
+        function doPrint() {
           window.print();
-          // Optional: close window after print
-          // window.onafterprint = function() { window.close(); }
         }
+        function doClose() {
+          window.close();
+        }
+        // Auto-print removed to allow preview
       </script>
+      <div class="no-print" style="text-align: center; margin-bottom: 20px; padding: 10px; background: #f0f0f0; border-bottom: 1px solid #ddd;">
+        <button onclick="doPrint()" style="padding: 10px 20px; font-size: 16px; cursor: pointer; background: #4F46E5; color: white; border: none; border-radius: 5px; margin-right: 10px;">🖨️ Imprimir</button>
+        <button onclick="doClose()" style="padding: 10px 20px; font-size: 16px; cursor: pointer; background: #EF4444; color: white; border: none; border-radius: 5px;">❌ Cerrar</button>
+      </div>
     </body>
     </html>
   `;
 
-  const printWindow = window.open('', '_blank', 'width=400,height=600');
+  // Open a larger window (1000x800) to allow better preview, centered on screen
+  const width = 1000;
+  const height = 800;
+  const left = (window.screen.width - width) / 2;
+  const top = (window.screen.height - height) / 2;
+  
+  const printWindow = window.open('', '_blank', `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no`);
   if (printWindow) {
     printWindow.document.write(html);
     printWindow.document.close();

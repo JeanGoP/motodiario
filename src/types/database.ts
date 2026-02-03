@@ -89,9 +89,11 @@ export interface Database {
           year: number;
           plate: string;
           daily_rate: number;
+          plan_months: number;
           status: 'ACTIVE' | 'DEACTIVATED';
           created_at: string;
           updated_at: string;
+          dias_gracia: number;
         };
         Insert: {
           id?: string;
@@ -101,9 +103,11 @@ export interface Database {
           year: number;
           plate: string;
           daily_rate: number;
+          plan_months?: number;
           status?: 'ACTIVE' | 'DEACTIVATED';
           created_at?: string;
           updated_at?: string;
+          dias_gracia?: number;
         };
         Update: {
           id?: string;
@@ -113,9 +117,11 @@ export interface Database {
           year?: number;
           plate?: string;
           daily_rate?: number;
+          plan_months?: number;
           status?: 'ACTIVE' | 'DEACTIVATED';
           created_at?: string;
           updated_at?: string;
+          dias_gracia?: number;
         };
         Relationships: [
           {

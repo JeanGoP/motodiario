@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 import { Notification, Asociado, Motorcycle } from '../types/database';
 import { Bell, CheckCircle, XCircle, Clock, MessageSquare, Send } from 'lucide-react';
 
@@ -20,21 +20,8 @@ export function Notifications() {
 
   const loadNotifications = async () => {
     try {
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*, asociados(*), motorcycles(*)')
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      if (error) throw error;
-
-      setNotifications(
-        (data as any[])?.map((n) => ({
-          ...n,
-          asociado: Array.isArray(n.asociados) ? n.asociados[0] : n.asociados,
-          motorcycle: Array.isArray(n.motorcycles) ? n.motorcycles[0] : n.motorcycles,
-        })) || []
-      );
+      const data = await api.getNotifications();
+      setNotifications(data || []);
     } catch (error) {
       console.error('Error loading notifications:', error);
     } finally {
@@ -44,12 +31,10 @@ export function Notifications() {
 
   const handleMarkAsSent = async (id: string) => {
     try {
-      const { error } = await (supabase
-        .from('notifications') as any)
-        .update({ status: 'SENT', sent_at: new Date().toISOString() })
-        .eq('id', id);
-
-      if (error) throw error;
+      await api.updateNotification(id, { 
+        status: 'SENT', 
+        sent_at: new Date().toISOString() 
+      });
       loadNotifications();
     } catch (error: any) {
       alert('Error: ' + error.message);
@@ -58,12 +43,7 @@ export function Notifications() {
 
   const handleMarkAsFailed = async (id: string) => {
     try {
-      const { error } = await (supabase
-        .from('notifications') as any)
-        .update({ status: 'FAILED' })
-        .eq('id', id);
-
-      if (error) throw error;
+      await api.updateNotification(id, { status: 'FAILED' });
       loadNotifications();
     } catch (error: any) {
       alert('Error: ' + error.message);

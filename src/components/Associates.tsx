@@ -39,12 +39,6 @@ export function Associates() {
     dias_gracia: 2,
     activo: true,
   });
-  const [mesVista, setMesVista] = useState(() => {
-    const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), 1);
-  });
-  const [diasSeleccionados, setDiasSeleccionados] = useState<number[]>([]);
-  const [mostrarCalendario, setMostrarCalendario] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -70,22 +64,8 @@ export function Associates() {
     try {
       if (editingId) {
         await api.actualizarAsociado(editingId, formData);
-        if (diasSeleccionados.length === formData.dias_gracia) {
-          await api.setDiasGraciaAsociado(editingId, {
-            anio: mesVista.getFullYear(),
-            mes: mesVista.getMonth() + 1,
-            dias: diasSeleccionados.sort((a, b) => a - b)
-          });
-        }
       } else {
-        const created = await api.crearAsociado(formData);
-        if (created?.id && diasSeleccionados.length === formData.dias_gracia) {
-          await api.setDiasGraciaAsociado(created.id, {
-            anio: mesVista.getFullYear(),
-            mes: mesVista.getMonth() + 1,
-            dias: diasSeleccionados.sort((a, b) => a - b)
-          });
-        }
+        await api.crearAsociado(formData);
       }
       setShowModal(false);
       resetForm();
@@ -107,12 +87,6 @@ export function Associates() {
       dias_gracia: associate.dias_gracia,
       activo: associate.activo,
     });
-    const d = new Date();
-    setMesVista(new Date(d.getFullYear(), d.getMonth(), 1));
-    api.getDiasGraciaAsociado(associate.id, d.getFullYear(), d.getMonth() + 1)
-      .then((dias: number[]) => setDiasSeleccionados(dias || []))
-      .catch(() => setDiasSeleccionados([]));
-    setMostrarCalendario(false);
     setShowModal(true);
   };
 
@@ -138,10 +112,6 @@ export function Associates() {
       activo: true,
     });
     setEditingId(null);
-    const d = new Date();
-    setMesVista(new Date(d.getFullYear(), d.getMonth(), 1));
-    setDiasSeleccionados([]);
-    setMostrarCalendario(false);
   };
 
   const filteredAssociates = selectedCostCenter === 'all'
@@ -215,10 +185,6 @@ export function Associates() {
               <div className="text-sm">
                 <span className="text-gray-600">Centro: </span>
                 <span className="font-medium text-gray-900">{associate.centro_costo?.nombre}</span>
-              </div>
-              <div className="text-sm">
-                <span className="text-gray-600">Días de gracia: </span>
-                <span className="font-medium text-gray-900">{associate.dias_gracia} días/mes</span>
               </div>
             </div>
 
@@ -326,7 +292,7 @@ export function Associates() {
                 <div className="space-y-3 pt-2 border-t border-gray-100">
                   <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Configuración</h4>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="col-span-2 sm:col-span-1">
+                    <div className="col-span-2">
                       <label className="block text-xs font-medium text-gray-700 mb-1">Centro de Costo</label>
                       <select
                         value={formData.centro_costo_id}
@@ -340,104 +306,8 @@ export function Associates() {
                         ))}
                       </select>
                     </div>
-
-                    <div className="col-span-2 sm:col-span-1">
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Días de Gracia</label>
-                      <div className="flex gap-2">
-                        <select
-                          value={formData.dias_gracia}
-                          onChange={(e) => setFormData({ ...formData, dias_gracia: Number(e.target.value) })}
-                          className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value={2}>2 días</option>
-                          <option value={4}>4 días</option>
-                        </select>
-                        <button
-                          type="button"
-                          onClick={() => setMostrarCalendario(!mostrarCalendario)}
-                          className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition ${mostrarCalendario ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}
-                        >
-                          📅
-                        </button>
-                      </div>
-                    </div>
                   </div>
                   
-                  {mostrarCalendario && (
-                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 animate-in fade-in slide-in-from-top-2">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-medium text-gray-600">
-                          Seleccionados: <span className="text-blue-600">{diasSeleccionados.length}</span>/{formData.dias_gracia}
-                        </span>
-                        <div className="flex items-center gap-1 bg-white rounded border border-gray-200 p-0.5">
-                          <button
-                            type="button"
-                            onClick={() => setMesVista(new Date(mesVista.getFullYear(), mesVista.getMonth() - 1, 1))}
-                            className="w-6 h-6 flex items-center justify-center text-gray-500 hover:bg-gray-100 rounded text-xs"
-                          >
-                            ‹
-                          </button>
-                          <span className="text-xs font-medium px-2 min-w-[80px] text-center">
-                            {mesVista.toLocaleString('es-ES', { month: 'short', year: 'numeric' })}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setMesVista(new Date(mesVista.getFullYear(), mesVista.getMonth() + 1, 1))}
-                            className="w-6 h-6 flex items-center justify-center text-gray-500 hover:bg-gray-100 rounded text-xs"
-                          >
-                            ›
-                          </button>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-7 gap-1">
-                        {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((d) => (
-                          <div key={d} className="text-[10px] font-medium text-gray-400 text-center py-1">{d}</div>
-                        ))}
-                        {(() => {
-                          const startWeekDay = (mesVista.getDay() + 6) % 7;
-                          const daysInMonth = new Date(mesVista.getFullYear(), mesVista.getMonth() + 1, 0).getDate();
-                          const cells: JSX.Element[] = [];
-                          for (let i = 0; i < startWeekDay; i++) {
-                            cells.push(<div key={`empty-${i}`} />);
-                          }
-                          for (let day = 1; day <= daysInMonth; day++) {
-                            const selected = diasSeleccionados.includes(day);
-                            const disabled = !selected && diasSeleccionados.length >= formData.dias_gracia;
-                            cells.push(
-                              <button
-                                key={`day-${day}`}
-                                type="button"
-                                disabled={disabled}
-                                onClick={() => {
-                                  if (selected) {
-                                    setDiasSeleccionados(diasSeleccionados.filter(d => d !== day));
-                                  } else {
-                                    if (diasSeleccionados.length < formData.dias_gracia) {
-                                      setDiasSeleccionados([...diasSeleccionados, day]);
-                                    }
-                                  }
-                                }}
-                                className={`
-                                  aspect-square flex items-center justify-center text-xs rounded transition-colors
-                                  ${selected 
-                                    ? 'bg-blue-600 text-white shadow-sm' 
-                                    : disabled
-                                      ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
-                                      : 'bg-white text-gray-700 hover:bg-blue-50 border border-gray-100'
-                                  }
-                                `}
-                              >
-                                {day}
-                              </button>
-                            );
-                          }
-                          return cells;
-                        })()}
-                      </div>
-                    </div>
-                  )}
-
                   <div className="flex items-center gap-2 pt-2">
                     <input
                       type="checkbox"

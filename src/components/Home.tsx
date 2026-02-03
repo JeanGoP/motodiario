@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 import { Building2, Users, Bike, DollarSign, AlertTriangle, TrendingUp } from 'lucide-react';
 
 export function Home() {
@@ -21,24 +21,28 @@ export function Home() {
     try {
       const today = new Date().toISOString().split('T')[0];
 
-      const [costCenters, asociados, motorcycles, payments, overdue] = await Promise.all([
-        supabase.from('centros_costo').select('id', { count: 'exact' }),
-        supabase.from('asociados').select('id', { count: 'exact' }),
-        supabase.from('motorcycles').select('status', { count: 'exact' }),
-        supabase.from('payments').select('amount').eq('payment_date', today),
-        supabase.from('motorcycles').select('id', { count: 'exact' }).eq('status', 'DEACTIVATED'),
+      const [costCentersList, asociadosList, motorcycles, payments] = await Promise.all([
+        api.getCentrosCosto(),
+        api.getAsociados(),
+        api.getMotorcycles(),
+        api.getPayments(),
       ]);
 
-      const activeCount = (motorcycles.data as any[])?.filter(m => m.status === 'ACTIVE').length || 0;
-      const todayTotal = (payments.data as any[])?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+      const motos = motorcycles || [];
+      const activeCount = motos.filter((m: any) => m.status === 'ACTIVE').length;
+      const deactivatedCount = motos.filter((m: any) => m.status === 'DEACTIVATED').length;
+      
+      const todayTotal = (payments || [])
+        .filter((p: any) => p.payment_date === today)
+        .reduce((sum: number, p: any) => sum + Number(p.amount), 0);
 
       setStats({
-        costCenters: costCenters.count || 0,
-        asociados: asociados.count || 0,
-        motorcycles: motorcycles.count || 0,
+        costCenters: (costCentersList || []).length,
+        asociados: (asociadosList || []).length,
+        motorcycles: motos.length,
         activeMotorcycles: activeCount,
         todayPayments: todayTotal,
-        overdueMotorcycles: overdue.count || 0,
+        overdueMotorcycles: deactivatedCount,
       });
     } catch (error) {
       console.error('Error loading stats:', error);
