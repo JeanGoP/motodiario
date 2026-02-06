@@ -17,6 +17,13 @@ interface Usuario {
   rol?: string;
 }
 
+const getBaseUrl = () => {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl) return envUrl.replace(/\/api\/?$/, '').replace(/\/$/, '');
+  if (import.meta.env.MODE === 'production') return '';
+  return 'http://localhost:4000';
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Usuario | null>(null);
   const [loading, setLoading] = useState(true);
@@ -29,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     (async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'}/api/auth/me`, {
+        const res = await fetch(`${getBaseUrl()}/api/auth/me`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (res.ok) {
@@ -48,29 +55,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'}/api/auth/login`, {
+    const url = `${getBaseUrl()}/api/auth/login`;
+    console.log('[Auth] Signing in to:', url);
+    
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ correo: email, password })
     });
+    
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Error de inicio de sesión');
+      console.error('[Auth] Login error response:', err);
+      let msg = err.error || 'Error de inicio de sesión';
+      if (err.message) msg += `: ${err.message}`;
+      throw new Error(msg);
     }
+    
     const data = await res.json();
     localStorage.setItem('token', data.token);
     setUser(data.usuario);
   };
 
   const signUp = async (email: string, password: string) => {
-    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'}/api/auth/registro`, {
+    const url = `${getBaseUrl()}/api/auth/registro`;
+    
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nombre: email.split('@')[0], correo: email, password })
     });
+    
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Error al crear la cuenta');
+      console.error('[Auth] Signup error response:', err);
+      let msg = err.error || 'Error al crear la cuenta';
+      if (err.message) msg += `: ${err.message}`;
+      throw new Error(msg);
     }
   };
 

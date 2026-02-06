@@ -1,16 +1,53 @@
-const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+// Normalizar la URL base: si existe la variable de entorno, usarla; si no, usar '/api' (proxy local o relativo en producción)
+// Esto asume que en Netlify el frontend y backend están en el mismo dominio bajo /api
+const getBaseUrl = () => {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl) {
+    // Eliminar slash final y sufijo /api si existe para evitar duplicados
+    return envUrl.replace(/\/api\/?$/, '').replace(/\/$/, '');
+  }
+  // En producción (Netlify), usar rutas relativas (empty string)
+  if (import.meta.env.MODE === 'production') {
+    return '';
+  }
+  // Default development
+  return 'http://localhost:4000';
+};
+
+const baseUrl = getBaseUrl();
 
 async function request(path: string, options?: RequestInit) {
-  const res = await fetch(`${baseUrl}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options
-  });
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({}));
-    throw new Error(error?.error || `HTTP ${res.status}`);
+  // Asegurar que el path empiece con slash
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const url = `${baseUrl}${normalizedPath}`;
+  
+  console.log(`[API] Requesting: ${url}`); // Debug log
+
+  try {
+    const res = await fetch(url, {
+      headers: { 'Content-Type': 'application/json' },
+      ...options
+    });
+    
+    if (!res.ok) {
+      let errorMessage = `HTTP ${res.status}`;
+      try {
+        const errorBody = await res.json();
+        console.error('[API] Error response body:', errorBody); // Log completo del error
+        if (errorBody?.error) errorMessage = errorBody.error;
+        if (errorBody?.message) errorMessage += `: ${errorBody.message}`;
+      } catch (e) {
+        console.error('[API] Could not parse error body:', e);
+      }
+      throw new Error(errorMessage);
+    }
+    
+    if (res.status === 204) return null;
+    return res.json();
+  } catch (err) {
+    console.error('[API] Network or Parse Error:', err);
+    throw err;
   }
-  if (res.status === 204) return null;
-  return res.json();
 }
 
 export const api = {

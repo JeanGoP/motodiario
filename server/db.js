@@ -7,13 +7,16 @@ const config = {
   password: process.env.DB_PASS,
   server: process.env.DB_HOST,
   database: process.env.DB_NAME,
+  port: parseInt(process.env.DB_PORT || '1433'),
+  connectionTimeout: 8000, // 8 segundos para fallar antes de que Netlify mate el proceso (10s limit)
   options: {
-    encrypt: process.env.DB_ENCRYPT === 'true' || false, // Default false, but allow true for Azure
-    trustServerCertificate: true
+    // Encriptación activada por defecto (necesaria para Azure/Cloud), desactivar solo si se especifica 'false'
+    encrypt: process.env.DB_ENCRYPT !== 'false', 
+    trustServerCertificate: true // Confiar en certificados auto-firmados
   },
   pool: {
     max: 10,
-    min: 0, // Serverless: allow 0 idle connections
+    min: 0,
     idleTimeoutMillis: 30000
   }
 };
@@ -24,6 +27,7 @@ export async function getPool() {
   if (!poolPromise) {
     console.log('Intentando conectar a SQL Server...', { 
       server: config.server, 
+      port: config.port,
       database: config.database,
       user: config.user ? '***' : 'MISSING',
       encrypt: config.options.encrypt
@@ -36,7 +40,7 @@ export async function getPool() {
       })
       .catch(err => {
         console.error('Error fatal conectando a SQL Server:', err);
-        poolPromise = null; // Reset promise to allow retry
+        poolPromise = null; // Resetear promesa para reintentar
         throw err;
       });
   }

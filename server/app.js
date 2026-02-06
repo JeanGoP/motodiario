@@ -65,6 +65,31 @@ app.use('/api', apiRouter);
 // Montar el router en la raíz (para Netlify Functions donde el prefijo /api puede ser eliminado)
 app.use('/', apiRouter);
 
+// Ruta de diagnóstico pública para probar la BD sin autenticación
+apiRouter.get('/test-db', async (req, res) => {
+  try {
+    const { getPool } = await import('./db.js');
+    const pool = await getPool();
+    const result = await pool.request().query('SELECT 1 as n');
+    res.json({ 
+      status: 'Conexión Exitosa', 
+      server_time: new Date().toISOString(),
+      test_query: result.recordset[0] 
+    });
+  } catch (err) {
+    res.status(500).json({ 
+      error: 'Error de Conexión a BD', 
+      details: err.message,
+      env_check: {
+        has_user: !!process.env.DB_USER,
+        has_pass: !!process.env.DB_PASS,
+        has_host: !!process.env.DB_HOST,
+        has_db: !!process.env.DB_NAME
+      }
+    });
+  }
+});
+
 // Manejador de errores global
 app.use((err, req, res, next) => {
   console.error('Error no controlado:', err);
