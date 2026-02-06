@@ -40,6 +40,15 @@ export const api = {
   getPayments: (from?: string, to?: string) => request(`/api/payments${from && to ? `?from=${from}&to=${to}` : ''}`),
   createPayment: (data: any) => request('/api/payments', { method: 'POST', body: JSON.stringify(data) }),
 
+  getCashReceipts: (filters?: { from?: string; to?: string; asociado_id?: string }) => {
+    const params = new URLSearchParams();
+    if (filters?.from) params.append('from', filters.from);
+    if (filters?.to) params.append('to', filters.to);
+    if (filters?.asociado_id) params.append('asociado_id', filters.asociado_id);
+    return request(`/api/recibos_caja?${params.toString()}`);
+  },
+  createCashReceipt: (data: any) => request('/api/recibos_caja', { method: 'POST', body: JSON.stringify(data) }),
+
   // Notifications
   getNotifications: () => request('/api/notifications'),
   createNotification: (data: any) => request('/api/notifications', { method: 'POST', body: JSON.stringify(data) }),

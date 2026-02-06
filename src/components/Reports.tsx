@@ -15,20 +15,31 @@ type PaymentWithDetails = Payment & {
 
 export function Reports() {
   const [loading, setLoading] = useState(false);
-  const [reportType, setReportType] = useState<'overdue' | 'payments' | 'distributions'>('overdue');
+  const [reportType, setReportType] = useState<'overdue' | 'payments' | 'distributions' | 'cash_receipts' | 'monthly_income' | 'debt_summary'>('overdue');
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0]);
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
+  const [previewData, setPreviewData] = useState<any[]>([]);
+  const [generatedDate, setGeneratedDate] = useState<string>('');
 
-  const exportToCSV = (data: any[], filename: string) => {
-    if (data.length === 0) {
+  const reportTypes = [
+    { id: 'overdue', label: 'Reporte de Vencimientos', description: 'Estado actual de todas las motos con días vencidos y saldos' },
+    { id: 'payments', label: 'Reporte de Pagos', description: 'Historial de pagos por rango de fechas' },
+    { id: 'distributions', label: 'Reporte de Distribuciones', description: 'Distribución 70/30 por centro de costo' },
+    { id: 'cash_receipts', label: 'Reporte de Recibos de Caja', description: 'Reporte de recibos de caja y anticipos' },
+    { id: 'monthly_income', label: 'Resumen Financiero Mensual', description: 'Ingresos agrupados por mes con desglose de participaciones' },
+    { id: 'debt_summary', label: 'Consolidado de Deuda', description: 'Resumen de deuda total agrupada por asociado' },
+  ];
+
+  const exportToCSV = () => {
+    if (previewData.length === 0) {
       alert('No hay datos para exportar');
       return;
     }
 
-    const headers = Object.keys(data[0]);
+    const headers = Object.keys(previewData[0]);
     const csvContent = [
       headers.join(','),
-      ...data.map(row => headers.map(header => {
+      ...previewData.map(row => headers.map(header => {
         const value = row[header];
         if (value === null || value === undefined) return '';
         const stringValue = String(value);
@@ -36,6 +47,7 @@ export function Reports() {
       }).join(','))
     ].join('\n');
 
+    const filename = `reporte_${reportType}_${generatedDate}`;
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
@@ -96,6 +108,7 @@ export function Reports() {
           createdDate.setHours(0, 0, 0, 0);
           const diffTime = today.getTime() - createdDate.getTime();
           const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          daysOverdue = Math.max(0, diffDays);
           balance = daysOverdue * Number(moto.daily_rate);
         }
 
@@ -116,7 +129,8 @@ export function Reports() {
         });
       }
 
-      exportToCSV(reportData, `reporte_vencimientos_${new Date().toISOString().split('T')[0]}`);
+      setPreviewData(reportData);
+      setGeneratedDate(new Date().toISOString().split('T')[0]);
     } catch (error) {
       console.error('Error generating report:', error);
       alert('Error al generar el reporte');
@@ -157,7 +171,8 @@ export function Reports() {
         };
       });
 
-      exportToCSV(reportData, `reporte_pagos_${dateFrom}_${dateTo}`);
+      setPreviewData(reportData);
+      setGeneratedDate(`${dateFrom}_${dateTo}`);
     } catch (error) {
       console.error('Error generating report:', error);
       alert('Error al generar el reporte');
@@ -214,7 +229,8 @@ export function Reports() {
         'Placa': '',
       });
 
-      exportToCSV(reportData, `reporte_distribucion_${dateFrom}_${dateTo}`);
+      setPreviewData(reportData);
+      setGeneratedDate(`${dateFrom}_${dateTo}`);
     } catch (error) {
       console.error('Error generating report:', error);
       alert('Error al generar el reporte');
@@ -223,7 +239,192 @@ export function Reports() {
     }
   };
 
+  const generateMonthlyIncomeReport = async () => {
+    setLoading(true);
+    try {
+      const payments = await api.getPayments(dateFrom, dateTo);
+      
+      const monthlyData = (payments || []).reduce((acc: any, payment: any) => {
+        const date = new Date(payment.payment_date);
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        
+        if (!acc[key]) {
+          acc[key] = {
+            month: date.getMonth() + 1,
+            year: date.getFullYear(),
+            total: 0,
+            company: 0,
+            associate: 0,
+            count: 0
+          };
+        }
+        
+        acc[key].total += Number(payment.amount);
+        acc[key].associate += Number(payment.distribution?.associate_amount || 0);
+        acc[key].company += Number(payment.distribution?.company_amount || 0);
+        acc[key].count += 1;
+        
+        return acc;
+      }, {});
+
+      const reportData = Object.values(monthlyData)
+        .sort((a: any, b: any) => (b.year - a.year) || (b.month - a.month))
+        .map((m: any) => ({
+          'Periodo': `${m.year}-${String(m.month).padStart(2, '0')}`,
+          'Total Recaudado': m.total.toFixed(2),
+          'Participación Empresa (30%)': m.company.toFixed(2),
+          'Participación Asociados (70%)': m.associate.toFixed(2),
+          'Cantidad de Pagos': m.count
+        }));
+        
+        const totals = reportData.reduce((acc: any, curr: any) => ({
+            total: acc.total + Number(curr['Total Recaudado']),
+            company: acc.company + Number(curr['Participación Empresa (30%)']),
+            associate: acc.associate + Number(curr['Participación Asociados (70%)']),
+            count: acc.count + curr['Cantidad de Pagos']
+        }), { total: 0, company: 0, associate: 0, count: 0 });
+        
+        if (reportData.length > 0) {
+          reportData.push({
+              'Periodo': 'TOTALES',
+              'Total Recaudado': totals.total.toFixed(2),
+              'Participación Empresa (30%)': totals.company.toFixed(2),
+              'Participación Asociados (70%)': totals.associate.toFixed(2),
+              'Cantidad de Pagos': totals.count
+          });
+        }
+
+      setPreviewData(reportData);
+      setGeneratedDate(`${dateFrom}_${dateTo}`);
+    } catch (error) {
+      console.error('Error generating report:', error);
+      alert('Error al generar el reporte');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateDebtSummaryReport = async () => {
+    setLoading(true);
+    try {
+      const allMotos = await api.getMotorcycles();
+      const motorcycles = (allMotos || []).filter((m: Motorcycle) => m.status === 'ACTIVE');
+      const allPayments = await api.getPayments();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const [asociadosList] = await Promise.all([
+        api.getAsociados(true)
+      ]);
+      
+      const asociadosById = Object.fromEntries((asociadosList || []).map((a: Asociado) => [a.id, a]));
+      
+      const debtsByAssociate: Record<string, any> = {};
+
+      for (const moto of motorcycles) {
+        const asociado = asociadosById[moto.asociado_id];
+        if (!asociado) continue;
+
+        const motoPayments = (allPayments || [])
+          .filter((p: Payment) => p.motorcycle_id === moto.id)
+          .sort((a: Payment, b: Payment) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime());
+        
+        const lastPayment = motoPayments.length > 0 ? motoPayments[0] : null;
+        let daysOverdue = 0;
+        let balance = 0;
+
+        if (lastPayment) {
+          const lastPaymentDate = new Date(lastPayment.payment_date);
+          lastPaymentDate.setHours(0, 0, 0, 0);
+          const diffTime = today.getTime() - lastPaymentDate.getTime();
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          daysOverdue = Math.max(0, diffDays - 1);
+          balance = daysOverdue * Number(moto.daily_rate);
+        } else {
+          const createdDate = new Date(moto.created_at);
+          createdDate.setHours(0, 0, 0, 0);
+          const diffTime = today.getTime() - createdDate.getTime();
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          daysOverdue = Math.max(0, diffDays);
+          balance = daysOverdue * Number(moto.daily_rate);
+        }
+
+        if (!debtsByAssociate[asociado.id]) {
+          debtsByAssociate[asociado.id] = {
+            'Asociado': asociado.nombre,
+            'Documento': asociado.documento,
+            'Cantidad de Motos': 0,
+            'Deuda Total': 0,
+            'Días Mora Promedio': 0,
+            'Motos con Mora': 0
+          };
+        }
+
+        debtsByAssociate[asociado.id]['Cantidad de Motos'] += 1;
+        debtsByAssociate[asociado.id]['Deuda Total'] += balance;
+        if (daysOverdue > 0) {
+          debtsByAssociate[asociado.id]['Motos con Mora'] += 1;
+          debtsByAssociate[asociado.id]['Días Mora Promedio'] += daysOverdue;
+        }
+      }
+
+      const reportData = Object.values(debtsByAssociate).map((d: any) => ({
+        ...d,
+        'Deuda Total': d['Deuda Total'].toFixed(2),
+        'Días Mora Promedio': d['Motos con Mora'] > 0 ? Math.round(d['Días Mora Promedio'] / d['Motos con Mora']) : 0
+      }));
+
+      const totals = reportData.reduce((acc: any, curr: any) => ({
+        totalDebt: acc.totalDebt + Number(curr['Deuda Total']),
+        totalMotos: acc.totalMotos + curr['Cantidad de Motos']
+      }), { totalDebt: 0, totalMotos: 0 });
+
+      if (reportData.length > 0) {
+        reportData.push({
+          'Asociado': 'TOTALES',
+          'Documento': '',
+          'Cantidad de Motos': totals.totalMotos,
+          'Deuda Total': totals.totalDebt.toFixed(2),
+          'Días Mora Promedio': '',
+          'Motos con Mora': ''
+        });
+      }
+
+      setPreviewData(reportData);
+      setGeneratedDate(new Date().toISOString().split('T')[0]);
+
+    } catch (error) {
+      console.error('Error generating report:', error);
+      alert('Error al generar el reporte');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateCashReceiptsReport = async () => {
+    setLoading(true);
+    try {
+      const receipts = await api.getCashReceipts({ from: dateFrom, to: dateTo });
+      const reportData = (receipts || []).map((r: any) => ({
+        'Fecha': r.fecha ? r.fecha.split('T')[0] : '',
+        'Asociado': r.asociado?.nombre || '',
+        'Documento': r.asociado?.documento || '',
+        'Concepto': r.concepto,
+        'Observaciones': r.observaciones || '',
+        'Monto': r.monto,
+        'Creado Por': r.created_by || ''
+      }));
+      setPreviewData(reportData);
+      setGeneratedDate(`${dateFrom}_${dateTo}`);
+    } catch (error: any) {
+      alert('Error generando reporte: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleGenerateReport = () => {
+    setPreviewData([]); // Clear previous data
     switch (reportType) {
       case 'overdue':
         generateOverdueReport();
@@ -234,8 +435,19 @@ export function Reports() {
       case 'distributions':
         generateDistributionsReport();
         break;
+      case 'cash_receipts':
+        generateCashReceiptsReport();
+        break;
+      case 'monthly_income':
+        generateMonthlyIncomeReport();
+        break;
+      case 'debt_summary':
+        generateDebtSummaryReport();
+        break;
     }
   };
+
+  const selectedReport = reportTypes.find(r => r.id === reportType);
 
   return (
     <div className="space-y-6">
@@ -244,118 +456,111 @@ export function Reports() {
         <p className="text-gray-600 mt-1">Genera y exporta reportes del sistema</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <button
-          onClick={() => setReportType('overdue')}
-          className={`p-6 rounded-xl border-2 transition ${
-            reportType === 'overdue'
-              ? 'border-blue-500 bg-blue-50'
-              : 'border-gray-200 bg-white hover:border-gray-300'
-          }`}
-        >
-          <div className={`p-3 rounded-lg w-fit mb-3 ${reportType === 'overdue' ? 'bg-blue-100' : 'bg-gray-100'}`}>
-            <FileText className={`w-6 h-6 ${reportType === 'overdue' ? 'text-blue-600' : 'text-gray-600'}`} />
-          </div>
-          <h3 className="font-bold text-gray-900 mb-1">Reporte de Vencimientos</h3>
-          <p className="text-sm text-gray-600">Estado actual de todas las motos con días vencidos y saldos</p>
-        </button>
-
-        <button
-          onClick={() => setReportType('payments')}
-          className={`p-6 rounded-xl border-2 transition ${
-            reportType === 'payments'
-              ? 'border-blue-500 bg-blue-50'
-              : 'border-gray-200 bg-white hover:border-gray-300'
-          }`}
-        >
-          <div className={`p-3 rounded-lg w-fit mb-3 ${reportType === 'payments' ? 'bg-blue-100' : 'bg-gray-100'}`}>
-            <Calendar className={`w-6 h-6 ${reportType === 'payments' ? 'text-blue-600' : 'text-gray-600'}`} />
-          </div>
-          <h3 className="font-bold text-gray-900 mb-1">Reporte de Pagos</h3>
-          <p className="text-sm text-gray-600">Historial de pagos por rango de fechas</p>
-        </button>
-
-        <button
-          onClick={() => setReportType('distributions')}
-          className={`p-6 rounded-xl border-2 transition ${
-            reportType === 'distributions'
-              ? 'border-blue-500 bg-blue-50'
-              : 'border-gray-200 bg-white hover:border-gray-300'
-          }`}
-        >
-          <div className={`p-3 rounded-lg w-fit mb-3 ${reportType === 'distributions' ? 'bg-blue-100' : 'bg-gray-100'}`}>
-            <DollarSign className={`w-6 h-6 ${reportType === 'distributions' ? 'text-blue-600' : 'text-gray-600'}`} />
-          </div>
-          <h3 className="font-bold text-gray-900 mb-1">Reporte de Distribuciones</h3>
-          <p className="text-sm text-gray-600">Distribución 70/30 por centro de costo</p>
-        </button>
-      </div>
-
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h3 className="text-lg font-bold text-gray-900 mb-4">Configurar Reporte</h3>
-
-        {reportType !== 'overdue' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Fecha Desde</label>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Fecha Hasta</label>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+        <div className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Reporte</label>
+            <select
+              value={reportType}
+              onChange={(e) => {
+                setReportType(e.target.value as any);
+                setPreviewData([]); // Clear data on change
+              }}
+              className="w-full md:w-1/2 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              {reportTypes.map(type => (
+                <option key={type.id} value={type.id}>{type.label}</option>
+              ))}
+            </select>
+            <p className="mt-2 text-sm text-gray-500">
+              {selectedReport?.description}
+            </p>
           </div>
-        )}
 
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <h4 className="font-semibold text-blue-900 mb-2">Información del Reporte</h4>
-          <ul className="text-sm text-blue-800 space-y-1">
-            {reportType === 'overdue' && (
-              <>
-                <li>• Incluye todas las motos del sistema</li>
-                <li>• Calcula días vencidos y saldos pendientes</li>
-                <li>• Organizado por centro de costo</li>
-                <li>• Formato: CSV (compatible con Excel)</li>
-              </>
-            )}
-            {reportType === 'payments' && (
-              <>
-                <li>• Pagos registrados en el rango de fechas seleccionado</li>
-                <li>• Incluye distribución 70/30 de cada pago</li>
-                <li>• Organizado por fecha descendente</li>
-                <li>• Formato: CSV (compatible con Excel)</li>
-              </>
-            )}
-            {reportType === 'distributions' && (
-              <>
-                <li>• Resumen de distribuciones por centro de costo</li>
-                <li>• Totales de asociado (70%) y empresa (30%)</li>
-                <li>• Incluye fila de totales generales</li>
-                <li>• Formato: CSV (compatible con Excel)</li>
-              </>
-            )}
-          </ul>
+          {reportType !== 'overdue' && reportType !== 'debt_summary' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Desde</label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Hasta</label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="pt-4 border-t border-gray-100">
+            <button
+              onClick={handleGenerateReport}
+              disabled={loading}
+              className="w-full md:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              ) : (
+                <FileText className="w-5 h-5" />
+              )}
+              <span className="font-medium">Generar Vista Previa</span>
+            </button>
+          </div>
         </div>
-
-        <button
-          onClick={handleGenerateReport}
-          disabled={loading}
-          className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
-        >
-          <Download className="w-5 h-5" />
-          {loading ? 'Generando...' : 'Generar y Descargar Reporte'}
-        </button>
       </div>
+
+      {previewData.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+            <h3 className="font-semibold text-gray-900">Vista Previa del Reporte</h3>
+            <button
+              onClick={exportToCSV}
+              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition text-sm"
+            >
+              <Download className="w-4 h-4" />
+              Descargar CSV
+            </button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  {Object.keys(previewData[0]).map((header) => (
+                    <th
+                      key={header}
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"
+                    >
+                      {header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {previewData.map((row, idx) => (
+                  <tr key={idx} className="hover:bg-gray-50">
+                    {Object.values(row).map((value: any, cellIdx) => (
+                      <td
+                        key={cellIdx}
+                        className="px-6 py-4 whitespace-nowrap text-sm text-gray-900"
+                      >
+                        {value}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

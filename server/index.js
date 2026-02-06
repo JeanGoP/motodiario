@@ -9,6 +9,7 @@ import costCentersRouter from './routes/cost_centers.js';
 import associatesRouter from './routes/associates.js';
 import motorcyclesRouter from './routes/motorcycles.js';
 import paymentsRouter from './routes/payments.js';
+import cashReceiptsRouter from './routes/cash_receipts.js';
 import notificationsRouter from './routes/notifications.js';
 import deactivationsRouter from './routes/deactivations.js';
 import authRouter from './routes/auth.js';
@@ -48,6 +49,7 @@ app.use('/api/centros_costo', costCentersRouter);
 app.use('/api/asociados', associatesRouter);
 app.use('/api/motorcycles', motorcyclesRouter);
 app.use('/api/payments', paymentsRouter);
+app.use('/api/recibos_caja', cashReceiptsRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/deactivations', deactivationsRouter);
 

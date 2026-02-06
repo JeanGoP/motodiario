@@ -95,10 +95,43 @@ export interface Database {
           updated_at: string;
           dias_gracia: number;
         };
+      Insert: {
+          id?: string;
+          asociado_id: string;
+        };
+      };
+      recibos_caja: {
+        Row: {
+          id: string;
+          asociado_id: string;
+          monto: number;
+          concepto: string;
+          fecha: string;
+          observaciones: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
         Insert: {
           id?: string;
           asociado_id: string;
-          brand: string;
+          monto: number;
+          concepto: string;
+          fecha: string;
+          observaciones?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          asociado_id?: string;
+          monto?: number;
+          concepto?: string;
+          fecha?: string;
+          observaciones?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+      };brand: string;
           model: string;
           year: number;
           plate: string;

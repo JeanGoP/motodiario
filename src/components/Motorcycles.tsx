@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { Motorcycle, Asociado, CostCenter } from '../types/database';
-import { Plus, Edit2, Trash2, Bike, Ban, CheckCircle, Calendar as CalendarIcon, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, Bike, Ban, CheckCircle, Calendar as CalendarIcon, X, Search } from 'lucide-react';
 
 type MotorcycleWithAsociado = Motorcycle & {
   asociado?: Asociado & { centros_costo?: CostCenter };
@@ -14,6 +14,7 @@ export function Motorcycles() {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState('');
   // Helper para obtener fecha en zona horaria de Colombia
   const getColombiaDate = () => {
     return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
@@ -174,9 +175,18 @@ export function Motorcycles() {
     setMesVista(new Date(d.getFullYear(), d.getMonth(), 1));
   };
 
-  const filteredMotorcycles = filterStatus === 'all'
-    ? motorcycles
-    : motorcycles.filter(m => m.status === filterStatus);
+  const filteredMotorcycles = motorcycles.filter(m => {
+    const matchesStatus = filterStatus === 'all' || m.status === filterStatus;
+    const term = searchTerm.toLowerCase();
+    const matchesSearch = 
+      (m.brand || '').toLowerCase().includes(term) ||
+      (m.model || '').toLowerCase().includes(term) ||
+      (m.plate || '').toLowerCase().includes(term) ||
+      (m.asociado?.nombre || '').toLowerCase().includes(term) ||
+      (m.asociado?.documento || '').toLowerCase().includes(term);
+      
+    return matchesStatus && matchesSearch;
+  });
 
   if (loading) {
     return <div className="text-center py-8">Cargando...</div>;
@@ -189,7 +199,17 @@ export function Motorcycles() {
           <h2 className="text-2xl font-bold text-gray-900">Motos</h2>
           <p className="text-gray-600 mt-1">Gestiona las motos del sistema</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-none">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Buscar moto o asociado..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 w-full"
+            />
+          </div>
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
@@ -283,7 +303,9 @@ export function Motorcycles() {
       {filteredMotorcycles.length === 0 && (
         <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
           <Bike className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No hay motos registradas</p>
+          <p className="text-gray-500">
+            {searchTerm ? 'No se encontraron motos' : 'No hay motos registradas'}
+          </p>
         </div>
       )}
 

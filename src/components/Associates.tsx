@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
  
-import { Plus, Edit2, Trash2, Users, Phone, Mail } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, Phone, Mail, Search } from 'lucide-react';
 
 export function Associates() {
   interface Asociado {
@@ -29,6 +29,7 @@ export function Associates() {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedCostCenter, setSelectedCostCenter] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState({
     centro_costo_id: '',
     nombre: '',
@@ -90,16 +91,6 @@ export function Associates() {
     setShowModal(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('¿Está seguro de eliminar este asociado?')) return;
-    try {
-      await api.eliminarAsociado(id);
-      loadData();
-    } catch (error: any) {
-      alert('Error: ' + error.message);
-    }
-  };
-
   const resetForm = () => {
     setFormData({
       centro_costo_id: '',
@@ -114,9 +105,16 @@ export function Associates() {
     setEditingId(null);
   };
 
-  const filteredAssociates = selectedCostCenter === 'all'
-    ? associates
-    : associates.filter(c => c.centro_costo_id === selectedCostCenter);
+  const filteredAssociates = associates.filter(associate => {
+    const matchesCostCenter = selectedCostCenter === 'all' || associate.centro_costo_id === selectedCostCenter;
+    const matchesSearch = 
+      associate.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      associate.documento.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      associate.telefono.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (associate.correo && associate.correo.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    return matchesCostCenter && matchesSearch;
+  });
 
   if (loading) {
     return <div className="text-center py-8">Cargando...</div>;
@@ -129,7 +127,17 @@ export function Associates() {
           <h2 className="text-2xl font-bold text-gray-900">Asociados</h2>
           <p className="text-gray-600 mt-1">Gestiona los asociados del sistema</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-none">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Buscar asociado..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 w-full"
+            />
+          </div>
           <select
             value={selectedCostCenter}
             onChange={(e) => setSelectedCostCenter(e.target.value)}
@@ -210,7 +218,9 @@ export function Associates() {
       {filteredAssociates.length === 0 && (
         <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
           <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No hay asociados registrados</p>
+          <p className="text-gray-500">
+            {searchTerm ? 'No se encontraron asociados' : 'No hay asociados registrados'}
+          </p>
         </div>
       )}
 

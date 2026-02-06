@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
  
-import { Plus, Edit2, Trash2, Building2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Building2, Search } from 'lucide-react';
 
 interface CentroCosto {
   id: string;
@@ -18,6 +18,7 @@ export function CostCenters() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState({
     nombre: '',
     codigo: '',
@@ -82,31 +83,48 @@ export function CostCenters() {
     setEditingId(null);
   };
 
+  const filteredCostCenters = costCenters.filter(center => 
+    center.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    center.codigo.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   if (loading) {
     return <div className="text-center py-8">Cargando...</div>;
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Centros de Costo</h2>
           <p className="text-gray-600 mt-1">Gestiona los centros de costo del sistema</p>
         </div>
-        <button
-          onClick={() => {
-            resetForm();
-            setShowModal(true);
-          }}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition"
-        >
-          <Plus className="w-5 h-5" />
-          Nuevo Centro
-        </button>
+        <div className="flex gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-none">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Buscar..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 w-full"
+            />
+          </div>
+          <button
+            onClick={() => {
+              resetForm();
+              setShowModal(true);
+            }}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition whitespace-nowrap"
+          >
+            <Plus className="w-5 h-5" />
+            Nuevo Centro
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {costCenters.map((center) => (
+        {filteredCostCenters.map((center) => (
           <div key={center.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -146,10 +164,12 @@ export function CostCenters() {
         ))}
       </div>
 
-      {costCenters.length === 0 && (
+      {filteredCostCenters.length === 0 && (
         <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
           <Building2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No hay centros de costo registrados</p>
+          <p className="text-gray-500">
+            {searchTerm ? 'No se encontraron centros de costo' : 'No hay centros de costo registrados'}
+          </p>
         </div>
       )}
 

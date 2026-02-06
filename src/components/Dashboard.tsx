@@ -11,18 +11,19 @@ import {
   Bell,
   LogOut,
   Menu,
-  X
+  X,
+  Wallet
 } from 'lucide-react';
 import { CostCenters } from './CostCenters';
 import { Associates } from './Associates';
 import { Motorcycles } from './Motorcycles';
-import { Payments } from './Payments';
+import { Transactions } from './Transactions';
 import { Overdue } from './Overdue';
 import { Reports } from './Reports';
 import { Notifications } from './Notifications';
 import { Home } from './Home';
 
-type View = 'home' | 'cost-centers' | 'associates' | 'motorcycles' | 'payments' | 'overdue' | 'reports' | 'notifications';
+type View = 'home' | 'cost-centers' | 'associates' | 'motorcycles' | 'transactions' | 'overdue' | 'reports' | 'notifications';
 
 export function Dashboard() {
   const [currentView, setCurrentView] = useState<View>('home');
@@ -34,7 +35,7 @@ export function Dashboard() {
     { id: 'cost-centers' as View, label: 'Centros de Costo', icon: Building2 },
     { id: 'associates' as View, label: 'Asociados', icon: Users },
     { id: 'motorcycles' as View, label: 'Motos', icon: Bike },
-    { id: 'payments' as View, label: 'Pagos', icon: CreditCard },
+    { id: 'transactions' as View, label: 'Transacciones', icon: Wallet },
     { id: 'overdue' as View, label: 'Vencimientos', icon: AlertTriangle },
     { id: 'reports' as View, label: 'Reportes', icon: FileText },
     { id: 'notifications' as View, label: 'Notificaciones', icon: Bell },
@@ -58,8 +59,8 @@ export function Dashboard() {
         return <Associates />;
       case 'motorcycles':
         return <Motorcycles />;
-      case 'payments':
-        return <Payments />;
+      case 'transactions':
+        return <Transactions />;
       case 'overdue':
         return <Overdue />;
       case 'reports':
