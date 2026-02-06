@@ -19,16 +19,24 @@ const defaultOrigins = [
   'http://localhost:5173', 
   'http://localhost:5174',
   'http://127.0.0.1:5173',
-  'http://127.0.0.1:5174'
+  'http://127.0.0.1:5174',
+  'https://motodiario.netlify.app'
 ];
 const allowedOrigins = new Set([...allowedOriginsEnv, ...defaultOrigins]);
 
 app.use(cors({
   origin: (origin, callback) => {
+    // Permitir requests sin origen (como curl o apps móviles)
     if (!origin) return callback(null, true);
+    
+    // Permitir orígenes listados explícitamente
     if (allowedOrigins.has(origin) || allowedOriginsEnv.includes('*')) return callback(null, true);
+    
+    // Permitir deploy previews de Netlify (*.netlify.app)
+    if (origin.endsWith('.netlify.app')) return callback(null, true);
+
     console.log(`CORS bloqueado para origen: ${origin}`);
-    callback(new Error('Not allowed by CORS'));
+    callback(new Error(`Not allowed by CORS (Origin: ${origin})`));
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
