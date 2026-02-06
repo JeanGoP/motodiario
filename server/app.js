@@ -41,13 +41,32 @@ app.get('/health', (req, res) => {
   res.json({ ok: true });
 });
 
-app.use('/api/auth', authRouter);
-app.use('/api/centros_costo', costCentersRouter);
-app.use('/api/asociados', associatesRouter);
-app.use('/api/motorcycles', motorcyclesRouter);
-app.use('/api/payments', paymentsRouter);
-app.use('/api/recibos_caja', cashReceiptsRouter);
-app.use('/api/notifications', notificationsRouter);
-app.use('/api/deactivations', deactivationsRouter);
+// Crear un Router para todas las rutas de la API
+const apiRouter = express.Router();
+
+apiRouter.use('/auth', authRouter);
+apiRouter.use('/centros_costo', costCentersRouter);
+apiRouter.use('/asociados', associatesRouter);
+apiRouter.use('/motorcycles', motorcyclesRouter);
+apiRouter.use('/payments', paymentsRouter);
+apiRouter.use('/recibos_caja', cashReceiptsRouter);
+apiRouter.use('/notifications', notificationsRouter);
+apiRouter.use('/deactivations', deactivationsRouter);
+
+// Montar el router en /api (para desarrollo local)
+app.use('/api', apiRouter);
+
+// Montar el router en la raíz (para Netlify Functions donde el prefijo /api puede ser eliminado)
+app.use('/', apiRouter);
+
+// Manejador de errores global
+app.use((err, req, res, next) => {
+  console.error('Error no controlado:', err);
+  res.status(500).json({ 
+    error: 'Error interno del servidor',
+    message: err.message,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+  });
+});
 
 export default app;
