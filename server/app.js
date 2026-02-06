@@ -37,6 +37,12 @@ app.use(cors({
 app.options('*', cors());
 app.use(express.json());
 
+// Log de depuración para ver qué ruta llega realmente a Netlify
+app.use((req, res, next) => {
+  console.log(`[Request] ${req.method} ${req.path} (Original: ${req.originalUrl})`);
+  next();
+});
+
 app.get('/health', (req, res) => {
   res.json({ ok: true });
 });
