@@ -93,14 +93,14 @@ export function Home() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Cargando estadísticas...</div>
+        <div className="text-slate-500">Cargando estadísticas...</div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-8 text-white">
+      <div className="bg-gradient-to-r from-brand-600 to-brand-700 rounded-xl p-8 text-white">
         <h1 className="text-3xl font-bold mb-2">Bienvenido al Sistema de Gestión</h1>
         <p className="text-blue-100">Panel de control para gestión de cobros de motos</p>
       </div>
@@ -109,22 +109,22 @@ export function Home() {
         {statCards.map((card) => {
           const Icon = card.icon;
           return (
-            <div key={card.title} className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+            <div key={card.title} className="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
               <div className="flex items-center justify-between mb-4">
                 <div className={`${card.color} p-3 rounded-lg`}>
                   <Icon className="w-6 h-6 text-white" />
                 </div>
               </div>
-              <h3 className="text-gray-600 text-sm font-medium mb-1">{card.title}</h3>
-              <p className="text-3xl font-bold text-gray-900">{card.value}</p>
+              <h3 className="text-slate-600 text-sm font-medium mb-1">{card.title}</h3>
+              <p className="text-3xl font-bold text-slate-900">{card.value}</p>
             </div>
           );
         })}
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">Información del Sistema</h2>
-        <div className="space-y-3 text-gray-600">
+      <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
+        <h2 className="text-xl font-bold text-slate-900 mb-4">Información del Sistema</h2>
+        <div className="space-y-3 text-slate-600">
           <p>• Sistema de cobro diario con control de días de gracia (2 o 4 días)</p>
           <p>• Bloqueo automático después de 2 días sin pagar</p>
           <p>• Distribución automática 70% asociado / 30% empresa</p>

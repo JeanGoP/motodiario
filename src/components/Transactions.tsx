@@ -10,28 +10,28 @@ export function Transactions() {
 
   return (
     <div className="space-y-6">
-      <div className="flex space-x-4 border-b border-gray-200 pb-4">
+      <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-200 inline-flex">
         <button
           onClick={() => setActiveTab('receipts')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+          className={`flex items-center gap-2 px-6 py-2.5 rounded-lg transition-all font-medium text-sm ${
             activeTab === 'receipts'
-              ? 'bg-blue-600 text-white'
-              : 'text-gray-600 hover:bg-gray-100'
+              ? 'bg-brand-600 text-white shadow-md shadow-brand-900/20'
+              : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
           }`}
         >
-          <FileText className="w-5 h-5" />
-          <span className="font-medium">Recibos y Anticipos</span>
+          <FileText className="w-4 h-4" />
+          <span>Recibos y Anticipos</span>
         </button>
         <button
           onClick={() => setActiveTab('payments')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+          className={`flex items-center gap-2 px-6 py-2.5 rounded-lg transition-all font-medium text-sm ${
             activeTab === 'payments'
-              ? 'bg-blue-600 text-white'
-              : 'text-gray-600 hover:bg-gray-100'
+              ? 'bg-brand-600 text-white shadow-md shadow-brand-900/20'
+              : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
           }`}
         >
-          <CreditCard className="w-5 h-5" />
-          <span className="font-medium">Pagos de Motos</span>
+          <CreditCard className="w-4 h-4" />
+          <span>Pagos de Motos</span>
         </button>
       </div>
 

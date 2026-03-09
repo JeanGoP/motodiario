@@ -16,11 +16,24 @@ const getBaseUrl = () => {
 
 const baseUrl = getBaseUrl();
 
-async function request(path: string, options?: RequestInit) {
+// Simple in-memory cache
+const cache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_TTL = 60 * 1000; // 1 minute
+
+async function request(path: string, options?: RequestInit & { useCache?: boolean }) {
   // Asegurar que el path empiece con slash
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const url = `${baseUrl}${normalizedPath}`;
   
+  // Check cache for GET requests if enabled
+  if (options?.useCache && (!options.method || options.method === 'GET')) {
+    const cached = cache.get(url);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      console.log(`[API] Serving from cache: ${url}`);
+      return cached.data;
+    }
+  }
+
   console.log(`[API] Requesting: ${url}`); // Debug log
 
   try {
@@ -43,7 +56,14 @@ async function request(path: string, options?: RequestInit) {
     }
     
     if (res.status === 204) return null;
-    return res.json();
+    const data = await res.json();
+    
+    // Store in cache if enabled
+    if (options?.useCache) {
+      cache.set(url, { data, timestamp: Date.now() });
+    }
+    
+    return data;
   } catch (err) {
     console.error('[API] Network or Parse Error:', err);
     throw err;
@@ -52,13 +72,13 @@ async function request(path: string, options?: RequestInit) {
 
 export const api = {
   // Centros de Costo
-  getCentrosCosto: () => request('/api/centros_costo'),
+  getCentrosCosto: () => request('/api/centros_costo', { useCache: true }),
   crearCentroCosto: (data: any) => request('/api/centros_costo', { method: 'POST', body: JSON.stringify(data) }),
   actualizarCentroCosto: (id: string, data: any) => request(`/api/centros_costo/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   eliminarCentroCosto: (id: string) => request(`/api/centros_costo/${id}`, { method: 'DELETE' }),
 
   // Asociados
-  getAsociados: (activo?: boolean) => request(`/api/asociados${activo !== undefined ? `?active=${activo}` : ''}`),
+  getAsociados: (activo?: boolean) => request(`/api/asociados${activo !== undefined ? `?active=${activo}` : ''}`, { useCache: true }),
   crearAsociado: (data: any) => request('/api/asociados', { method: 'POST', body: JSON.stringify(data) }),
   actualizarAsociado: (id: string, data: any) => request(`/api/asociados/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   eliminarAsociado: (id: string) => request(`/api/asociados/${id}`, { method: 'DELETE' }),
@@ -66,7 +86,7 @@ export const api = {
   setDiasGraciaAsociado: (id: string, payload: { anio: number; mes: number; dias: number[] }) => request(`/api/asociados/${id}/dias_gracia`, { method: 'POST', body: JSON.stringify(payload) }),
 
   // Motorcycles
-  getMotorcycles: () => request('/api/motorcycles'),
+  getMotorcycles: () => request('/api/motorcycles', { useCache: true }),
   createMotorcycle: (data: any) => request('/api/motorcycles', { method: 'POST', body: JSON.stringify(data) }),
   updateMotorcycle: (id: string, data: any) => request(`/api/motorcycles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteMotorcycle: (id: string) => request(`/api/motorcycles/${id}`, { method: 'DELETE' }),

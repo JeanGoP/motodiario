@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
- 
-import { Plus, Edit2, Trash2, Users, Phone, Mail, Search } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, Phone, Mail, Search, MapPin, Building2, CheckCircle, XCircle, X } from 'lucide-react';
 
 export function Associates() {
   interface Asociado {
@@ -76,6 +75,17 @@ export function Associates() {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    if (confirm('¿Está seguro de eliminar este asociado?')) {
+      try {
+        await api.eliminarAsociado(id);
+        loadData();
+      } catch (error: any) {
+        alert('Error: ' + error.message);
+      }
+    }
+  };
+
   const handleEdit = (associate: Asociado) => {
     setEditingId(associate.id);
     setFormData({
@@ -117,239 +127,277 @@ export function Associates() {
   });
 
   if (loading) {
-    return <div className="text-center py-8">Cargando...</div>;
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Asociados</h2>
-          <p className="text-gray-600 mt-1">Gestiona los asociados del sistema</p>
+          <h2 className="text-2xl font-bold text-slate-900">Asociados</h2>
+          <p className="text-slate-600 mt-1">Gestiona los conductores y socios del sistema</p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-          <div className="relative flex-1 sm:flex-none">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+        <button
+          onClick={() => {
+            resetForm();
+            setShowModal(true);
+          }}
+          className="btn btn-primary"
+        >
+          <Plus className="w-5 h-5 mr-2" />
+          Nuevo Asociado
+        </button>
+      </div>
+
+      <div className="card p-4">
+        <div className="flex flex-col sm:flex-row gap-4 mb-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Buscar asociado..."
+              placeholder="Buscar por nombre, documento, teléfono..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 w-full"
+              className="input-field pl-10"
             />
           </div>
-          <select
-            value={selectedCostCenter}
-            onChange={(e) => setSelectedCostCenter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">Todos los centros</option>
-            {costCenters.map(cc => (
-              <option key={cc.id} value={cc.id}>{cc.nombre}</option>
-            ))}
-          </select>
-          <button
-            onClick={() => {
-              resetForm();
-              setShowModal(true);
-            }}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition whitespace-nowrap"
-          >
-            <Plus className="w-5 h-5" />
-            Nuevo Asociado
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredAssociates.map((associate) => (
-          <div key={associate.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-green-100 p-2 rounded-lg">
-                  <Users className="w-6 h-6 text-green-600" />
-                </div>
-                <div>
-              <h3 className="font-bold text-gray-900">{associate.nombre}</h3>
-              <p className="text-sm text-gray-500">{associate.documento}</p>
-                </div>
-              </div>
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${associate.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
-                {associate.activo ? 'Activo' : 'Inactivo'}
-              </span>
-            </div>
-
-            <div className="space-y-2 mb-4">
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Phone className="w-4 h-4" />
-                {associate.telefono}
-              </div>
-              {associate.correo && (
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Mail className="w-4 h-4" />
-                  {associate.correo}
-                </div>
-              )}
-              <div className="text-sm">
-                <span className="text-gray-600">Centro: </span>
-                <span className="font-medium text-gray-900">{associate.centro_costo?.nombre}</span>
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => handleEdit(associate)}
-                className="flex-1 flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg transition text-sm"
-              >
-                <Edit2 className="w-4 h-4" />
-                Editar
-              </button>
-              <button
-                onClick={() => handleDelete(associate.id)}
-                className="flex items-center justify-center gap-2 bg-red-100 hover:bg-red-200 text-red-700 px-3 py-2 rounded-lg transition text-sm"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
+          <div className="sm:w-64">
+            <select
+              value={selectedCostCenter}
+              onChange={(e) => setSelectedCostCenter(e.target.value)}
+              className="input-field"
+            >
+              <option value="all">Todos los Centros</option>
+              {costCenters.map(cc => (
+                <option key={cc.id} value={cc.id}>{cc.nombre}</option>
+              ))}
+            </select>
           </div>
-        ))}
-      </div>
-
-      {filteredAssociates.length === 0 && (
-        <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
-          <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">
-            {searchTerm ? 'No se encontraron asociados' : 'No hay asociados registrados'}
-          </p>
         </div>
-      )}
+
+        <div className="table-container">
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead className="table-header">
+              <tr>
+                <th scope="col" className="px-6 py-3 text-left">
+                  Asociado
+                </th>
+                <th scope="col" className="px-6 py-3 text-left">
+                  Contacto
+                </th>
+                <th scope="col" className="px-6 py-3 text-left">
+                  Centro de Costo
+                </th>
+                <th scope="col" className="px-6 py-3 text-left">
+                  Estado
+                </th>
+                <th scope="col" className="px-6 py-3 text-right">
+                  Acciones
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-slate-200">
+              {filteredAssociates.map((associate) => (
+                <tr key={associate.id} className="table-row">
+                  <td className="table-cell">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0 h-10 w-10 bg-brand-50 rounded-lg flex items-center justify-center text-brand-600 ring-1 ring-brand-100">
+                        <Users className="h-5 w-5" />
+                      </div>
+                      <div className="ml-4">
+                        <div className="text-sm font-bold text-slate-900">{associate.nombre}</div>
+                        <div className="text-sm text-slate-500 font-mono">{associate.documento}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="table-cell">
+                    <div className="text-sm text-slate-900 flex items-center gap-2">
+                      <Phone className="w-4 h-4 text-slate-400" />
+                      {associate.telefono}
+                    </div>
+                    {associate.correo && (
+                      <div className="text-sm text-slate-500 flex items-center gap-2 mt-1">
+                        <Mail className="w-4 h-4 text-slate-400" />
+                        {associate.correo}
+                      </div>
+                    )}
+                  </td>
+                  <td className="table-cell">
+                    <div className="flex items-center text-sm text-slate-700">
+                      <Building2 className="w-4 h-4 mr-2 text-slate-400" />
+                      {associate.centro_costo?.nombre || 'Sin Asignar'}
+                    </div>
+                  </td>
+                  <td className="table-cell">
+                    <span className={`badge ${
+                      associate.activo ? 'badge-success' : 'badge-slate'
+                    }`}>
+                      {associate.activo ? (
+                        <>
+                          <CheckCircle className="w-3 h-3 mr-1" /> Activo
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="w-3 h-3 mr-1" /> Inactivo
+                        </>
+                      )}
+                    </span>
+                  </td>
+                  <td className="table-cell text-right">
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => handleEdit(associate)}
+                        className="btn-ghost p-1.5 rounded-md transition-colors"
+                        title="Editar"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(associate.id)}
+                        className="text-red-600 hover:bg-red-50 p-1.5 rounded-md transition-colors"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {filteredAssociates.length === 0 && (
+          <div className="text-center py-12">
+            <Users className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-slate-900">No se encontraron asociados</h3>
+            <p className="text-slate-500 mt-1">Intenta con otros términos de búsqueda o crea un nuevo asociado.</p>
+          </div>
+        )}
+      </div>
 
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl">
-            <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-xl">
-              <h3 className="text-lg font-bold text-gray-800">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity">
+          <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl transform transition-all">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-xl">
+              <h3 className="text-lg font-bold text-slate-800">
                 {editingId ? 'Editar Asociado' : 'Nuevo Asociado'}
               </h3>
               <button 
                 onClick={() => { setShowModal(false); resetForm(); }}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-slate-400 hover:text-slate-600 transition-colors"
               >
-                ×
+                <span className="sr-only">Cerrar</span>
+                <X className="h-6 w-6" />
               </button>
             </div>
             
-            <div className="p-4 overflow-y-auto">
-              <form id="associate-form" onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-3">
-                  <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Información Personal</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Nombre Completo</label>
-                      <input
-                        type="text"
-                        value={formData.nombre}
-                        onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        required
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Documento</label>
-                      <input
-                        type="text"
-                        value={formData.documento}
-                        onChange={(e) => setFormData({ ...formData, documento: e.target.value })}
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Teléfono</label>
-                      <input
-                        type="tel"
-                        value={formData.telefono}
-                        onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        required
-                      />
-                    </div>
-
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Email</label>
-                      <input
-                        type="email"
-                        value={formData.correo}
-                        onChange={(e) => setFormData({ ...formData, correo: e.target.value })}
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Dirección</label>
-                      <textarea
-                        value={formData.direccion}
-                        onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        rows={2}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3 pt-2 border-t border-gray-100">
-                  <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Configuración</h4>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="col-span-2">
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Centro de Costo</label>
-                      <select
-                        value={formData.centro_costo_id}
-                        onChange={(e) => setFormData({ ...formData, centro_costo_id: e.target.value })}
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        required
-                      >
-                        <option value="">Seleccione...</option>
-                        {costCenters.map(cc => (
-                          <option key={cc.id} value={cc.id}>{cc.nombre}</option>
-                        ))}
-                      </select>
-                    </div>
+            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Nombre Completo</label>
+                    <input
+                      type="text"
+                      value={formData.nombre}
+                      onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                      className="input-field"
+                      required
+                    />
                   </div>
                   
-                  <div className="flex items-center gap-2 pt-2">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Documento</label>
                     <input
-                      type="checkbox"
-                      id="active"
-                      checked={formData.activo}
-                      onChange={(e) => setFormData({ ...formData, activo: e.target.checked })}
-                      className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                      type="text"
+                      value={formData.documento}
+                      onChange={(e) => setFormData({ ...formData, documento: e.target.value })}
+                      className="input-field"
+                      required
                     />
-                    <label htmlFor="active" className="text-sm font-medium text-gray-700">
-                      Asociado Activo
-                    </label>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Teléfono</label>
+                    <input
+                      type="tel"
+                      value={formData.telefono}
+                      onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+                      className="input-field"
+                      required
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={formData.correo}
+                      onChange={(e) => setFormData({ ...formData, correo: e.target.value })}
+                      className="input-field"
+                    />
+                  </div>
+                  
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Dirección</label>
+                    <textarea
+                      value={formData.direccion}
+                      onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
+                      className="input-field"
+                      rows={2}
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Centro de Costo</label>
+                    <select
+                      value={formData.centro_costo_id}
+                      onChange={(e) => setFormData({ ...formData, centro_costo_id: e.target.value })}
+                      className="input-field"
+                      required
+                    >
+                      <option value="">Seleccione...</option>
+                      {costCenters.map(cc => (
+                        <option key={cc.id} value={cc.id}>{cc.nombre}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
-              </form>
-            </div>
 
-            <div className="p-4 border-t border-gray-100 bg-gray-50 rounded-b-xl flex gap-3">
-              <button
-                type="button"
-                onClick={() => { setShowModal(false); resetForm(); }}
-                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                form="associate-form"
-                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-sm"
-              >
-                {editingId ? 'Guardar Cambios' : 'Crear Asociado'}
-              </button>
-            </div>
+                <div className="flex items-center gap-3 pt-2">
+                  <input
+                    type="checkbox"
+                    id="active"
+                    checked={formData.activo}
+                    onChange={(e) => setFormData({ ...formData, activo: e.target.checked })}
+                    className="w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500"
+                  />
+                  <label htmlFor="active" className="text-sm font-medium text-slate-700">
+                    Asociado Activo
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => { setShowModal(false); resetForm(); }}
+                  className="btn bg-white text-slate-700 border-slate-300 hover:bg-slate-50 flex-1 justify-center"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary flex-1 justify-center"
+                >
+                  {editingId ? 'Guardar Cambios' : 'Crear Asociado'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

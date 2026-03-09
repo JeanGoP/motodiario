@@ -61,54 +61,58 @@ export function Notifications() {
   const failedCount = notifications.filter((n) => n.status === 'FAILED').length;
 
   if (loading) {
-    return <div className="text-center py-8">Cargando...</div>;
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">Notificaciones</h2>
-        <p className="text-gray-600 mt-1">Gestiona las notificaciones automáticas del sistema</p>
+        <h2 className="text-2xl font-bold text-slate-900">Notificaciones</h2>
+        <p className="text-slate-600 mt-1">Gestiona las notificaciones automáticas del sistema</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="card p-6 border-l-4 border-l-yellow-500">
           <div className="flex items-center justify-between mb-2">
             <div className="bg-yellow-100 p-3 rounded-lg">
               <Clock className="w-6 h-6 text-yellow-600" />
             </div>
           </div>
-          <h3 className="text-gray-600 text-sm font-medium">Pendientes</h3>
+          <h3 className="text-slate-600 text-sm font-medium">Pendientes</h3>
           <p className="text-3xl font-bold text-yellow-600">{pendingCount}</p>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="card p-6 border-l-4 border-l-green-500">
           <div className="flex items-center justify-between mb-2">
             <div className="bg-green-100 p-3 rounded-lg">
               <CheckCircle className="w-6 h-6 text-green-600" />
             </div>
           </div>
-          <h3 className="text-gray-600 text-sm font-medium">Enviadas</h3>
+          <h3 className="text-slate-600 text-sm font-medium">Enviadas</h3>
           <p className="text-3xl font-bold text-green-600">{sentCount}</p>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="card p-6 border-l-4 border-l-red-500">
           <div className="flex items-center justify-between mb-2">
             <div className="bg-red-100 p-3 rounded-lg">
               <XCircle className="w-6 h-6 text-red-600" />
             </div>
           </div>
-          <h3 className="text-gray-600 text-sm font-medium">Fallidas</h3>
+          <h3 className="text-slate-600 text-sm font-medium">Fallidas</h3>
           <p className="text-3xl font-bold text-red-600">{failedCount}</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+      <div className="card p-6">
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className="input-field"
           >
             <option value="all">Todos los estados</option>
             <option value="PENDING">Pendientes</option>
@@ -119,7 +123,7 @@ export function Notifications() {
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className="input-field"
           >
             <option value="all">Todos los tipos</option>
             <option value="WARNING">Advertencias</option>
@@ -131,7 +135,7 @@ export function Notifications() {
           {filteredNotifications.map((notification) => (
             <div
               key={notification.id}
-              className={`p-4 rounded-lg border-l-4 ${
+              className={`p-4 rounded-lg border-l-4 transition-all hover:shadow-md ${
                 notification.status === 'SENT'
                   ? 'bg-green-50 border-green-500'
                   : notification.status === 'FAILED'
@@ -143,21 +147,21 @@ export function Notifications() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
                     <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      className={`badge ${
                         notification.type === 'WARNING'
-                          ? 'bg-yellow-200 text-yellow-900'
-                          : 'bg-red-200 text-red-900'
+                          ? 'badge-warning'
+                          : 'badge-danger'
                       }`}
                     >
                       {notification.type === 'WARNING' ? 'Advertencia' : 'Desactivación'}
                     </span>
                     <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      className={`badge ${
                         notification.status === 'SENT'
-                          ? 'bg-green-200 text-green-900'
+                          ? 'badge-success'
                           : notification.status === 'FAILED'
-                          ? 'bg-red-200 text-red-900'
-                          : 'bg-yellow-200 text-yellow-900'
+                          ? 'badge-danger'
+                          : 'badge-warning'
                       }`}
                     >
                       {notification.status === 'SENT'
@@ -166,24 +170,24 @@ export function Notifications() {
                         ? 'Fallida'
                         : 'Pendiente'}
                     </span>
-                    <span className="text-xs text-gray-500">
+                    <span className="badge badge-slate">
                       {notification.channel === 'SMS' ? 'SMS' : 'WhatsApp'}
                     </span>
                   </div>
 
                   <div className="mb-2">
-                    <div className="text-sm font-semibold text-gray-900">
-                      {notification.asociado?.nombre} - {notification.motorcycle?.plate}
+                    <div className="text-sm font-bold text-slate-900">
+                      {notification.asociado?.nombre} <span className="text-slate-400 mx-1">•</span> {notification.motorcycle?.plate}
                     </div>
-                    <div className="text-xs text-gray-600">{notification.asociado?.telefono}</div>
+                    <div className="text-xs text-slate-600">{notification.asociado?.telefono}</div>
                   </div>
 
-                  <div className="flex items-start gap-2 mb-2">
-                    <MessageSquare className="w-4 h-4 text-gray-400 mt-0.5" />
-                    <p className="text-sm text-gray-700">{notification.message}</p>
+                  <div className="flex items-start gap-2 mb-2 bg-white/50 p-2 rounded">
+                    <MessageSquare className="w-4 h-4 text-slate-400 mt-0.5" />
+                    <p className="text-sm text-slate-700">{notification.message}</p>
                   </div>
 
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-slate-500">
                     Creada: {new Date(notification.created_at).toLocaleString()}
                     {notification.sent_at && (
                       <span className="ml-3">
@@ -194,20 +198,20 @@ export function Notifications() {
                 </div>
 
                 {notification.status === 'PENDING' && (
-                  <div className="flex sm:flex-col gap-2">
+                  <div className="flex sm:flex-col gap-2 justify-center">
                     <button
                       onClick={() => handleMarkAsSent(notification.id)}
-                      className="flex items-center gap-1 px-3 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg transition"
+                      className="btn bg-green-600 hover:bg-green-700 text-white focus:ring-green-500"
                     >
-                      <Send className="w-4 h-4" />
-                      Marcar Enviada
+                      <Send className="w-4 h-4 mr-2" />
+                      Enviada
                     </button>
                     <button
                       onClick={() => handleMarkAsFailed(notification.id)}
-                      className="flex items-center gap-1 px-3 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded-lg transition"
+                      className="btn btn-danger"
                     >
-                      <XCircle className="w-4 h-4" />
-                      Marcar Fallida
+                      <XCircle className="w-4 h-4 mr-2" />
+                      Fallida
                     </button>
                   </div>
                 )}
@@ -218,15 +222,15 @@ export function Notifications() {
 
         {filteredNotifications.length === 0 && (
           <div className="text-center py-12">
-            <Bell className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500">No hay notificaciones</p>
+            <Bell className="w-16 h-16 text-slate-200 mx-auto mb-4" />
+            <p className="text-slate-500">No hay notificaciones</p>
           </div>
         )}
       </div>
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <h3 className="font-semibold text-blue-900 mb-3">Información sobre Notificaciones</h3>
-        <div className="text-sm text-blue-800 space-y-2">
+      <div className="bg-brand-50 border border-brand-200 rounded-lg p-6">
+        <h3 className="font-semibold text-brand-900 mb-3">Información sobre Notificaciones</h3>
+        <div className="text-sm text-brand-800 space-y-2">
           <p>• Las notificaciones se generan automáticamente cuando:</p>
           <p className="ml-4">- Una moto pasa 1 día sin pagar (advertencia preventiva)</p>
           <p className="ml-4">- Una moto es desactivada por más de 2 días sin pagar</p>

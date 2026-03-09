@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { Motorcycle, Asociado, CostCenter, Payment } from '../types/database';
-import { AlertTriangle, Calendar } from 'lucide-react';
+import { AlertTriangle, Calendar, Bell, Ban, CheckCircle } from 'lucide-react';
 
 type MotorcycleOverdue = Motorcycle & {
   asociado?: Asociado & { centros_costo?: CostCenter };
@@ -129,7 +129,11 @@ export function Overdue() {
   };
 
   if (loading) {
-    return <div className="text-center py-8">Cargando...</div>;
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
+      </div>
+    );
   }
 
   const critical = overdueMotorcycles.filter((m) => m.daysOverdue > 2);
@@ -138,80 +142,89 @@ export function Overdue() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">Control de Vencimientos</h2>
-        <p className="text-gray-600 mt-1">Motos con pagos pendientes y días de mora</p>
+        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Control de Vencimientos</h2>
+        <p className="text-slate-500 mt-1">Monitoreo de cartera y gestión de mora</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="card p-6 border-l-4 border-l-red-500">
           <div className="flex items-center justify-between mb-2">
-            <div className="bg-red-100 p-3 rounded-lg">
+            <div className="bg-red-50 p-3 rounded-lg">
               <AlertTriangle className="w-6 h-6 text-red-600" />
             </div>
+            <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded-full">Crítico</span>
           </div>
-          <h3 className="text-gray-600 text-sm font-medium">Crítico (&gt;2 días)</h3>
-          <p className="text-3xl font-bold text-red-600">{critical.length}</p>
+          <h3 className="text-slate-500 text-sm font-medium">Mora &gt; 2 días</h3>
+          <p className="text-3xl font-bold text-slate-900 mt-2">{critical.length}</p>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="card p-6 border-l-4 border-l-amber-500">
           <div className="flex items-center justify-between mb-2">
-            <div className="bg-yellow-100 p-3 rounded-lg">
-              <Calendar className="w-6 h-6 text-yellow-600" />
+            <div className="bg-amber-50 p-3 rounded-lg">
+              <Calendar className="w-6 h-6 text-amber-600" />
             </div>
+            <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full">Alerta</span>
           </div>
-          <h3 className="text-gray-600 text-sm font-medium">Advertencia (1-2 días)</h3>
-          <p className="text-3xl font-bold text-yellow-600">{warning.length}</p>
+          <h3 className="text-slate-500 text-sm font-medium">Mora 1-2 días</h3>
+          <p className="text-3xl font-bold text-slate-900 mt-2">{warning.length}</p>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="card p-6 border-l-4 border-l-brand-500">
           <div className="flex items-center justify-between mb-2">
-            <div className="bg-orange-100 p-3 rounded-lg">
-              <AlertTriangle className="w-6 h-6 text-orange-600" />
+            <div className="bg-brand-50 p-3 rounded-lg">
+              <AlertTriangle className="w-6 h-6 text-brand-600" />
             </div>
           </div>
-          <h3 className="text-gray-600 text-sm font-medium">Total Vencidos</h3>
-          <p className="text-3xl font-bold text-orange-600">{overdueMotorcycles.length}</p>
+          <h3 className="text-slate-500 text-sm font-medium">Total Cartera Vencida</h3>
+          <p className="text-3xl font-bold text-slate-900 mt-2">{overdueMotorcycles.length}</p>
         </div>
       </div>
 
       {critical.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border-l-4 border-red-500 p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="bg-red-100 p-2 rounded-lg">
-              <AlertTriangle className="w-6 h-6 text-red-600" />
-            </div>
-            <h3 className="text-lg font-bold text-gray-900">Motos en Estado Crítico (&gt;2 días)</h3>
+        <div className="bg-white rounded-xl shadow-sm border border-red-100 overflow-hidden">
+          <div className="bg-red-50 px-6 py-4 border-b border-red-100 flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-600" />
+            <h3 className="text-lg font-bold text-red-900">Atención Requerida - Mora Crítica</h3>
           </div>
-          <div className="space-y-3">
+          <div className="divide-y divide-red-50">
             {critical.map((motorcycle) => (
               <div
                 key={motorcycle.id}
-                className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-red-50 rounded-lg gap-3"
+                className="p-6 hover:bg-red-50/50 transition-colors flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
               >
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-bold text-gray-900">{motorcycle.plate}</span>
-                    <span className="text-sm text-gray-600">-</span>
-                    <span className="text-gray-700">{motorcycle.asociado?.nombre}</span>
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="font-bold text-lg text-slate-900 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm">{motorcycle.plate}</span>
+                    <span className="text-slate-400">|</span>
+                    <span className="font-medium text-slate-700">{motorcycle.asociado?.nombre}</span>
                   </div>
-                  <div className="text-sm text-gray-600">
-                    <span>Centro: {motorcycle.asociado?.centros_costo?.nombre}</span>
-                    <span className="mx-2">|</span>
-                    <span>Mora: {motorcycle.daysOverdue} días</span>
+                  <div className="text-sm text-slate-600 flex flex-wrap gap-x-4 gap-y-1">
+                    <span className="flex items-center gap-1">
+                      <Building2 className="w-3 h-3" />
+                      {motorcycle.asociado?.centros_costo?.nombre || 'Sin centro'}
+                    </span>
+                    <span className="text-red-600 font-medium bg-red-50 px-2 rounded-full">
+                      {motorcycle.daysOverdue} días de mora
+                    </span>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                
+                <div className="flex gap-2 w-full sm:w-auto">
                   <button
                     onClick={() => handleSendWarning(motorcycle)}
-                    className="px-3 py-1 bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 text-sm font-medium"
+                    className="btn bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-brand-600 flex-1 sm:flex-initial justify-center shadow-sm"
+                    title="Enviar recordatorio"
                   >
-                    Enviar Alerta
+                    <Bell className="w-4 h-4 sm:mr-2" />
+                    <span className="sm:inline hidden">Recordar</span>
                   </button>
                   <button
                     onClick={() => handleDeactivate(motorcycle)}
-                    className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium"
+                    className="btn bg-red-600 text-white hover:bg-red-700 border-transparent flex-1 sm:flex-initial justify-center shadow-sm shadow-red-900/20"
+                    title="Desactivar moto"
                   >
-                    Desactivar
+                    <Ban className="w-4 h-4 sm:mr-2" />
+                    <span className="sm:inline hidden">Desactivar</span>
                   </button>
                 </div>
               </div>
@@ -220,45 +233,41 @@ export function Overdue() {
         </div>
       )}
 
-      {warning.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="bg-yellow-100 p-2 rounded-lg">
-              <Calendar className="w-6 h-6 text-yellow-600" />
-            </div>
-            <h3 className="text-lg font-bold text-gray-900">Motos con Advertencia (1-2 días)</h3>
+      {overdueMotorcycles.length === 0 && (
+        <div className="text-center py-16 bg-white rounded-xl border border-slate-200 border-dashed">
+          <div className="bg-green-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="w-8 h-8 text-green-500" />
           </div>
-          <div className="space-y-3">
-            {warning.map((motorcycle) => (
-              <div
-                key={motorcycle.id}
-                className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-yellow-50 rounded-lg gap-3"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-bold text-gray-900">{motorcycle.plate}</span>
-                    <span className="text-sm text-gray-600">-</span>
-                    <span className="text-gray-700">{motorcycle.asociado?.nombre}</span>
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    <span>Centro: {motorcycle.asociado?.centros_costo?.nombre}</span>
-                    <span className="mx-2">|</span>
-                    <span>Mora: {motorcycle.daysOverdue} días</span>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleSendWarning(motorcycle)}
-                    className="px-3 py-1 bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 text-sm font-medium"
-                  >
-                    Enviar Recordatorio
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+          <h3 className="text-lg font-medium text-slate-900">Cartera al día</h3>
+          <p className="text-slate-500 mt-1">No hay motos con pagos vencidos en este momento.</p>
         </div>
       )}
     </div>
+  );
+}
+
+// Helper for the icon in the loop
+function Building2(props: any) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z" />
+      <path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
+      <path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2" />
+      <path d="M10 6h4" />
+      <path d="M10 10h4" />
+      <path d="M10 14h4" />
+      <path d="M10 18h4" />
+    </svg>
   );
 }
