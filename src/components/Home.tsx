@@ -56,81 +56,121 @@ export function Home() {
       title: 'Centros de Costo',
       value: stats.costCenters,
       icon: Building2,
-      color: 'bg-blue-500',
+      trend: 'Total registrados',
     },
     {
       title: 'Asociados',
       value: stats.asociados,
       icon: Users,
-      color: 'bg-green-500',
+      trend: 'Activos en sistema',
     },
     {
       title: 'Motos Totales',
       value: stats.motorcycles,
       icon: Bike,
-      color: 'bg-purple-500',
+      trend: 'Flota completa',
     },
     {
       title: 'Motos Activas',
       value: stats.activeMotorcycles,
       icon: TrendingUp,
-      color: 'bg-emerald-500',
+      trend: 'En operación',
+      highlight: 'text-emerald-600',
+      bgHighlight: 'bg-emerald-50'
     },
     {
       title: 'Recaudo Hoy',
       value: `$${stats.todayPayments.toLocaleString()}`,
       icon: DollarSign,
-      color: 'bg-yellow-500',
+      trend: 'Ingresos del día',
+      highlight: 'text-blue-600',
+      bgHighlight: 'bg-blue-50'
     },
     {
       title: 'Motos Vencidas',
       value: stats.overdueMotorcycles,
       icon: AlertTriangle,
-      color: 'bg-red-500',
+      trend: 'Requieren atención',
+      highlight: 'text-red-600',
+      bgHighlight: 'bg-red-50'
     },
   ];
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-slate-500">Cargando estadísticas...</div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-800"></div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="bg-gradient-to-r from-brand-600 to-brand-700 rounded-xl p-8 text-white">
-        <h1 className="text-3xl font-bold mb-2">Bienvenido al Sistema de Gestión</h1>
-        <p className="text-blue-100">Panel de control para gestión de cobros de motos</p>
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Panel de Control</h1>
+        <p className="text-slate-500 mt-1">Resumen general y métricas clave del sistema</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {statCards.map((card) => {
           const Icon = card.icon;
+          const isHighlight = card.highlight;
+          
           return (
-            <div key={card.title} className="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
-              <div className="flex items-center justify-between mb-4">
-                <div className={`${card.color} p-3 rounded-lg`}>
-                  <Icon className="w-6 h-6 text-white" />
+            <div key={card.title} className="group bg-white rounded-xl p-6 border border-slate-200 shadow-sm hover:shadow-md transition-all duration-200">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <p className="text-sm font-medium text-slate-500">{card.title}</p>
+                  <h3 className="text-3xl font-bold text-slate-900 mt-2 tracking-tight">{card.value}</h3>
+                </div>
+                <div className={`p-3 rounded-xl ${card.bgHighlight || 'bg-slate-50 group-hover:bg-slate-100'} transition-colors`}>
+                  <Icon className={`w-6 h-6 ${card.highlight || 'text-slate-600'}`} />
                 </div>
               </div>
-              <h3 className="text-slate-600 text-sm font-medium mb-1">{card.title}</h3>
-              <p className="text-3xl font-bold text-slate-900">{card.value}</p>
+              <div className="flex items-center text-xs text-slate-400 font-medium">
+                {card.trend}
+              </div>
             </div>
           );
         })}
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
-        <h2 className="text-xl font-bold text-slate-900 mb-4">Información del Sistema</h2>
-        <div className="space-y-3 text-slate-600">
-          <p>• Sistema de cobro diario con control de días de gracia (2 o 4 días)</p>
-          <p>• Bloqueo automático después de 2 días sin pagar</p>
-          <p>• Distribución automática 70% asociado / 30% empresa</p>
-          <p>• Exportación de reportes a Excel</p>
-          <p>• Notificaciones automáticas por SMS/WhatsApp</p>
-          <p>• Separación por centros de costo</p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="card p-6">
+          <h2 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-slate-400" />
+            Estado del Sistema
+          </h2>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                <span className="text-sm font-medium text-slate-700">Sistema Operativo</span>
+              </div>
+              <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">En línea</span>
+            </div>
+            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                <span className="text-sm font-medium text-slate-700">Última Sincronización</span>
+              </div>
+              <span className="text-xs font-medium text-slate-500">Hace 1 minuto</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="card p-6">
+          <h2 className="text-lg font-bold text-slate-900 mb-4">Accesos Rápidos</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <button className="flex flex-col items-center justify-center p-4 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all text-slate-600 hover:text-slate-900">
+              <Bike className="w-6 h-6 mb-2" />
+              <span className="text-sm font-medium">Nueva Moto</span>
+            </button>
+            <button className="flex flex-col items-center justify-center p-4 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all text-slate-600 hover:text-slate-900">
+              <Users className="w-6 h-6 mb-2" />
+              <span className="text-sm font-medium">Registrar Pago</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
