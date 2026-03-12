@@ -4,6 +4,10 @@ import { getPool } from '../db.js';
 
 const router = express.Router();
 
+export function preferRecurringDiasGracia(recurringDias, monthDias) {
+  return Array.isArray(recurringDias) && recurringDias.length > 0 ? recurringDias : (monthDias || []);
+}
+
 router.get('/', async (req, res) => {
   try {
     const pool = await getPool();
@@ -123,6 +127,18 @@ router.get('/:id/dias_gracia', async (req, res) => {
   if (!anio || !mes) return res.status(400).json({ error: 'anio y mes requeridos' });
   try {
     const pool = await getPool();
+    const reqBase = pool.request().input('id', sql.UniqueIdentifier, id);
+
+    const recurring = await reqBase.query(`
+      SELECT dia FROM dias_gracia_motos
+      WHERE moto_id = @id AND anio = 0 AND mes = 0
+      ORDER BY dia ASC
+    `);
+
+    if (recurring.recordset.length > 0) {
+      return res.json(preferRecurringDiasGracia(recurring.recordset.map(d => d.dia), []));
+    }
+
     const r = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .input('anio', sql.Int, Number(anio))
@@ -132,7 +148,7 @@ router.get('/:id/dias_gracia', async (req, res) => {
         WHERE moto_id = @id AND anio = @anio AND mes = @mes
         ORDER BY dia ASC
       `);
-    res.json(r.recordset.map(d => d.dia));
+    return res.json(preferRecurringDiasGracia([], r.recordset.map(d => d.dia)));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -140,27 +156,37 @@ router.get('/:id/dias_gracia', async (req, res) => {
 
 router.post('/:id/dias_gracia', async (req, res) => {
   const { id } = req.params;
-  const { anio, mes, dias } = req.body;
-  if (!anio || !mes || !Array.isArray(dias)) return res.status(400).json({ error: 'Datos inválidos' });
+  const { anio, mes, dias, recurring } = req.body;
+  const isRecurring = Boolean(recurring);
+  if (!Array.isArray(dias)) return res.status(400).json({ error: 'Datos inválidos' });
+  if (!isRecurring && (!anio || !mes)) return res.status(400).json({ error: 'Datos inválidos' });
   try {
-    const pool = await getPool();
     const tx = new sql.Transaction(await getPool());
     await tx.begin();
+    const anioDb = isRecurring ? 0 : Number(anio);
+    const mesDb = isRecurring ? 0 : Number(mes);
+
     const reqDel = new sql.Request(tx);
     reqDel.input('id', sql.UniqueIdentifier, id);
-    reqDel.input('anio', sql.Int, Number(anio));
-    reqDel.input('mes', sql.Int, Number(mes));
-    await reqDel.query(`DELETE FROM dias_gracia_motos WHERE moto_id = @id AND anio = @anio AND mes = @mes`);
+
+    if (isRecurring) {
+      await reqDel.query(`DELETE FROM dias_gracia_motos WHERE moto_id = @id`);
+    } else {
+      reqDel.input('anio', sql.Int, anioDb);
+      reqDel.input('mes', sql.Int, mesDb);
+      await reqDel.query(`DELETE FROM dias_gracia_motos WHERE moto_id = @id AND anio = @anio AND mes = @mes`);
+    }
+
     for (const dia of dias) {
       const reqIns = new sql.Request(tx);
       reqIns.input('id', sql.UniqueIdentifier, id);
-      reqIns.input('anio', sql.Int, Number(anio));
-      reqIns.input('mes', sql.Int, Number(mes));
+      reqIns.input('anio', sql.Int, anioDb);
+      reqIns.input('mes', sql.Int, mesDb);
       reqIns.input('dia', sql.Int, Number(dia));
       await reqIns.query(`
-        INSERT INTO dias_gracia_motos (moto_id, anio, mes, dia, creado_en)
-        VALUES (@id, @anio, @mes, @dia, SYSDATETIMEOFFSET())
-      `);
+          INSERT INTO dias_gracia_motos (moto_id, anio, mes, dia, creado_en)
+          VALUES (@id, @anio, @mes, @dia, SYSDATETIMEOFFSET())
+        `);
     }
     await tx.commit();
     res.status(200).json({ ok: true });

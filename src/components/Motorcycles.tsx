@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { Motorcycle, Asociado, CostCenter } from '../types/database';
+import { normalizeSelectedDays, toggleSelectedDayWithLimit, validateExactSelection } from '../utils/graceDays';
 import { 
   Plus, 
   Edit2, 
@@ -48,6 +49,7 @@ export function Motorcycles() {
   // Estado para el calendario de días de gracia
   const [mostrarCalendario, setMostrarCalendario] = useState(false);
   const [diasGraciaSeleccionados, setDiasGraciaSeleccionados] = useState<number[]>([]);
+  const [diasGraciaWarning, setDiasGraciaWarning] = useState<string | null>(null);
   const [mesVista, setMesVista] = useState(() => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -109,6 +111,18 @@ export function Motorcycles() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const limiteDiasGracia = Number(formData.dias_gracia || 0);
+      const normalized = normalizeSelectedDays(diasGraciaSeleccionados, limiteDiasGracia);
+      if (normalized.warning) setDiasGraciaWarning(normalized.warning);
+
+      if (mostrarCalendario) {
+        const exact = validateExactSelection(normalized.selected, limiteDiasGracia);
+        if (!exact.ok) {
+          setDiasGraciaWarning(exact.message);
+          return;
+        }
+      }
+
       let motorcycleId = editingId;
       if (editingId) {
         await api.updateMotorcycle(editingId, formData);
@@ -117,11 +131,21 @@ export function Motorcycles() {
         motorcycleId = newMoto.id;
       }
 
-      if (diasGraciaSeleccionados.length > 0 && motorcycleId) {
+      if (motorcycleId && mostrarCalendario) {
         await api.setDiasGraciaMoto(motorcycleId, {
           anio: mesVista.getFullYear(),
           mes: mesVista.getMonth() + 1,
-          dias: diasGraciaSeleccionados
+          dias: normalized.selected,
+          recurring: true,
+        });
+      }
+
+      if (motorcycleId && !mostrarCalendario && limiteDiasGracia === 0) {
+        await api.setDiasGraciaMoto(motorcycleId, {
+          anio: mesVista.getFullYear(),
+          mes: mesVista.getMonth() + 1,
+          dias: [],
+          recurring: true,
         });
       }
 
@@ -177,15 +201,19 @@ export function Motorcycles() {
     });
     setEditingId(null);
     setDiasGraciaSeleccionados([]);
+    setDiasGraciaWarning(null);
     setMostrarCalendario(false);
     const d = new Date();
     setMesVista(new Date(d.getFullYear(), d.getMonth(), 1));
   };
 
   const toggleDiaGracia = (dia: number) => {
-    setDiasGraciaSeleccionados(prev => 
-      prev.includes(dia) ? prev.filter(d => d !== dia) : [...prev, dia]
-    );
+    const limiteDiasGracia = Number(formData.dias_gracia || 0);
+    setDiasGraciaSeleccionados((prev) => {
+      const next = toggleSelectedDayWithLimit(prev, dia, limiteDiasGracia);
+      setDiasGraciaWarning(next.warning);
+      return next.selected;
+    });
   };
 
   const filteredMotorcycles = motorcycles.filter(m => {
@@ -505,7 +533,16 @@ export function Motorcycles() {
                     id="moto_dias_gracia"
                     className="input-field"
                     value={formData.dias_gracia}
-                    onChange={(e) => setFormData({ ...formData, dias_gracia: Number(e.target.value) })}
+                    onChange={(e) => {
+                      const nextLimit = Number(e.target.value);
+                      setFormData({ ...formData, dias_gracia: nextLimit });
+                      const normalized = normalizeSelectedDays(diasGraciaSeleccionados, nextLimit);
+                      setDiasGraciaSeleccionados(normalized.selected);
+                      setDiasGraciaWarning(normalized.warning);
+                      if (nextLimit === 0) {
+                        setMostrarCalendario(false);
+                      }
+                    }}
                   >
                     <option value="0">0 días</option>
                     <option value="1">1 día</option>
@@ -521,11 +558,12 @@ export function Motorcycles() {
               <div className="mt-6 border-t border-gray-100 pt-6">
                 <button
                   type="button"
+                  disabled={Number(formData.dias_gracia || 0) <= 0}
                   onClick={() => setMostrarCalendario(!mostrarCalendario)}
-                  className="flex items-center text-sm font-medium text-accent-700 hover:text-accent-800"
+                  className="flex items-center text-sm font-medium text-accent-700 hover:text-accent-800 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <CalendarIcon className="w-4 h-4 mr-2" />
-                  {mostrarCalendario ? 'Ocultar Calendario de Excepciones' : 'Configurar Días de Gracia Específicos'}
+                  {mostrarCalendario ? 'Ocultar Días de Gracia Recurrentes' : 'Configurar Días de Gracia Recurrentes'}
                 </button>
 
                 {mostrarCalendario && (
@@ -576,8 +614,23 @@ export function Motorcycles() {
                         );
                       })}
                     </div>
+                    <div className="mt-3 text-center space-y-1">
+                      <p className="text-xs text-slate-600">
+                        Seleccionados: <span className="font-semibold">{diasGraciaSeleccionados.length}</span> / <span className="font-semibold">{Number(formData.dias_gracia || 0)}</span>
+                      </p>
+                      {diasGraciaWarning && (
+                        <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 inline-block">
+                          {diasGraciaWarning}
+                        </p>
+                      )}
+                      {!diasGraciaWarning && validateExactSelection(diasGraciaSeleccionados, Number(formData.dias_gracia || 0)).message && (
+                        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 inline-block">
+                          {validateExactSelection(diasGraciaSeleccionados, Number(formData.dias_gracia || 0)).message}
+                        </p>
+                      )}
+                    </div>
                     <p className="text-xs text-slate-500 mt-3 text-center">
-                      Selecciona los días que NO se cobrarán en este mes específico.
+                      Selecciona los días que NO se cobrarán en todos los meses mientras la moto esté activa.
                     </p>
                   </div>
                 )}

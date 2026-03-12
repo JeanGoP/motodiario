@@ -108,7 +108,7 @@ export const api = {
   updateMotorcycle: (id: string, data: Record<string, unknown>) => request<Motorcycle>(`/api/motorcycles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteMotorcycle: (id: string) => request<void>(`/api/motorcycles/${id}`, { method: 'DELETE' }),
   getDiasGraciaMoto: (id: string, anio: number, mes: number) => request<number[]>(`/api/motorcycles/${id}/dias_gracia?anio=${anio}&mes=${mes}`),
-  setDiasGraciaMoto: (id: string, payload: { anio: number; mes: number; dias: number[] }) => request<void>(`/api/motorcycles/${id}/dias_gracia`, { method: 'POST', body: JSON.stringify(payload) }),
+  setDiasGraciaMoto: (id: string, payload: { anio: number; mes: number; dias: number[]; recurring?: boolean }) => request<void>(`/api/motorcycles/${id}/dias_gracia`, { method: 'POST', body: JSON.stringify(payload) }),
 
   // Payments
   getPayments: (from?: string, to?: string) => request<PaymentWithDistribution[]>(`/api/payments${from && to ? `?from=${from}&to=${to}` : ''}`),
