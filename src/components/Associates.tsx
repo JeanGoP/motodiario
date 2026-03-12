@@ -283,14 +283,19 @@ export function Associates() {
 
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity">
-          <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl transform transition-all">
+          <div
+            className="bg-white rounded-xl w-full max-w-lg shadow-2xl transform transition-all max-h-[90vh] overflow-y-auto"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="associate-modal-title"
+          >
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-xl">
-              <h3 className="text-lg font-bold text-slate-800">
+              <h3 id="associate-modal-title" className="text-lg font-bold text-slate-800">
                 {editingId ? 'Editar Asociado' : 'Nuevo Asociado'}
               </h3>
               <button 
                 onClick={() => { setShowModal(false); resetForm(); }}
-                className="text-slate-400 hover:text-slate-600 transition-colors"
+                className="text-slate-400 hover:text-slate-600 transition-colors rounded-md focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2"
               >
                 <span className="sr-only">Cerrar</span>
                 <X className="h-6 w-6" />
@@ -299,66 +304,77 @@ export function Associates() {
             
             <form onSubmit={handleSubmit} className="p-6 space-y-6">
               <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div className="sm:col-span-2">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Nombre Completo</label>
+                    <label htmlFor="asociado_nombre" className="input-label">Nombre Completo</label>
                     <input
+                      id="asociado_nombre"
                       type="text"
                       value={formData.nombre}
                       onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                      className="input-field"
+                      className="input-field-prominent"
+                      autoComplete="name"
                       required
                     />
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Documento</label>
+                    <label htmlFor="asociado_documento" className="input-label">Documento</label>
                     <input
+                      id="asociado_documento"
                       type="text"
                       value={formData.documento}
                       onChange={(e) => setFormData({ ...formData, documento: e.target.value })}
-                      className="input-field"
+                      className="input-field-prominent"
+                      autoComplete="off"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Teléfono</label>
+                    <label htmlFor="asociado_telefono" className="input-label">Teléfono</label>
                     <input
+                      id="asociado_telefono"
                       type="tel"
                       value={formData.telefono}
                       onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-                      className="input-field"
+                      className="input-field-prominent"
+                      autoComplete="tel"
                       required
                     />
                   </div>
 
                   <div className="sm:col-span-2">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                    <label htmlFor="asociado_correo" className="input-label">Email</label>
                     <input
+                      id="asociado_correo"
                       type="email"
                       value={formData.correo}
                       onChange={(e) => setFormData({ ...formData, correo: e.target.value })}
-                      className="input-field"
+                      className="input-field-prominent"
+                      autoComplete="email"
                     />
                   </div>
                   
                   <div className="sm:col-span-2">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Dirección</label>
+                    <label htmlFor="asociado_direccion" className="input-label">Dirección</label>
                     <textarea
+                      id="asociado_direccion"
                       value={formData.direccion}
                       onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
-                      className="input-field"
+                      className="input-field-prominent resize-none"
+                      autoComplete="street-address"
                       rows={2}
                     />
                   </div>
 
                   <div className="sm:col-span-2">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Centro de Costo</label>
+                    <label htmlFor="asociado_centro_costo_id" className="input-label">Centro de Costo</label>
                     <select
+                      id="asociado_centro_costo_id"
                       value={formData.centro_costo_id}
                       onChange={(e) => setFormData({ ...formData, centro_costo_id: e.target.value })}
-                      className="input-field"
+                      className="input-field-prominent"
                       required
                     >
                       <option value="">Seleccione...</option>
