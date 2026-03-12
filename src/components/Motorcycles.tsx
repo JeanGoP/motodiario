@@ -372,230 +372,233 @@ export function Motorcycles() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 transition-opacity" aria-hidden="true" onClick={() => setShowModal(false)}>
-              <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"></div>
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div
+            className="bg-white rounded-xl w-full max-w-2xl shadow-2xl transform transition-all max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="motorcycle-modal-title"
+          >
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <h3 id="motorcycle-modal-title" className="text-lg font-bold text-slate-900">
+                {editingId ? 'Editar Motocicleta' : 'Nueva Motocicleta'}
+              </h3>
+              <button
+                onClick={() => { setShowModal(false); resetForm(); }}
+                className="text-slate-400 hover:text-slate-600 transition-colors rounded-md focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2"
+              >
+                <span className="sr-only">Cerrar</span>
+                <X className="w-6 h-6" />
+              </button>
             </div>
 
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-            <div className="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="flex justify-between items-center mb-5 pb-4 border-b border-slate-100">
-                  <h3 className="text-lg leading-6 font-bold text-slate-900 flex items-center gap-2">
-                    <div className="bg-accent-50 border border-accent-100 p-2 rounded-lg text-accent-700">
-                      {editingId ? <Edit2 className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
-                    </div>
-                    {editingId ? 'Editar Motocicleta' : 'Nueva Motocicleta'}
-                  </h3>
-                  <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-500 transition-colors">
-                    <X className="w-6 h-6" />
-                  </button>
+            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div className="sm:col-span-2">
+                  <label htmlFor="moto_asociado_id" className="input-label">Asociado</label>
+                  <select
+                    id="moto_asociado_id"
+                    required
+                    className="input-field"
+                    value={formData.asociado_id}
+                    onChange={(e) => setFormData({ ...formData, asociado_id: e.target.value })}
+                  >
+                    <option value="">Seleccione un asociado...</option>
+                    {asociados.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.nombre} - {a.documento}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div className="col-span-2">
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Asociado</label>
-                      <select
-                        required
-                        className="input-field"
-                        value={formData.asociado_id}
-                        onChange={(e) => setFormData({ ...formData, asociado_id: e.target.value })}
-                      >
-                        <option value="">Seleccione un asociado...</option>
-                        {asociados.map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.nombre} - {a.documento}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                <div>
+                  <label htmlFor="moto_brand" className="input-label">Marca</label>
+                  <input
+                    id="moto_brand"
+                    type="text"
+                    required
+                    className="input-field"
+                    value={formData.brand}
+                    onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                    placeholder="Ej. Yamaha"
+                  />
+                </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Marca</label>
-                      <input
-                        type="text"
-                        required
-                        className="input-field"
-                        value={formData.brand}
-                        onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
-                        placeholder="Ej. Yamaha"
-                      />
-                    </div>
+                <div>
+                  <label htmlFor="moto_model" className="input-label">Modelo</label>
+                  <input
+                    id="moto_model"
+                    type="text"
+                    required
+                    className="input-field"
+                    value={formData.model}
+                    onChange={(e) => setFormData({ ...formData, model: e.target.value })}
+                    placeholder="Ej. NMAX"
+                  />
+                </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Modelo</label>
-                      <input
-                        type="text"
-                        required
-                        className="input-field"
-                        value={formData.model}
-                        onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                        placeholder="Ej. NMAX"
-                      />
-                    </div>
+                <div>
+                  <label htmlFor="moto_year" className="input-label">Año</label>
+                  <input
+                    id="moto_year"
+                    type="number"
+                    required
+                    className="input-field"
+                    value={formData.year}
+                    onChange={(e) => setFormData({ ...formData, year: parseInt(e.target.value) })}
+                  />
+                </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Año</label>
-                      <input
-                        type="number"
-                        required
-                        className="input-field"
-                        value={formData.year}
-                        onChange={(e) => setFormData({ ...formData, year: parseInt(e.target.value) })}
-                      />
-                    </div>
+                <div>
+                  <label htmlFor="moto_plate" className="input-label">Placa</label>
+                  <input
+                    id="moto_plate"
+                    type="text"
+                    required
+                    className="input-field uppercase font-mono"
+                    value={formData.plate}
+                    onChange={(e) => setFormData({ ...formData, plate: e.target.value.toUpperCase() })}
+                    placeholder="ABC-123"
+                  />
+                </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Placa</label>
-                      <input
-                        type="text"
-                        required
-                        className="input-field uppercase font-mono"
-                        value={formData.plate}
-                        onChange={(e) => setFormData({ ...formData, plate: e.target.value.toUpperCase() })}
-                        placeholder="ABC-123"
-                      />
+                <div>
+                  <label htmlFor="moto_daily_rate" className="input-label">Tarifa Diaria ($)</label>
+                  <div className="relative rounded-md shadow-sm">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <span className="text-slate-500 sm:text-sm">$</span>
                     </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Tarifa Diaria ($)</label>
-                      <div className="relative rounded-md shadow-sm">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <span className="text-slate-500 sm:text-sm">$</span>
-                        </div>
-                        <input
-                          type="number"
-                          required
-                          min="0"
-                          className="input-field pl-7"
-                          value={formData.daily_rate}
-                          onChange={(e) => setFormData({ ...formData, daily_rate: Number(e.target.value) })}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Estado</label>
-                      <select
-                        className="input-field"
-                        value={formData.status}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            status: e.target.value === 'ACTIVE' ? 'ACTIVE' : 'DEACTIVATED',
-                          })
-                        }
-                      >
-                        <option value="ACTIVE">Activa</option>
-                        <option value="DEACTIVATED">Inactiva</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Días de Gracia (Globales)</label>
-                      <select
-                        className="input-field"
-                        value={formData.dias_gracia}
-                        onChange={(e) => setFormData({ ...formData, dias_gracia: Number(e.target.value) })}
-                      >
-                        <option value="0">0 días</option>
-                        <option value="1">1 día</option>
-                        <option value="2">2 días</option>
-                        <option value="3">3 días</option>
-                        <option value="4">4 días</option>
-                        <option value="5">5 días</option>
-                        <option value="6">6 días</option>
-                      </select>
-                    </div>
+                    <input
+                      id="moto_daily_rate"
+                      type="number"
+                      required
+                      min="0"
+                      className="input-field pl-7"
+                      value={formData.daily_rate}
+                      onChange={(e) => setFormData({ ...formData, daily_rate: Number(e.target.value) })}
+                    />
                   </div>
+                </div>
 
-                  {/* Calendario de días de gracia */}
-                  <div className="mt-6 border-t border-gray-100 pt-6">
-                    <button
-                      type="button"
-                      onClick={() => setMostrarCalendario(!mostrarCalendario)}
-                      className="flex items-center text-sm font-medium text-accent-700 hover:text-accent-800"
-                    >
-                      <CalendarIcon className="w-4 h-4 mr-2" />
-                      {mostrarCalendario ? 'Ocultar Calendario de Excepciones' : 'Configurar Días de Gracia Específicos'}
-                    </button>
+                <div>
+                  <label htmlFor="moto_status" className="input-label">Estado</label>
+                  <select
+                    id="moto_status"
+                    className="input-field"
+                    value={formData.status}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        status: e.target.value === 'ACTIVE' ? 'ACTIVE' : 'DEACTIVATED',
+                      })
+                    }
+                  >
+                    <option value="ACTIVE">Activa</option>
+                    <option value="DEACTIVATED">Inactiva</option>
+                  </select>
+                </div>
 
-                    {mostrarCalendario && (
-                      <div className="mt-4 bg-slate-50 p-4 rounded-lg border border-slate-200">
-                        <div className="flex justify-between items-center mb-4">
-                          <button
-                            type="button"
-                            onClick={() => setMesVista(new Date(mesVista.getFullYear(), mesVista.getMonth() - 1, 1))}
-                            className="p-1 hover:bg-slate-200 rounded text-slate-600"
-                          >
-                            ←
-                          </button>
-                          <span className="font-bold text-slate-900 capitalize">
-                            {mesVista.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setMesVista(new Date(mesVista.getFullYear(), mesVista.getMonth() + 1, 1))}
-                            className="p-1 hover:bg-slate-200 rounded text-slate-600"
-                          >
-                            →
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-slate-400 mb-2">
-                          <div>Dom</div><div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div><div>Sáb</div>
-                        </div>
-                        <div className="grid grid-cols-7 gap-1">
-                          {Array.from({ length: new Date(mesVista.getFullYear(), mesVista.getMonth(), 1).getDay() }).map((_, i) => (
-                            <div key={`empty-${i}`} />
-                          ))}
-                          {Array.from({ length: getDaysInMonth(mesVista.getFullYear(), mesVista.getMonth()) }).map((_, i) => {
-                            const dia = i + 1;
-                            const isSelected = diasGraciaSeleccionados.includes(dia);
-                            return (
-                              <button
-                                key={dia}
-                                type="button"
-                                onClick={() => toggleDiaGracia(dia)}
-                                className={`
-                                  aspect-square rounded-full flex items-center justify-center text-sm transition-all duration-200
-                                  ${isSelected 
-                                    ? 'bg-accent-700 text-white font-bold shadow-md transform scale-105' 
-                                    : 'hover:bg-slate-200 text-slate-700 hover:scale-105'}
-                                `}
-                              >
-                                {dia}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <p className="text-xs text-slate-500 mt-3 text-center">
-                          Selecciona los días que NO se cobrarán en este mes específico.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                    <button
-                      type="button"
-                      onClick={() => setShowModal(false)}
-                      className="btn btn-secondary"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="submit"
-                      className="btn btn-primary"
-                    >
-                      {editingId ? 'Guardar Cambios' : 'Crear Moto'}
-                    </button>
-                  </div>
-                </form>
+                <div>
+                  <label htmlFor="moto_dias_gracia" className="input-label">Días de Gracia (Globales)</label>
+                  <select
+                    id="moto_dias_gracia"
+                    className="input-field"
+                    value={formData.dias_gracia}
+                    onChange={(e) => setFormData({ ...formData, dias_gracia: Number(e.target.value) })}
+                  >
+                    <option value="0">0 días</option>
+                    <option value="1">1 día</option>
+                    <option value="2">2 días</option>
+                    <option value="3">3 días</option>
+                    <option value="4">4 días</option>
+                    <option value="5">5 días</option>
+                    <option value="6">6 días</option>
+                  </select>
+                </div>
               </div>
-            </div>
+
+              <div className="mt-6 border-t border-gray-100 pt-6">
+                <button
+                  type="button"
+                  onClick={() => setMostrarCalendario(!mostrarCalendario)}
+                  className="flex items-center text-sm font-medium text-accent-700 hover:text-accent-800"
+                >
+                  <CalendarIcon className="w-4 h-4 mr-2" />
+                  {mostrarCalendario ? 'Ocultar Calendario de Excepciones' : 'Configurar Días de Gracia Específicos'}
+                </button>
+
+                {mostrarCalendario && (
+                  <div className="mt-4 bg-slate-50 p-4 rounded-lg border border-slate-200">
+                    <div className="flex justify-between items-center mb-4">
+                      <button
+                        type="button"
+                        onClick={() => setMesVista(new Date(mesVista.getFullYear(), mesVista.getMonth() - 1, 1))}
+                        className="p-1 hover:bg-slate-200 rounded text-slate-600"
+                      >
+                        ←
+                      </button>
+                      <span className="font-bold text-slate-900 capitalize">
+                        {mesVista.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setMesVista(new Date(mesVista.getFullYear(), mesVista.getMonth() + 1, 1))}
+                        className="p-1 hover:bg-slate-200 rounded text-slate-600"
+                      >
+                        →
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-slate-400 mb-2">
+                      <div>Dom</div><div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div><div>Sáb</div>
+                    </div>
+                    <div className="grid grid-cols-7 gap-1">
+                      {Array.from({ length: new Date(mesVista.getFullYear(), mesVista.getMonth(), 1).getDay() }).map((_, i) => (
+                        <div key={`empty-${i}`} />
+                      ))}
+                      {Array.from({ length: getDaysInMonth(mesVista.getFullYear(), mesVista.getMonth()) }).map((_, i) => {
+                        const dia = i + 1;
+                        const isSelected = diasGraciaSeleccionados.includes(dia);
+                        return (
+                          <button
+                            key={dia}
+                            type="button"
+                            onClick={() => toggleDiaGracia(dia)}
+                            className={`
+                              aspect-square rounded-full flex items-center justify-center text-sm transition-all duration-200
+                              ${isSelected 
+                                ? 'bg-accent-700 text-white font-bold shadow-md transform scale-105' 
+                                : 'hover:bg-slate-200 text-slate-700 hover:scale-105'}
+                            `}
+                          >
+                            {dia}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs text-slate-500 mt-3 text-center">
+                      Selecciona los días que NO se cobrarán en este mes específico.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => { setShowModal(false); resetForm(); }}
+                  className="btn bg-white text-slate-700 border-slate-300 hover:bg-slate-50 flex-1 justify-center"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary flex-1 justify-center"
+                >
+                  {editingId ? 'Guardar Cambios' : 'Crear Moto'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

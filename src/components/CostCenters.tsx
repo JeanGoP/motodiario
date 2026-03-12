@@ -182,25 +182,31 @@ export function CostCenters() {
 
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+          <div
+            className="bg-white rounded-xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="costcenter-modal-title"
+          >
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-              <h3 className="text-lg font-bold text-slate-900">
+              <h3 id="costcenter-modal-title" className="text-lg font-bold text-slate-900">
                 {editingId ? 'Editar Centro de Costo' : 'Nuevo Centro de Costo'}
               </h3>
               <button 
-                onClick={() => setShowModal(false)}
-                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-lg transition-colors"
+                onClick={() => { setShowModal(false); resetForm(); }}
+                className="text-slate-400 hover:text-slate-600 transition-colors rounded-md focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2"
               >
+                <span className="sr-only">Cerrar</span>
                 <X className="w-5 h-5" />
               </button>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                  Nombre
-                </label>
+                <label htmlFor="centro_costo_nombre" className="input-label">Nombre</label>
                 <input
+                  id="centro_costo_nombre"
                   type="text"
                   value={formData.nombre}
                   onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
@@ -211,10 +217,9 @@ export function CostCenters() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                  Código
-                </label>
+                <label htmlFor="centro_costo_codigo" className="input-label">Código</label>
                 <input
+                  id="centro_costo_codigo"
                   type="text"
                   value={formData.codigo}
                   onChange={(e) => setFormData({ ...formData, codigo: e.target.value })}
@@ -224,27 +229,27 @@ export function CostCenters() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                  Descripción
-                </label>
+              <div className="sm:col-span-2">
+                <label htmlFor="centro_costo_descripcion" className="input-label">Descripción</label>
                 <textarea
+                  id="centro_costo_descripcion"
                   value={formData.descripcion}
                   onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
                   className="input-field w-full min-h-[80px]"
                   placeholder="Descripción opcional..."
                 />
               </div>
+              </div>
 
               <div className="flex items-center gap-2 pt-2">
                 <input
                   type="checkbox"
-                  id="activo"
+                  id="centro_costo_activo"
                   checked={formData.activo}
                   onChange={(e) => setFormData({ ...formData, activo: e.target.checked })}
                   className="w-4 h-4 text-accent-700 border-slate-300 rounded focus:ring-accent-500"
                 />
-                <label htmlFor="activo" className="text-sm text-slate-700 select-none cursor-pointer">
+                <label htmlFor="centro_costo_activo" className="text-sm font-medium text-slate-700">
                   Centro de costo activo
                 </label>
               </div>

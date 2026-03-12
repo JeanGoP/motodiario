@@ -206,21 +206,28 @@ export function CashReceipts() {
 
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+          <div
+            className="bg-white rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cashreceipt-modal-title"
+          >
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-              <h3 className="text-lg font-bold text-slate-900">Nuevo Recibo de Caja</h3>
+              <h3 id="cashreceipt-modal-title" className="text-lg font-bold text-slate-900">Nuevo Recibo de Caja</h3>
               <button 
-                onClick={() => setShowModal(false)}
-                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-lg transition-colors"
+                onClick={() => { setShowModal(false); resetForm(); }}
+                className="text-slate-400 hover:text-slate-600 transition-colors rounded-md focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2"
               >
+                <span className="sr-only">Cerrar</span>
                 <X className="w-5 h-5" />
               </button>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleSubmit} className="p-6 space-y-6">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Asociado</label>
+                <label htmlFor="cashreceipt_asociado_id" className="input-label">Asociado</label>
                 <select
+                  id="cashreceipt_asociado_id"
                   value={formData.asociado_id}
                   onChange={(e) => setFormData({ ...formData, asociado_id: e.target.value })}
                   className="input-field w-full"
@@ -235,12 +242,13 @@ export function CashReceipts() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Monto</label>
+                  <label htmlFor="cashreceipt_amount" className="input-label">Monto</label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span>
                     <input
+                      id="cashreceipt_amount"
                       type="number"
                       value={formData.amount}
                       onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
@@ -253,8 +261,9 @@ export function CashReceipts() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Fecha</label>
+                  <label htmlFor="cashreceipt_date" className="input-label">Fecha</label>
                   <input
+                    id="cashreceipt_date"
                     type="date"
                     value={formData.date}
                     onChange={(e) => setFormData({ ...formData, date: e.target.value })}
@@ -265,8 +274,9 @@ export function CashReceipts() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Concepto</label>
+                <label htmlFor="cashreceipt_concept" className="input-label">Concepto</label>
                 <select
+                  id="cashreceipt_concept"
                   value={formData.concept}
                   onChange={(e) => setFormData({ ...formData, concept: e.target.value })}
                   className="input-field w-full"
@@ -279,8 +289,9 @@ export function CashReceipts() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Observaciones</label>
+                <label htmlFor="cashreceipt_observations" className="input-label">Observaciones</label>
                 <textarea
+                  id="cashreceipt_observations"
                   value={formData.observations}
                   onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
                   className="input-field w-full min-h-[80px]"

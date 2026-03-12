@@ -298,8 +298,9 @@ export function Reports() {
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Tipo de Reporte</label>
+                <label htmlFor="reports_type" className="input-label">Tipo de Reporte</label>
                 <select
+                  id="reports_type"
                   value={reportType}
                   onChange={(e) => {
                     setPreviewData([]);
@@ -314,10 +315,11 @@ export function Reports() {
               </div>
 
               {reportType !== 'overdue' && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Desde</label>
+                    <label htmlFor="reports_date_from" className="input-label">Desde</label>
                     <input
+                      id="reports_date_from"
                       type="date"
                       value={dateFrom}
                       onChange={(e) => setDateFrom(e.target.value)}
@@ -325,8 +327,9 @@ export function Reports() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Hasta</label>
+                    <label htmlFor="reports_date_to" className="input-label">Hasta</label>
                     <input
+                      id="reports_date_to"
                       type="date"
                       value={dateTo}
                       onChange={(e) => setDateTo(e.target.value)}

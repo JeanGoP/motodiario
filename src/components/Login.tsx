@@ -59,9 +59,7 @@ export function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1.5">
-                Correo Corporativo
-              </label>
+              <label htmlFor="email" className="input-label">Correo Corporativo</label>
               <input
                 id="email"
                 type="email"
@@ -74,9 +72,7 @@ export function Login() {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1.5">
-                Contraseña
-              </label>
+              <label htmlFor="password" className="input-label">Contraseña</label>
               <input
                 id="password"
                 type="password"

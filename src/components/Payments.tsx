@@ -358,13 +358,18 @@ export function Payments() {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity">
-          <div className="bg-white rounded-xl w-full max-w-md shadow-2xl transform transition-all">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div
+            className="bg-white rounded-xl w-full max-w-md shadow-2xl transform transition-all max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="payment-modal-title"
+          >
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-xl">
-              <h3 className="text-lg font-bold text-slate-800">Registrar Pago</h3>
+              <h3 id="payment-modal-title" className="text-lg font-bold text-slate-800">Registrar Pago</h3>
               <button 
                 onClick={() => { setShowModal(false); resetForm(); }}
-                className="text-slate-400 hover:text-slate-600 transition-colors"
+                className="text-slate-400 hover:text-slate-600 transition-colors rounded-md focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2"
               >
                 <span className="sr-only">Cerrar</span>
                 <X className="h-6 w-6" />
@@ -372,10 +377,11 @@ export function Payments() {
             </div>
             
             <form onSubmit={handleSubmit} className="p-6 space-y-6">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Moto</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div className="sm:col-span-2">
+                  <label htmlFor="payment_motorcycle_id" className="input-label">Moto</label>
                   <select
+                    id="payment_motorcycle_id"
                     value={formData.motorcycle_id}
                     onChange={(e) => {
                       const selectedId = e.target.value;
@@ -402,10 +408,11 @@ export function Payments() {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Monto</label>
+                  <label htmlFor="payment_amount" className="input-label">Monto</label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span>
                     <input
+                      id="payment_amount"
                       type="number"
                       value={formData.amount}
                       onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) })}
@@ -435,8 +442,9 @@ export function Payments() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Fecha de Pago</label>
+                  <label htmlFor="payment_date" className="input-label">Fecha de Pago</label>
                   <input
+                    id="payment_date"
                     type="date"
                     value={formData.payment_date}
                     onChange={(e) => setFormData({ ...formData, payment_date: e.target.value })}
@@ -445,9 +453,10 @@ export function Payments() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Número de Recibo</label>
+                <div className="sm:col-span-2">
+                  <label htmlFor="payment_receipt_number" className="input-label">Número de Recibo</label>
                   <input
+                    id="payment_receipt_number"
                     type="text"
                     value={formData.receipt_number}
                     onChange={(e) => setFormData({ ...formData, receipt_number: e.target.value })}
@@ -456,9 +465,10 @@ export function Payments() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Notas</label>
+                <div className="sm:col-span-2">
+                  <label htmlFor="payment_notes" className="input-label">Notas</label>
                   <textarea
+                    id="payment_notes"
                     value={formData.notes}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                     className="input-field"

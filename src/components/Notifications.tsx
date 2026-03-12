@@ -109,26 +109,34 @@ export function Notifications() {
 
       <div className="card p-6">
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="input-field"
-          >
-            <option value="all">Todos los estados</option>
-            <option value="PENDING">Pendientes</option>
-            <option value="SENT">Enviadas</option>
-            <option value="FAILED">Fallidas</option>
-          </select>
+          <div className="flex-1">
+            <label htmlFor="notifications_filter_status" className="sr-only">Filtrar por estado</label>
+            <select
+              id="notifications_filter_status"
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="input-field"
+            >
+              <option value="all">Todos los estados</option>
+              <option value="PENDING">Pendientes</option>
+              <option value="SENT">Enviadas</option>
+              <option value="FAILED">Fallidas</option>
+            </select>
+          </div>
 
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="input-field"
-          >
-            <option value="all">Todos los tipos</option>
-            <option value="WARNING">Advertencias</option>
-            <option value="DEACTIVATION">Desactivaciones</option>
-          </select>
+          <div className="flex-1">
+            <label htmlFor="notifications_filter_type" className="sr-only">Filtrar por tipo</label>
+            <select
+              id="notifications_filter_type"
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="input-field"
+            >
+              <option value="all">Todos los tipos</option>
+              <option value="WARNING">Advertencias</option>
+              <option value="DEACTIVATION">Desactivaciones</option>
+            </select>
+          </div>
         </div>
 
         <div className="space-y-4">
