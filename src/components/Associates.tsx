@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
-import { Plus, Edit2, Trash2, Users, Phone, Mail, Search, MapPin, Building2, CheckCircle, XCircle, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, Phone, Mail, Search, Building2, CheckCircle, XCircle, X } from 'lucide-react';
 
 export function Associates() {
   interface Asociado {
@@ -21,6 +21,7 @@ export function Associates() {
     id: string;
     nombre: string;
     codigo: string;
+    activo: boolean;
   }
   const [associates, setAssociates] = useState<Asociado[]>([]);
   const [costCenters, setCostCenters] = useState<CentroCosto[]>([]);
@@ -51,7 +52,7 @@ export function Associates() {
         api.getCentrosCosto(),
       ]);
       setAssociates((associatesData || []));
-      setCostCenters((centersData || []).filter((cc: any) => cc.activo));
+      setCostCenters((centersData || []).filter((cc: CentroCosto) => cc.activo));
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -70,8 +71,8 @@ export function Associates() {
       setShowModal(false);
       resetForm();
       loadData();
-    } catch (error: any) {
-      alert('Error: ' + error.message);
+    } catch (error: unknown) {
+      alert('Error: ' + (error instanceof Error ? error.message : 'Ha ocurrido un error'));
     }
   };
 
@@ -80,8 +81,8 @@ export function Associates() {
       try {
         await api.eliminarAsociado(id);
         loadData();
-      } catch (error: any) {
-        alert('Error: ' + error.message);
+      } catch (error: unknown) {
+        alert('Error: ' + (error instanceof Error ? error.message : 'Ha ocurrido un error'));
       }
     }
   };
@@ -129,7 +130,7 @@ export function Associates() {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent-700"></div>
       </div>
     );
   }
@@ -205,7 +206,7 @@ export function Associates() {
                 <tr key={associate.id} className="table-row">
                   <td className="table-cell">
                     <div className="flex items-center">
-                      <div className="flex-shrink-0 h-10 w-10 bg-brand-50 rounded-lg flex items-center justify-center text-brand-600 ring-1 ring-brand-100">
+                      <div className="flex-shrink-0 h-10 w-10 bg-accent-50 rounded-lg flex items-center justify-center text-accent-700 ring-1 ring-accent-100">
                         <Users className="h-5 w-5" />
                       </div>
                       <div className="ml-4">
@@ -374,7 +375,7 @@ export function Associates() {
                     id="active"
                     checked={formData.activo}
                     onChange={(e) => setFormData({ ...formData, activo: e.target.checked })}
-                    className="w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500"
+                    className="w-4 h-4 text-accent-700 rounded border-slate-300 focus:ring-accent-500"
                   />
                   <label htmlFor="active" className="text-sm font-medium text-slate-700">
                     Asociado Activo

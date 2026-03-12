@@ -11,8 +11,7 @@ import {
   X, 
   Filter,
   CheckCircle2,
-  AlertCircle,
-  MoreVertical
+  AlertCircle
 } from 'lucide-react';
 
 type MotorcycleWithAsociado = Motorcycle & {
@@ -84,24 +83,22 @@ export function Motorcycles() {
       ]);
 
       setAsociados(asociadosData || []);
-
-      if (motorcyclesData) {
-        const centrosById = Object.fromEntries(
-          (costCentersData || []).map((c: CostCenter) => [c.id, c])
-        );
-        const asociadosById = Object.fromEntries(
-          (asociadosData || []).map((a: Asociado) => [a.id, a])
-        );
-        setMotorcycles((motorcyclesData as any[]).map(m => {
+      
+      const centrosById = Object.fromEntries(
+        (costCentersData || []).map((c: CostCenter) => [c.id, c])
+      );
+      const asociadosById = Object.fromEntries(
+        (asociadosData || []).map((a: Asociado) => [a.id, a])
+      );
+      setMotorcycles(
+        (motorcyclesData || []).map((m) => {
           const asociadoBase = asociadosById[m.asociado_id];
           const asociado = asociadoBase
             ? { ...asociadoBase, centros_costo: centrosById[asociadoBase.centro_costo_id] }
             : undefined;
           return { ...m, asociado };
-        }));
-      } else {
-        setMotorcycles([]);
-      }
+        })
+      );
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -131,8 +128,8 @@ export function Motorcycles() {
       setShowModal(false);
       resetForm();
       loadData();
-    } catch (error: any) {
-      alert('Error: ' + error.message);
+    } catch (error: unknown) {
+      alert('Error: ' + (error instanceof Error ? error.message : 'Ha ocurrido un error'));
     }
   };
 
@@ -160,8 +157,8 @@ export function Motorcycles() {
     try {
       await api.deleteMotorcycle(id);
       loadData();
-    } catch (error: any) {
-      alert('Error: ' + error.message);
+    } catch (error: unknown) {
+      alert('Error: ' + (error instanceof Error ? error.message : 'Ha ocurrido un error'));
     }
   };
 
@@ -209,7 +206,7 @@ export function Motorcycles() {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent-700"></div>
       </div>
     );
   }
@@ -224,7 +221,7 @@ export function Motorcycles() {
         </div>
         <button
           onClick={() => { resetForm(); setShowModal(true); }}
-          className="btn btn-primary shadow-lg shadow-brand-500/30"
+          className="btn btn-primary shadow-lg shadow-accent-950/20"
         >
           <Plus className="w-5 h-5 mr-2" />
           Nueva Moto
@@ -290,7 +287,7 @@ export function Motorcycles() {
                 <tr key={moto.id} className="table-row">
                   <td className="table-cell">
                     <div className="flex items-center">
-                      <div className="flex-shrink-0 h-10 w-10 bg-brand-50 rounded-lg flex items-center justify-center text-brand-600 ring-1 ring-brand-100">
+                      <div className="flex-shrink-0 h-10 w-10 bg-accent-50 rounded-lg flex items-center justify-center text-accent-700 ring-1 ring-accent-100">
                         <Bike className="h-5 w-5" />
                       </div>
                       <div className="ml-4">
@@ -303,7 +300,7 @@ export function Motorcycles() {
                     {moto.asociado ? (
                       <div>
                         <div className="text-sm font-medium text-slate-900">{moto.asociado.nombre}</div>
-                        <div className="text-xs text-slate-500">{moto.asociado.centros_costo?.name || 'Sin Centro'}</div>
+                        <div className="text-xs text-slate-500">{moto.asociado.centros_costo?.nombre || 'Sin Centro'}</div>
                       </div>
                     ) : (
                       <span className="text-sm text-slate-400 italic">Sin asignar</span>
@@ -314,7 +311,7 @@ export function Motorcycles() {
                       ${moto.daily_rate.toLocaleString()} <span className="text-slate-500 font-normal">/ día</span>
                     </div>
                     {moto.plan_months > 0 && (
-                      <div className="text-xs text-blue-600 font-medium mt-0.5 flex items-center gap-1">
+                      <div className="text-xs text-accent-700 font-medium mt-0.5 flex items-center gap-1">
                         <CalendarIcon className="w-3 h-3" />
                         Plan: {moto.plan_months} meses
                       </div>
@@ -387,7 +384,7 @@ export function Motorcycles() {
               <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                 <div className="flex justify-between items-center mb-5 pb-4 border-b border-slate-100">
                   <h3 className="text-lg leading-6 font-bold text-slate-900 flex items-center gap-2">
-                    <div className="bg-brand-100 p-2 rounded-lg text-brand-600">
+                    <div className="bg-accent-50 border border-accent-100 p-2 rounded-lg text-accent-700">
                       {editingId ? <Edit2 className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
                     </div>
                     {editingId ? 'Editar Motocicleta' : 'Nueva Motocicleta'}
@@ -485,7 +482,12 @@ export function Motorcycles() {
                       <select
                         className="input-field"
                         value={formData.status}
-                        onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            status: e.target.value === 'ACTIVE' ? 'ACTIVE' : 'DEACTIVATED',
+                          })
+                        }
                       >
                         <option value="ACTIVE">Activa</option>
                         <option value="DEACTIVATED">Inactiva</option>
@@ -515,7 +517,7 @@ export function Motorcycles() {
                     <button
                       type="button"
                       onClick={() => setMostrarCalendario(!mostrarCalendario)}
-                      className="flex items-center text-sm font-medium text-brand-600 hover:text-brand-700"
+                      className="flex items-center text-sm font-medium text-accent-700 hover:text-accent-800"
                     >
                       <CalendarIcon className="w-4 h-4 mr-2" />
                       {mostrarCalendario ? 'Ocultar Calendario de Excepciones' : 'Configurar Días de Gracia Específicos'}
@@ -560,7 +562,7 @@ export function Motorcycles() {
                                 className={`
                                   aspect-square rounded-full flex items-center justify-center text-sm transition-all duration-200
                                   ${isSelected 
-                                    ? 'bg-brand-600 text-white font-bold shadow-md transform scale-105' 
+                                    ? 'bg-accent-700 text-white font-bold shadow-md transform scale-105' 
                                     : 'hover:bg-slate-200 text-slate-700 hover:scale-105'}
                                 `}
                               >

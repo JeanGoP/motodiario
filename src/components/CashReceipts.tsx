@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { api } from '../lib/api';
+import { api, type CashReceipt } from '../lib/api';
 import { Asociado } from '../types/database';
 import { Plus, Printer, FileText, Search, Calendar, X } from 'lucide-react';
 import { printCashReceipt } from '../utils/printCashReceipt';
 
 export function CashReceipts() {
-  const [receipts, setReceipts] = useState<any[]>([]);
+  const [receipts, setReceipts] = useState<CashReceipt[]>([]);
   const [associates, setAssociates] = useState<Asociado[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -73,8 +73,8 @@ export function CashReceipts() {
       setShowModal(false);
       resetForm();
       loadData();
-    } catch (error: any) {
-      alert('Error al crear recibo: ' + error.message);
+    } catch (error: unknown) {
+      alert('Error al crear recibo: ' + (error instanceof Error ? error.message : 'Ha ocurrido un error'));
     }
   };
 
@@ -96,7 +96,7 @@ export function CashReceipts() {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent-700"></div>
       </div>
     );
   }
@@ -155,7 +155,7 @@ export function CashReceipts() {
                     {receipt.asociado?.nombre}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                    <span className="badge badge-info">
                       {receipt.concepto}
                     </span>
                   </td>
@@ -172,13 +172,13 @@ export function CashReceipts() {
                         date: receipt.fecha,
                         amount: Number(receipt.monto),
                         concept: receipt.concepto,
-                        observations: receipt.observaciones,
+                        observations: receipt.observaciones ?? undefined,
                         asociado: {
-                          nombre: receipt.asociado?.nombre,
-                          documento: receipt.asociado?.documento
+                          nombre: receipt.asociado?.nombre ?? 'N/A',
+                          documento: receipt.asociado?.documento ?? 'N/A'
                         }
                       })}
-                      className="text-slate-400 hover:text-brand-600 transition-colors p-2 hover:bg-brand-50 rounded-lg"
+                      className="text-slate-400 hover:text-accent-700 transition-colors p-2 hover:bg-accent-50 rounded-lg"
                       title="Imprimir Recibo"
                     >
                       <Printer className="w-4 h-4" />
@@ -301,7 +301,7 @@ export function CashReceipts() {
                 </button>
                 <button
                   type="submit"
-                  className="btn btn-primary flex-1 justify-center shadow-lg shadow-brand-900/20"
+                  className="btn btn-primary flex-1 justify-center shadow-lg shadow-accent-950/20"
                 >
                   Generar Recibo
                 </button>

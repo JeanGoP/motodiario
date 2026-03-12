@@ -36,8 +36,8 @@ export function Notifications() {
         sent_at: new Date().toISOString() 
       });
       loadNotifications();
-    } catch (error: any) {
-      alert('Error: ' + error.message);
+    } catch (error: unknown) {
+      alert('Error: ' + (error instanceof Error ? error.message : 'Ha ocurrido un error'));
     }
   };
 
@@ -45,8 +45,8 @@ export function Notifications() {
     try {
       await api.updateNotification(id, { status: 'FAILED' });
       loadNotifications();
-    } catch (error: any) {
-      alert('Error: ' + error.message);
+    } catch (error: unknown) {
+      alert('Error: ' + (error instanceof Error ? error.message : 'Ha ocurrido un error'));
     }
   };
 
@@ -63,7 +63,7 @@ export function Notifications() {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent-700"></div>
       </div>
     );
   }
@@ -228,9 +228,9 @@ export function Notifications() {
         )}
       </div>
 
-      <div className="bg-brand-50 border border-brand-200 rounded-lg p-6">
-        <h3 className="font-semibold text-brand-900 mb-3">Información sobre Notificaciones</h3>
-        <div className="text-sm text-brand-800 space-y-2">
+      <div className="card p-6 bg-slate-50 border-dashed">
+        <h3 className="font-semibold text-slate-900 mb-3">Información sobre Notificaciones</h3>
+        <div className="text-sm text-slate-700 space-y-2">
           <p>• Las notificaciones se generan automáticamente cuando:</p>
           <p className="ml-4">- Una moto pasa 1 día sin pagar (advertencia preventiva)</p>
           <p className="ml-4">- Una moto es desactivada por más de 2 días sin pagar</p>

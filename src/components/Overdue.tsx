@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type SVGProps } from 'react';
 import { api } from '../lib/api';
 import { Motorcycle, Asociado, CostCenter, Payment } from '../types/database';
 import { AlertTriangle, Calendar, Bell, Ban, CheckCircle } from 'lucide-react';
@@ -8,6 +8,8 @@ type MotorcycleOverdue = Motorcycle & {
   lastPayment?: string;
   daysOverdue: number;
 };
+
+type AsociadoFromApi = Asociado & { centro_costo?: CostCenter };
 
 export function Overdue() {
   const [overdueMotorcycles, setOverdueMotorcycles] = useState<MotorcycleOverdue[]>([]);
@@ -60,11 +62,12 @@ export function Overdue() {
         }
 
         if (daysOverdue > 0) {
+          const asociadoFromApi = asociadoFull as AsociadoFromApi;
           overdueList.push({
             ...moto,
             asociado: asociadoFull ? {
               ...asociadoFull,
-              centros_costo: asociadoFull.centro_costo // Map from backend response structure
+              centros_costo: asociadoFromApi.centro_costo
             } : undefined,
             lastPayment: lastPayment?.payment_date,
             daysOverdue,
@@ -106,8 +109,8 @@ export function Overdue() {
       });
 
       loadOverdueMotorcycles();
-    } catch (error: any) {
-      alert('Error: ' + error.message);
+    } catch (error: unknown) {
+      alert('Error: ' + (error instanceof Error ? error.message : 'Ha ocurrido un error'));
     }
   };
 
@@ -123,15 +126,15 @@ export function Overdue() {
       });
 
       alert('Notificación de advertencia programada');
-    } catch (error: any) {
-      alert('Error: ' + error.message);
+    } catch (error: unknown) {
+      alert('Error: ' + (error instanceof Error ? error.message : 'Ha ocurrido un error'));
     }
   };
 
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent-700"></div>
       </div>
     );
   }
@@ -169,10 +172,10 @@ export function Overdue() {
           <p className="text-3xl font-bold text-slate-900 mt-2">{warning.length}</p>
         </div>
 
-        <div className="card p-6 border-l-4 border-l-brand-500">
+        <div className="card p-6 border-l-4 border-l-accent-600">
           <div className="flex items-center justify-between mb-2">
-            <div className="bg-brand-50 p-3 rounded-lg">
-              <AlertTriangle className="w-6 h-6 text-brand-600" />
+            <div className="bg-accent-50 p-3 rounded-lg border border-accent-100">
+              <AlertTriangle className="w-6 h-6 text-accent-700" />
             </div>
           </div>
           <h3 className="text-slate-500 text-sm font-medium">Total Cartera Vencida</h3>
@@ -212,7 +215,7 @@ export function Overdue() {
                 <div className="flex gap-2 w-full sm:w-auto">
                   <button
                     onClick={() => handleSendWarning(motorcycle)}
-                    className="btn bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-brand-600 flex-1 sm:flex-initial justify-center shadow-sm"
+                    className="btn bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-accent-700 flex-1 sm:flex-initial justify-center shadow-sm"
                     title="Enviar recordatorio"
                   >
                     <Bell className="w-4 h-4 sm:mr-2" />
@@ -247,7 +250,7 @@ export function Overdue() {
 }
 
 // Helper for the icon in the loop
-function Building2(props: any) {
+function Building2(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}

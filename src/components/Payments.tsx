@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Payment, Motorcycle, Asociado, PaymentDistribution } from '../types/database';
 import { api } from '../lib/api';
-import { Plus, Receipt, DollarSign, TrendingUp, TrendingDown, Printer, Search, Calendar, User, Bike } from 'lucide-react';
+import { Plus, Receipt, DollarSign, TrendingUp, TrendingDown, Printer, Search, Calendar, User, Bike, X } from 'lucide-react';
 import { printReceipt } from '../utils/printReceipt';
 
 type PaymentWithDetails = Payment & {
   motorcycle?: Motorcycle;
   asociado?: Asociado;
+  distribution?: PaymentDistribution;
+};
+
+type PaymentFromApi = Payment & {
   distribution?: PaymentDistribution;
 };
 
@@ -54,7 +58,7 @@ export function Payments() {
       
       // The API returns payments with nested distribution
       setPayments(
-        (paymentsData || []).map((p: any) => ({
+        (paymentsData || []).map((p: PaymentFromApi) => ({
           ...p,
           motorcycle: motoById[p.motorcycle_id],
           asociado: asociadoById[p.asociado_id],
@@ -90,20 +94,31 @@ export function Payments() {
       const asociado = asociados.find((a) => a.id === selectedMoto.asociado_id);
       
       if (confirm('Pago registrado correctamente. ¿Desea imprimir el recibo?')) {
-        const paymentWithDetails: PaymentWithDetails = {
-          ...newPayment,
-          motorcycle: selectedMoto,
-          asociado: asociado,
-          distribution: newPayment.distribution
-        };
-        printReceipt(paymentWithDetails);
+        if (!asociado) {
+          alert('No se encontró el asociado para imprimir el recibo');
+          return;
+        }
+        printReceipt({
+          receipt_number: newPayment.receipt_number,
+          payment_date: newPayment.payment_date,
+          amount: Number(newPayment.amount),
+          asociado: {
+            nombre: asociado.nombre,
+            documento: asociado.documento,
+          },
+          motorcycle: {
+            plate: selectedMoto.plate,
+            brand: selectedMoto.brand,
+            model: selectedMoto.model,
+          },
+        });
       }
 
       setShowModal(false);
       resetForm();
       loadData();
-    } catch (error: any) {
-      alert('Error: ' + error.message);
+    } catch (error: unknown) {
+      alert('Error: ' + (error instanceof Error ? error.message : 'Ha ocurrido un error'));
     }
   };
 
@@ -151,7 +166,7 @@ export function Payments() {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent-700"></div>
       </div>
     );
   }
@@ -187,23 +202,23 @@ export function Payments() {
           <p className="text-2xl font-bold text-slate-900 mt-1">${totalToday.toLocaleString()}</p>
         </div>
 
-        <div className="card p-6 border-l-4 border-l-blue-500">
+        <div className="card p-6 border-l-4 border-l-accent-600">
           <div className="flex items-center justify-between mb-2">
-            <div className="bg-blue-100 p-3 rounded-lg">
-              <TrendingUp className="w-6 h-6 text-blue-600" />
+            <div className="bg-accent-50 p-3 rounded-lg border border-accent-100">
+              <TrendingUp className="w-6 h-6 text-accent-700" />
             </div>
-            <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">70%</span>
+            <span className="text-xs font-medium text-accent-700 bg-accent-50 px-2 py-1 rounded-full border border-accent-100">70%</span>
           </div>
           <h3 className="text-slate-500 text-sm font-medium">Asociados</h3>
           <p className="text-2xl font-bold text-slate-900 mt-1">${totalAssociateToday.toLocaleString()}</p>
         </div>
 
-        <div className="card p-6 border-l-4 border-l-purple-500">
+        <div className="card p-6 border-l-4 border-l-slate-500">
           <div className="flex items-center justify-between mb-2">
-            <div className="bg-purple-100 p-3 rounded-lg">
-              <TrendingDown className="w-6 h-6 text-purple-600" />
+            <div className="bg-slate-100 p-3 rounded-lg border border-slate-200">
+              <TrendingDown className="w-6 h-6 text-slate-700" />
             </div>
-            <span className="text-xs font-medium text-purple-600 bg-purple-50 px-2 py-1 rounded-full">30%</span>
+            <span className="text-xs font-medium text-slate-700 bg-slate-100 px-2 py-1 rounded-full border border-slate-200">30%</span>
           </div>
           <h3 className="text-slate-500 text-sm font-medium">Empresa</h3>
           <p className="text-2xl font-bold text-slate-900 mt-1">${totalCompanyToday.toLocaleString()}</p>
@@ -289,11 +304,11 @@ export function Payments() {
                     <div className="text-xs space-y-1">
                       <div className="flex justify-between w-32">
                         <span className="text-slate-500">Asoc:</span>
-                        <span className="font-medium text-blue-600">${Number(payment.distribution?.associate_amount || 0).toLocaleString()}</span>
+                        <span className="font-medium text-accent-700">${Number(payment.distribution?.associate_amount || 0).toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between w-32">
                         <span className="text-slate-500">Emp:</span>
-                        <span className="font-medium text-purple-600">${Number(payment.distribution?.company_amount || 0).toLocaleString()}</span>
+                        <span className="font-medium text-slate-700">${Number(payment.distribution?.company_amount || 0).toLocaleString()}</span>
                       </div>
                     </div>
                   </td>
@@ -405,13 +420,13 @@ export function Payments() {
                     <div className="mt-3 p-3 bg-slate-50 rounded-lg text-sm border border-slate-100">
                       <div className="flex justify-between mb-1">
                         <span className="text-slate-600">Asociado (70%):</span>
-                        <span className="font-semibold text-blue-600">
+                        <span className="font-semibold text-accent-700">
                           ${(formData.amount * 0.7).toFixed(2)}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-600">Empresa (30%):</span>
-                        <span className="font-semibold text-purple-600">
+                        <span className="font-semibold text-slate-700">
                           ${(formData.amount * 0.3).toFixed(2)}
                         </span>
                       </div>

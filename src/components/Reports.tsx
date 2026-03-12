@@ -1,24 +1,30 @@
 import { useState } from 'react';
 import { api } from '../lib/api';
-import { FileText, Download, Calendar, DollarSign, Search, Filter } from 'lucide-react';
+import { FileText, Download, Calendar, DollarSign, Filter } from 'lucide-react';
 import { Motorcycle, Asociado, CostCenter, Payment, PaymentDistribution } from '../types/database';
 
-type MotorcycleWithDetails = Motorcycle & {
-  asociado?: Asociado & { centros_costo?: CostCenter };
-};
+type ReportType =
+  | 'overdue'
+  | 'payments'
+  | 'distributions'
+  | 'cash_receipts'
+  | 'monthly_income'
+  | 'debt_summary';
 
-type PaymentWithDetails = Payment & {
-  motorcycle?: Motorcycle;
-  asociado?: Asociado & { centros_costo?: CostCenter };
+type PreviewCell = string | number | null | undefined;
+type PreviewRow = Record<string, PreviewCell>;
+
+type PaymentForReports = Payment & {
   distribution?: PaymentDistribution;
+  motorcycle?: Motorcycle | { plate?: string };
 };
 
 export function Reports() {
   const [loading, setLoading] = useState(false);
-  const [reportType, setReportType] = useState<'overdue' | 'payments' | 'distributions' | 'cash_receipts' | 'monthly_income' | 'debt_summary'>('overdue');
+  const [reportType, setReportType] = useState<ReportType>('overdue');
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0]);
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
-  const [previewData, setPreviewData] = useState<any[]>([]);
+  const [previewData, setPreviewData] = useState<PreviewRow[]>([]);
   const [generatedDate, setGeneratedDate] = useState<string>('');
 
   const reportTypes = [
@@ -150,7 +156,7 @@ export function Reports() {
       const centrosById = Object.fromEntries((costCentersList || []).map((c: CostCenter) => [c.id, c]));
       const asociadosById = Object.fromEntries((asociadosList || []).map((a: Asociado) => [a.id, a]));
 
-      const reportData = (payments || []).map((payment: any) => {
+      const reportData = (payments || []).map((payment: PaymentForReports) => {
         const asociado = payment.asociado_id ? asociadosById[payment.asociado_id] : null;
         const centroCosto = asociado ? centrosById[asociado.centro_costo_id] : null;
         const distribution = payment.distribution;
@@ -191,7 +197,7 @@ export function Reports() {
       const centrosById = Object.fromEntries((costCentersList || []).map((c: CostCenter) => [c.id, c]));
       const asociadosById = Object.fromEntries((asociadosList || []).map((a: Asociado) => [a.id, a]));
 
-      const reportData = (payments || []).map((payment: any) => {
+      const reportData = (payments || []).map((payment: PaymentForReports) => {
         const asociado = payment.asociado_id ? asociadosById[payment.asociado_id] : null;
         const centroCosto = asociado ? centrosById[asociado.centro_costo_id] : null;
         const distribution = payment.distribution;
@@ -202,10 +208,10 @@ export function Reports() {
             'Asociado': asociado?.nombre || 'N/A',
             'Placa': payment.motorcycle?.plate || 'N/A',
             'Recaudo Total': payment.amount,
-            'Base Comisionable': distribution?.base_amount || 0,
+            'Base Comisionable': payment.amount,
             'Comisión Asociado': distribution?.associate_amount || 0,
             'Ingreso Empresa': distribution?.company_amount || 0,
-            'Ahorro': distribution?.savings_amount || 0,
+            'Ahorro': 0,
         };
       });
 
@@ -225,7 +231,7 @@ export function Reports() {
     try {
         const receipts = await api.getCashReceipts({ from: dateFrom, to: dateTo });
         
-        const reportData = (receipts || []).map((r: any) => ({
+        const reportData = (receipts || []).map((r) => ({
             'Fecha': r.fecha,
             'Asociado': r.asociado?.nombre || 'N/A',
             'Concepto': r.concepto,
@@ -295,7 +301,10 @@ export function Reports() {
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Tipo de Reporte</label>
                 <select
                   value={reportType}
-                  onChange={(e) => setPreviewData([]) || setReportType(e.target.value as any)}
+                  onChange={(e) => {
+                    setPreviewData([]);
+                    setReportType(e.target.value as ReportType);
+                  }}
                   className="input-field w-full"
                 >
                   {reportTypes.map(type => (
@@ -351,10 +360,10 @@ export function Reports() {
 
           <div className="card p-6 bg-slate-50 border-dashed">
             <div className="flex items-start gap-4">
-              <div className="bg-blue-100 p-3 rounded-lg">
+              <div className="bg-accent-50 p-3 rounded-lg border border-accent-100">
                 {(() => {
                   const Icon = reportTypes.find(r => r.id === reportType)?.icon || FileText;
-                  return <Icon className="w-6 h-6 text-blue-600" />;
+                  return <Icon className="w-6 h-6 text-accent-700" />;
                 })()}
               </div>
               <div>
@@ -403,7 +412,7 @@ export function Reports() {
                     <tbody className="bg-white divide-y divide-slate-200">
                       {previewData.map((row, i) => (
                         <tr key={i} className="table-row">
-                          {Object.values(row).map((value: any, j) => (
+                          {Object.values(row).map((value, j) => (
                             <td key={j} className="table-cell">
                               {value}
                             </td>

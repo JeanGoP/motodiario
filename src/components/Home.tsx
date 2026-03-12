@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { Building2, Users, Bike, DollarSign, AlertTriangle, TrendingUp } from 'lucide-react';
 
-export function Home() {
+type HomeProps = {
+  onNavigate?: (view: 'motorcycles' | 'transactions') => void;
+};
+
+export function Home({ onNavigate }: HomeProps) {
   const [stats, setStats] = useState({
     costCenters: 0,
     asociados: 0,
@@ -12,6 +16,7 @@ export function Home() {
     overdueMotorcycles: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
   useEffect(() => {
     loadStats();
@@ -29,12 +34,12 @@ export function Home() {
       ]);
 
       const motos = motorcycles || [];
-      const activeCount = motos.filter((m: any) => m.status === 'ACTIVE').length;
-      const deactivatedCount = motos.filter((m: any) => m.status === 'DEACTIVATED').length;
+      const activeCount = motos.filter((m) => m.status === 'ACTIVE').length;
+      const deactivatedCount = motos.filter((m) => m.status === 'DEACTIVATED').length;
       
       const todayTotal = (payments || [])
-        .filter((p: any) => p.payment_date === today)
-        .reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+        .filter((p) => p.payment_date === today)
+        .reduce((sum, p) => sum + Number(p.amount), 0);
 
       setStats({
         costCenters: (costCentersList || []).length,
@@ -48,6 +53,7 @@ export function Home() {
       console.error('Error loading stats:', error);
     } finally {
       setLoading(false);
+      setLastUpdatedAt(new Date());
     }
   };
 
@@ -83,8 +89,8 @@ export function Home() {
       value: `$${stats.todayPayments.toLocaleString()}`,
       icon: DollarSign,
       trend: 'Ingresos del día',
-      highlight: 'text-blue-600',
-      bgHighlight: 'bg-blue-50'
+      highlight: 'text-accent-700',
+      bgHighlight: 'bg-accent-50'
     },
     {
       title: 'Motos Vencidas',
@@ -114,7 +120,6 @@ export function Home() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {statCards.map((card) => {
           const Icon = card.icon;
-          const isHighlight = card.highlight;
           
           return (
             <div key={card.title} className="group bg-white rounded-xl p-6 border border-slate-200 shadow-sm hover:shadow-md transition-all duration-200">
@@ -151,10 +156,14 @@ export function Home() {
             </div>
             <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-100">
               <div className="flex items-center gap-3">
-                <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                <span className="text-sm font-medium text-slate-700">Última Sincronización</span>
+                <div className="w-2 h-2 rounded-full bg-accent-600"></div>
+                <span className="text-sm font-medium text-slate-700">Última actualización</span>
               </div>
-              <span className="text-xs font-medium text-slate-500">Hace 1 minuto</span>
+              <span className="text-xs font-medium text-slate-500">
+                {lastUpdatedAt
+                  ? lastUpdatedAt.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
+                  : '—'}
+              </span>
             </div>
           </div>
         </div>
@@ -162,11 +171,17 @@ export function Home() {
         <div className="card p-6">
           <h2 className="text-lg font-bold text-slate-900 mb-4">Accesos Rápidos</h2>
           <div className="grid grid-cols-2 gap-4">
-            <button className="flex flex-col items-center justify-center p-4 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all text-slate-600 hover:text-slate-900">
+            <button
+              onClick={() => onNavigate?.('motorcycles')}
+              className="flex flex-col items-center justify-center p-4 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all text-slate-600 hover:text-slate-900"
+            >
               <Bike className="w-6 h-6 mb-2" />
               <span className="text-sm font-medium">Nueva Moto</span>
             </button>
-            <button className="flex flex-col items-center justify-center p-4 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all text-slate-600 hover:text-slate-900">
+            <button
+              onClick={() => onNavigate?.('transactions')}
+              className="flex flex-col items-center justify-center p-4 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all text-slate-600 hover:text-slate-900"
+            >
               <Users className="w-6 h-6 mb-2" />
               <span className="text-sm font-medium">Registrar Pago</span>
             </button>

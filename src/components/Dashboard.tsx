@@ -5,7 +5,6 @@ import {
   Building2,
   Users,
   Bike,
-  CreditCard,
   AlertTriangle,
   FileText,
   Bell,
@@ -53,7 +52,7 @@ export function Dashboard() {
 
   const renderView = () => {
     switch (currentView) {
-      case 'home': return <Home />;
+      case 'home': return <Home onNavigate={setCurrentView} />;
       case 'cost-centers': return <CostCenters />;
       case 'associates': return <Associates />;
       case 'motorcycles': return <Motorcycles />;
@@ -74,7 +73,7 @@ export function Dashboard() {
         {/* Logo Section */}
         <div className="flex items-center justify-between h-16 px-6 bg-slate-950 border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="bg-brand-600 p-1.5 rounded-lg shadow-lg shadow-brand-900/50">
+            <div className="bg-accent-700 p-1.5 rounded-lg shadow-lg shadow-accent-950/50">
               <Bike className="w-6 h-6 text-white" />
             </div>
             <span className="text-lg font-bold text-white tracking-tight">MotoDiario</span>
@@ -100,13 +99,13 @@ export function Dashboard() {
                   }}
                   className={`group flex items-center w-full px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 border-l-4 ${
                     isActive
-                      ? 'bg-slate-800/50 text-white border-brand-500 shadow-[0_0_20px_rgba(var(--brand-500),0.1)]'
+                      ? 'bg-slate-800/50 text-white border-accent-500 shadow-[0_0_20px_rgba(99,102,241,0.18)]'
                       : 'border-transparent text-slate-400 hover:bg-slate-800 hover:text-white hover:border-slate-600'
                   }`}
                 >
-                  <Icon className={`w-5 h-5 mr-3 transition-colors ${isActive ? 'text-brand-400' : 'text-slate-500 group-hover:text-white'}`} />
+                  <Icon className={`w-5 h-5 mr-3 transition-colors ${isActive ? 'text-accent-300' : 'text-slate-500 group-hover:text-white'}`} />
                   <span className="flex-1 text-left">{item.label}</span>
-                  {isActive && <div className="w-1.5 h-1.5 rounded-full bg-brand-400 shadow-[0_0_8px_currentColor]" />}
+                  {isActive && <div className="w-1.5 h-1.5 rounded-full bg-accent-300 shadow-[0_0_10px_rgba(129,140,248,0.6)]" />}
                 </button>
               );
             })}

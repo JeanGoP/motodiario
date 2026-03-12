@@ -10,12 +10,12 @@ export function Transactions() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-200 inline-flex">
+      <div className="card p-2 inline-flex">
         <button
           onClick={() => setActiveTab('receipts')}
           className={`flex items-center gap-2 px-6 py-2.5 rounded-lg transition-all font-medium text-sm ${
             activeTab === 'receipts'
-              ? 'bg-brand-600 text-white shadow-md shadow-brand-900/20'
+              ? 'bg-accent-700 text-white shadow-md shadow-accent-950/20'
               : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
           }`}
         >
@@ -26,7 +26,7 @@ export function Transactions() {
           onClick={() => setActiveTab('payments')}
           className={`flex items-center gap-2 px-6 py-2.5 rounded-lg transition-all font-medium text-sm ${
             activeTab === 'payments'
-              ? 'bg-brand-600 text-white shadow-md shadow-brand-900/20'
+              ? 'bg-accent-700 text-white shadow-md shadow-accent-950/20'
               : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
           }`}
         >

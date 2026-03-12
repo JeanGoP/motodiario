@@ -1,4 +1,4 @@
-export interface Database {
+export type Database = {
   public: {
     Tables: {
       centros_costo: {
@@ -95,10 +95,42 @@ export interface Database {
           updated_at: string;
           dias_gracia: number;
         };
-      Insert: {
+        Insert: {
           id?: string;
           asociado_id: string;
+          brand: string;
+          model: string;
+          year: number;
+          plate: string;
+          daily_rate: number;
+          plan_months: number;
+          status?: 'ACTIVE' | 'DEACTIVATED';
+          created_at?: string;
+          updated_at?: string;
+          dias_gracia?: number;
         };
+        Update: {
+          id?: string;
+          asociado_id?: string;
+          brand?: string;
+          model?: string;
+          year?: number;
+          plate?: string;
+          daily_rate?: number;
+          plan_months?: number;
+          status?: 'ACTIVE' | 'DEACTIVATED';
+          created_at?: string;
+          updated_at?: string;
+          dias_gracia?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "motorcycles_asociado_id_fkey";
+            columns: ["asociado_id"];
+            referencedRelation: "asociados";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       recibos_caja: {
         Row: {
@@ -131,34 +163,9 @@ export interface Database {
           created_by?: string | null;
           created_at?: string;
         };
-      };brand: string;
-          model: string;
-          year: number;
-          plate: string;
-          daily_rate: number;
-          plan_months?: number;
-          status?: 'ACTIVE' | 'DEACTIVATED';
-          created_at?: string;
-          updated_at?: string;
-          dias_gracia?: number;
-        };
-        Update: {
-          id?: string;
-          asociado_id?: string;
-          brand?: string;
-          model?: string;
-          year?: number;
-          plate?: string;
-          daily_rate?: number;
-          plan_months?: number;
-          status?: 'ACTIVE' | 'DEACTIVATED';
-          created_at?: string;
-          updated_at?: string;
-          dias_gracia?: number;
-        };
         Relationships: [
           {
-            foreignKeyName: "motorcycles_asociado_id_fkey";
+            foreignKeyName: "recibos_caja_asociado_id_fkey";
             columns: ["asociado_id"];
             referencedRelation: "asociados";
             referencedColumns: ["id"];
@@ -386,8 +393,8 @@ export interface Database {
           }
         ];
       };
-    };
-  };
+    }
+  }
 }
 
 export type CostCenter = Database['public']['Tables']['centros_costo']['Row'];

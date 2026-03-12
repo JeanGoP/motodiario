@@ -23,8 +23,8 @@ export function Login() {
       } else {
         await signIn(email, password);
       }
-    } catch (err: any) {
-      setError(err.message || 'Ha ocurrido un error');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Ha ocurrido un error');
     } finally {
       setLoading(false);
     }
@@ -40,7 +40,7 @@ export function Login() {
       <div className="w-full max-w-md z-10">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center p-4 bg-white rounded-2xl shadow-xl mb-4">
-            <div className="bg-brand-600 p-3 rounded-xl">
+            <div className="bg-accent-700 p-3 rounded-xl">
               <Bike className="w-8 h-8 text-white" />
             </div>
           </div>
@@ -98,7 +98,7 @@ export function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="btn btn-primary w-full justify-center py-3 text-base shadow-lg shadow-brand-900/20"
+              className="btn btn-primary w-full justify-center py-3 text-base shadow-lg shadow-accent-950/20"
             >
               {loading ? (
                  <div className="flex items-center gap-2">
@@ -117,7 +117,7 @@ export function Login() {
                   setIsSignUp(!isSignUp);
                   setError('');
                 }}
-                className="text-sm text-brand-600 hover:text-brand-700 font-medium hover:underline transition-all"
+                className="text-sm text-accent-700 hover:text-accent-800 font-medium hover:underline transition-all"
               >
                 {isSignUp ? '¿Ya tienes acceso? Inicia sesión' : '¿No tienes cuenta? Solicita acceso'}
               </button>

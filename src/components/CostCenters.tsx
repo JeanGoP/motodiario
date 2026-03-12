@@ -52,8 +52,8 @@ export function CostCenters() {
       setShowModal(false);
       resetForm();
       loadCostCenters();
-    } catch (error: any) {
-      alert('Error: ' + error.message);
+    } catch (error: unknown) {
+      alert('Error: ' + (error instanceof Error ? error.message : 'Ha ocurrido un error'));
     }
   };
 
@@ -73,8 +73,8 @@ export function CostCenters() {
     try {
       await api.eliminarCentroCosto(id);
       loadCostCenters();
-    } catch (error: any) {
-      alert('Error: ' + error.message);
+    } catch (error: unknown) {
+      alert('Error: ' + (error instanceof Error ? error.message : 'Ha ocurrido un error'));
     }
   };
 
@@ -91,7 +91,7 @@ export function CostCenters() {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent-700"></div>
       </div>
     );
   }
@@ -129,18 +129,18 @@ export function CostCenters() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCostCenters.map((center) => (
-          <div key={center.id} className="card p-6 border-l-4 border-l-brand-500 hover:shadow-lg transition-shadow">
+          <div key={center.id} className="card p-6 border-l-4 border-l-accent-600 hover:shadow-lg transition-shadow">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className="bg-brand-50 p-2.5 rounded-lg">
-                  <Building2 className="w-6 h-6 text-brand-600" />
+                <div className="bg-accent-50 p-2.5 rounded-lg border border-accent-100">
+                  <Building2 className="w-6 h-6 text-accent-700" />
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-900">{center.nombre}</h3>
                   <p className="text-sm text-slate-500 font-mono">{center.codigo}</p>
                 </div>
               </div>
-              <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${center.activo ? 'bg-green-50 text-green-700 border-green-100' : 'bg-slate-50 text-slate-600 border-slate-100'}`}>
+              <span className={`badge ${center.activo ? 'badge-success' : 'badge-slate'}`}>
                 {center.activo ? 'Activo' : 'Inactivo'}
               </span>
             </div>
@@ -242,7 +242,7 @@ export function CostCenters() {
                   id="activo"
                   checked={formData.activo}
                   onChange={(e) => setFormData({ ...formData, activo: e.target.checked })}
-                  className="w-4 h-4 text-brand-600 border-slate-300 rounded focus:ring-brand-500"
+                  className="w-4 h-4 text-accent-700 border-slate-300 rounded focus:ring-accent-500"
                 />
                 <label htmlFor="activo" className="text-sm text-slate-700 select-none cursor-pointer">
                   Centro de costo activo
@@ -262,7 +262,7 @@ export function CostCenters() {
                 </button>
                 <button
                   type="submit"
-                  className="btn btn-primary flex-1 justify-center shadow-lg shadow-brand-900/20"
+                  className="btn btn-primary flex-1 justify-center shadow-lg shadow-accent-950/20"
                 >
                   {editingId ? 'Actualizar' : 'Crear Centro'}
                 </button>

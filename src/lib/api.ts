@@ -1,3 +1,5 @@
+import type { Asociado, CostCenter, Deactivation, Motorcycle, Notification, Payment, PaymentDistribution } from '../types/database';
+
 // Normalizar la URL base: si existe la variable de entorno, usarla; si no, usar '/api' (proxy local o relativo en producción)
 // Esto asume que en Netlify el frontend y backend están en el mismo dominio bajo /api
 const getBaseUrl = () => {
@@ -15,12 +17,13 @@ const getBaseUrl = () => {
 };
 
 const baseUrl = getBaseUrl();
+const isDev = import.meta.env.DEV;
 
 // Simple in-memory cache
-const cache = new Map<string, { data: any; timestamp: number }>();
+const cache = new Map<string, { data: unknown; timestamp: number }>();
 const CACHE_TTL = 60 * 1000; // 1 minute
 
-async function request(path: string, options?: RequestInit & { useCache?: boolean }) {
+async function request<T = unknown>(path: string, options?: RequestInit & { useCache?: boolean }): Promise<T> {
   // Asegurar que el path empiece con slash
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const url = `${baseUrl}${normalizedPath}`;
@@ -29,12 +32,12 @@ async function request(path: string, options?: RequestInit & { useCache?: boolea
   if (options?.useCache && (!options.method || options.method === 'GET')) {
     const cached = cache.get(url);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-      console.log(`[API] Serving from cache: ${url}`);
-      return cached.data;
+      if (isDev) console.log(`[API] Serving from cache: ${url}`);
+      return cached.data as T;
     }
   }
 
-  console.log(`[API] Requesting: ${url}`); // Debug log
+  if (isDev) console.log(`[API] Requesting: ${url}`);
 
   try {
     const res = await fetch(url, {
@@ -46,17 +49,17 @@ async function request(path: string, options?: RequestInit & { useCache?: boolea
       let errorMessage = `HTTP ${res.status}`;
       try {
         const errorBody = await res.json();
-        console.error('[API] Error response body:', errorBody); // Log completo del error
+        if (isDev) console.error('[API] Error response body:', errorBody);
         if (errorBody?.error) errorMessage = errorBody.error;
         if (errorBody?.message) errorMessage += `: ${errorBody.message}`;
       } catch (e) {
-        console.error('[API] Could not parse error body:', e);
+        if (isDev) console.error('[API] Could not parse error body:', e);
       }
       throw new Error(errorMessage);
     }
     
-    if (res.status === 204) return null;
-    const data = await res.json();
+    if (res.status === 204) return null as T;
+    const data: T = await res.json();
     
     // Store in cache if enabled
     if (options?.useCache) {
@@ -65,53 +68,67 @@ async function request(path: string, options?: RequestInit & { useCache?: boolea
     
     return data;
   } catch (err) {
-    console.error('[API] Network or Parse Error:', err);
+    if (isDev) console.error('[API] Network or Parse Error:', err);
     throw err;
   }
 }
 
+export type CashReceipt = {
+  id: string;
+  asociado_id: string;
+  monto: number;
+  concepto: string;
+  fecha: string;
+  observaciones?: string | null;
+  asociado?: Pick<Asociado, 'nombre' | 'documento'>;
+};
+
+type PaymentWithDistribution = Payment & {
+  distribution?: PaymentDistribution;
+};
+
 export const api = {
   // Centros de Costo
-  getCentrosCosto: () => request('/api/centros_costo', { useCache: true }),
-  crearCentroCosto: (data: any) => request('/api/centros_costo', { method: 'POST', body: JSON.stringify(data) }),
-  actualizarCentroCosto: (id: string, data: any) => request(`/api/centros_costo/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  eliminarCentroCosto: (id: string) => request(`/api/centros_costo/${id}`, { method: 'DELETE' }),
+  getCentrosCosto: () => request<CostCenter[]>('/api/centros_costo', { useCache: true }),
+  crearCentroCosto: (data: Record<string, unknown>) => request<CostCenter>('/api/centros_costo', { method: 'POST', body: JSON.stringify(data) }),
+  actualizarCentroCosto: (id: string, data: Record<string, unknown>) => request<CostCenter>(`/api/centros_costo/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  eliminarCentroCosto: (id: string) => request<void>(`/api/centros_costo/${id}`, { method: 'DELETE' }),
 
   // Asociados
-  getAsociados: (activo?: boolean) => request(`/api/asociados${activo !== undefined ? `?active=${activo}` : ''}`, { useCache: true }),
-  crearAsociado: (data: any) => request('/api/asociados', { method: 'POST', body: JSON.stringify(data) }),
-  actualizarAsociado: (id: string, data: any) => request(`/api/asociados/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  eliminarAsociado: (id: string) => request(`/api/asociados/${id}`, { method: 'DELETE' }),
-  getDiasGraciaAsociado: (id: string, anio: number, mes: number) => request(`/api/asociados/${id}/dias_gracia?anio=${anio}&mes=${mes}`),
-  setDiasGraciaAsociado: (id: string, payload: { anio: number; mes: number; dias: number[] }) => request(`/api/asociados/${id}/dias_gracia`, { method: 'POST', body: JSON.stringify(payload) }),
+  getAsociados: (activo?: boolean) => request<Asociado[]>(`/api/asociados${activo !== undefined ? `?active=${activo}` : ''}`, { useCache: true }),
+  crearAsociado: (data: Record<string, unknown>) => request<Asociado>('/api/asociados', { method: 'POST', body: JSON.stringify(data) }),
+  actualizarAsociado: (id: string, data: Record<string, unknown>) => request<Asociado>(`/api/asociados/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  eliminarAsociado: (id: string) => request<void>(`/api/asociados/${id}`, { method: 'DELETE' }),
+  getDiasGraciaAsociado: (id: string, anio: number, mes: number) => request<number[]>(`/api/asociados/${id}/dias_gracia?anio=${anio}&mes=${mes}`),
+  setDiasGraciaAsociado: (id: string, payload: { anio: number; mes: number; dias: number[] }) => request<void>(`/api/asociados/${id}/dias_gracia`, { method: 'POST', body: JSON.stringify(payload) }),
 
   // Motorcycles
-  getMotorcycles: () => request('/api/motorcycles', { useCache: true }),
-  createMotorcycle: (data: any) => request('/api/motorcycles', { method: 'POST', body: JSON.stringify(data) }),
-  updateMotorcycle: (id: string, data: any) => request(`/api/motorcycles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  deleteMotorcycle: (id: string) => request(`/api/motorcycles/${id}`, { method: 'DELETE' }),
-  getDiasGraciaMoto: (id: string, anio: number, mes: number) => request(`/api/motorcycles/${id}/dias_gracia?anio=${anio}&mes=${mes}`),
-  setDiasGraciaMoto: (id: string, payload: { anio: number; mes: number; dias: number[] }) => request(`/api/motorcycles/${id}/dias_gracia`, { method: 'POST', body: JSON.stringify(payload) }),
+  getMotorcycles: () => request<Motorcycle[]>('/api/motorcycles', { useCache: true }),
+  createMotorcycle: (data: Record<string, unknown>) => request<Motorcycle>('/api/motorcycles', { method: 'POST', body: JSON.stringify(data) }),
+  updateMotorcycle: (id: string, data: Record<string, unknown>) => request<Motorcycle>(`/api/motorcycles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteMotorcycle: (id: string) => request<void>(`/api/motorcycles/${id}`, { method: 'DELETE' }),
+  getDiasGraciaMoto: (id: string, anio: number, mes: number) => request<number[]>(`/api/motorcycles/${id}/dias_gracia?anio=${anio}&mes=${mes}`),
+  setDiasGraciaMoto: (id: string, payload: { anio: number; mes: number; dias: number[] }) => request<void>(`/api/motorcycles/${id}/dias_gracia`, { method: 'POST', body: JSON.stringify(payload) }),
 
   // Payments
-  getPayments: (from?: string, to?: string) => request(`/api/payments${from && to ? `?from=${from}&to=${to}` : ''}`),
-  createPayment: (data: any) => request('/api/payments', { method: 'POST', body: JSON.stringify(data) }),
+  getPayments: (from?: string, to?: string) => request<PaymentWithDistribution[]>(`/api/payments${from && to ? `?from=${from}&to=${to}` : ''}`),
+  createPayment: (data: Record<string, unknown>) => request<PaymentWithDistribution>('/api/payments', { method: 'POST', body: JSON.stringify(data) }),
 
   getCashReceipts: (filters?: { from?: string; to?: string; asociado_id?: string }) => {
     const params = new URLSearchParams();
     if (filters?.from) params.append('from', filters.from);
     if (filters?.to) params.append('to', filters.to);
     if (filters?.asociado_id) params.append('asociado_id', filters.asociado_id);
-    return request(`/api/recibos_caja?${params.toString()}`);
+    return request<CashReceipt[]>(`/api/recibos_caja?${params.toString()}`);
   },
-  createCashReceipt: (data: any) => request('/api/recibos_caja', { method: 'POST', body: JSON.stringify(data) }),
+  createCashReceipt: (data: Record<string, unknown>) => request<CashReceipt>('/api/recibos_caja', { method: 'POST', body: JSON.stringify(data) }),
 
   // Notifications
-  getNotifications: () => request('/api/notifications'),
-  createNotification: (data: any) => request('/api/notifications', { method: 'POST', body: JSON.stringify(data) }),
-  updateNotification: (id: string, data: any) => request(`/api/notifications/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  getNotifications: () => request<Notification[]>('/api/notifications'),
+  createNotification: (data: Record<string, unknown>) => request<Notification>('/api/notifications', { method: 'POST', body: JSON.stringify(data) }),
+  updateNotification: (id: string, data: Record<string, unknown>) => request<Notification>(`/api/notifications/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 
   // Deactivations
-  getDeactivations: () => request('/api/deactivations'),
-  createDeactivation: (data: any) => request('/api/deactivations', { method: 'POST', body: JSON.stringify(data) }),
+  getDeactivations: () => request<Deactivation[]>('/api/deactivations'),
+  createDeactivation: (data: Record<string, unknown>) => request<Deactivation>('/api/deactivations', { method: 'POST', body: JSON.stringify(data) }),
 };
