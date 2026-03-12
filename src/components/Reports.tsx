@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
-import { FileText, Download, Calendar, DollarSign, Filter } from 'lucide-react';
+import { FileText, Download, Calendar, DollarSign, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Motorcycle, Asociado, CostCenter, Payment, PaymentDistribution } from '../types/database';
 
 type ReportType =
@@ -26,6 +26,10 @@ export function Reports() {
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
   const [previewData, setPreviewData] = useState<PreviewRow[]>([]);
   const [generatedDate, setGeneratedDate] = useState<string>('');
+  const previewScrollRef = useRef<HTMLDivElement | null>(null);
+  const [hasHorizontalOverflow, setHasHorizontalOverflow] = useState(false);
+  const [isAtScrollStart, setIsAtScrollStart] = useState(true);
+  const [isAtScrollEnd, setIsAtScrollEnd] = useState(false);
 
   const reportTypes = [
     { id: 'overdue', label: 'Reporte de Vencimientos', description: 'Estado actual de todas las motos con días vencidos y saldos', icon: Calendar },
@@ -284,6 +288,51 @@ export function Reports() {
     }
   };
 
+  const prefersReducedMotion = () =>
+    typeof window !== 'undefined' &&
+    window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const updateScrollIndicators = () => {
+    const el = previewScrollRef.current;
+    if (!el) return;
+    const overflow = el.scrollWidth > el.clientWidth + 1;
+    setHasHorizontalOverflow(overflow);
+    setIsAtScrollStart(el.scrollLeft <= 0);
+    setIsAtScrollEnd(el.scrollLeft + el.clientWidth >= el.scrollWidth - 1);
+  };
+
+  const scrollPreviewXBy = (delta: number) => {
+    const el = previewScrollRef.current;
+    if (!el) return;
+    el.scrollBy({
+      left: delta,
+      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+    });
+  };
+
+  useEffect(() => {
+    const el = previewScrollRef.current;
+    if (!el) return;
+
+    const raf = requestAnimationFrame(updateScrollIndicators);
+    const onResize = () => updateScrollIndicators();
+
+    window.addEventListener('resize', onResize);
+
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(() => updateScrollIndicators());
+      ro.observe(el);
+    }
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', onResize);
+      if (ro) ro.disconnect();
+    };
+  }, [previewData]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -384,22 +433,79 @@ export function Reports() {
         <div className="lg:col-span-2">
           <div className="card h-full flex flex-col">
             <div className="card-header flex justify-between items-center">
-              <h3 className="font-bold text-slate-900">Vista Previa</h3>
+              <div className="flex items-center gap-4 min-w-0">
+                <h3 className="font-bold text-slate-900">Vista Previa</h3>
+                {previewData.length > 0 && hasHorizontalOverflow && (
+                  <span className="text-xs text-slate-500 truncate">
+                    Desplázate horizontalmente para ver todas las columnas.
+                  </span>
+                )}
+              </div>
               {previewData.length > 0 && (
-                <button
-                  onClick={exportToCSV}
-                  className="btn btn-secondary text-xs"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Exportar CSV
-                </button>
+                <div className="flex items-center gap-2">
+                  {hasHorizontalOverflow && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => scrollPreviewXBy(-320)}
+                        disabled={isAtScrollStart}
+                        className="btn btn-secondary text-xs px-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label="Desplazar tabla hacia la izquierda"
+                        title="Izquierda"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => scrollPreviewXBy(320)}
+                        disabled={isAtScrollEnd}
+                        className="btn btn-secondary text-xs px-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label="Desplazar tabla hacia la derecha"
+                        title="Derecha"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                  <button
+                    onClick={exportToCSV}
+                    className="btn btn-secondary text-xs"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Exportar CSV
+                  </button>
+                </div>
               )}
             </div>
             
-            <div className="flex-1 overflow-auto p-0">
+            <div
+              ref={previewScrollRef}
+              className="flex-1 overflow-auto p-0 scroll-smooth focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2"
+              tabIndex={previewData.length > 0 ? 0 : -1}
+              aria-label="Vista previa del reporte (tabla desplazable)"
+              onScroll={updateScrollIndicators}
+              onKeyDown={(e) => {
+                if (!hasHorizontalOverflow) return;
+                if (e.key === 'ArrowLeft') {
+                  e.preventDefault();
+                  scrollPreviewXBy(-120);
+                } else if (e.key === 'ArrowRight') {
+                  e.preventDefault();
+                  scrollPreviewXBy(120);
+                } else if (e.key === 'Home') {
+                  e.preventDefault();
+                  previewScrollRef.current?.scrollTo({ left: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+                } else if (e.key === 'End') {
+                  e.preventDefault();
+                  const el = previewScrollRef.current;
+                  if (!el) return;
+                  el.scrollTo({ left: el.scrollWidth, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+                }
+              }}
+            >
               {previewData.length > 0 ? (
-                <div className="table-container border-0 rounded-none shadow-none">
-                  <table className="min-w-full divide-y divide-slate-200">
+                <div className="border-0 rounded-none shadow-none">
+                  <table className="min-w-full w-max divide-y divide-slate-200">
                     <thead className="table-header bg-slate-50 sticky top-0 z-10">
                       <tr>
                         {Object.keys(previewData[0]).map((header) => (
