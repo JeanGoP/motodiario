@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
-import { Plus, Edit2, Trash2, Users, Phone, Mail, Search, Building2, CheckCircle, XCircle, X, Send } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, Phone, Mail, Search, Building2, CheckCircle, XCircle, X } from 'lucide-react';
 
 export function Associates() {
   interface Asociado {
@@ -40,24 +40,6 @@ export function Associates() {
     direccion: '',
     dias_gracia: 2,
     activo: true,
-  });
-  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
-  const [whatsAppTarget, setWhatsAppTarget] = useState<Asociado | null>(null);
-  const [whatsAppSending, setWhatsAppSending] = useState(false);
-  const [whatsAppResult, setWhatsAppResult] = useState<string | null>(null);
-  const [whatsAppConversationId, setWhatsAppConversationId] = useState<string | null>(null);
-  const [whatsAppChecking, setWhatsAppChecking] = useState(false);
-  const [whatsAppStatusResult, setWhatsAppStatusResult] = useState<string | null>(null);
-  const [whatsAppForm, setWhatsAppForm] = useState({
-    templateName: 'utilidad_posventa',
-    templateLang: 'es_MX',
-    messageType: 19,
-    message: '',
-    body1: '',
-    body2: '',
-    body3: '',
-    body4: '',
-    body5: '',
   });
 
   useEffect(() => {
@@ -141,68 +123,6 @@ export function Associates() {
       activo: associate.activo,
     });
     setShowModal(true);
-  };
-
-  const openWhatsAppTest = (associate: Asociado) => {
-    setWhatsAppTarget(associate);
-    setWhatsAppResult(null);
-    setWhatsAppConversationId(null);
-    setWhatsAppStatusResult(null);
-    setWhatsAppForm((prev) => ({
-      ...prev,
-      body1: associate.nombre || '',
-    }));
-    setShowWhatsAppModal(true);
-  };
-
-  const closeWhatsAppModal = () => {
-    setShowWhatsAppModal(false);
-    setWhatsAppSending(false);
-    setWhatsAppChecking(false);
-    setWhatsAppResult(null);
-    setWhatsAppConversationId(null);
-    setWhatsAppStatusResult(null);
-    setWhatsAppTarget(null);
-  };
-
-  const sendWhatsAppTest = async () => {
-    if (!whatsAppTarget) return;
-    setWhatsAppSending(true);
-    setWhatsAppResult(null);
-    setWhatsAppConversationId(null);
-    setWhatsAppStatusResult(null);
-    try {
-      const payload = {
-        template: { name: whatsAppForm.templateName, lang: whatsAppForm.templateLang },
-        messageType: whatsAppForm.messageType,
-        placeholders: {
-          body: [whatsAppForm.body1, whatsAppForm.body2, whatsAppForm.body3, whatsAppForm.body4, whatsAppForm.body5],
-        },
-        ...(whatsAppForm.message ? { message: whatsAppForm.message } : {}),
-      };
-      const res = await api.sendAsociadoWhatsAppTemplate(whatsAppTarget.id, payload);
-      setWhatsAppResult(JSON.stringify(res, null, 2));
-      const convId = (res as { data?: { conversationId?: unknown } })?.data?.conversationId;
-      if (convId) setWhatsAppConversationId(String(convId));
-    } catch (error: unknown) {
-      setWhatsAppResult(JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2));
-    } finally {
-      setWhatsAppSending(false);
-    }
-  };
-
-  const checkWhatsAppStatus = async () => {
-    if (!whatsAppConversationId) return;
-    setWhatsAppChecking(true);
-    setWhatsAppStatusResult(null);
-    try {
-      const res = await api.getWhatsAppConversationMessages(whatsAppConversationId, { limit: 20, type: 'TYPE_WHATSAPP' });
-      setWhatsAppStatusResult(JSON.stringify(res, null, 2));
-    } catch (error: unknown) {
-      setWhatsAppStatusResult(JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2));
-    } finally {
-      setWhatsAppChecking(false);
-    }
   };
 
   const resetForm = () => {
@@ -353,14 +273,6 @@ export function Associates() {
                   </td>
                   <td className="table-cell text-right">
                     <div className="flex justify-end gap-2">
-                      <button
-                        onClick={() => openWhatsAppTest(associate)}
-                        disabled={!associate.contact_id}
-                        className={`btn-ghost p-1.5 rounded-md transition-colors ${associate.contact_id ? '' : 'opacity-40 cursor-not-allowed'}`}
-                        title={associate.contact_id ? 'Enviar WhatsApp (Prueba)' : 'Sin contact_id'}
-                      >
-                        <Send className="w-4 h-4" />
-                      </button>
                       <button
                         onClick={() => handleEdit(associate)}
                         className="btn-ghost p-1.5 rounded-md transition-colors"
@@ -526,155 +438,6 @@ export function Associates() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {showWhatsAppModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div
-            className="bg-white rounded-xl w-full max-w-lg shadow-2xl transform transition-all max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="whatsapp-modal-title"
-          >
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-xl">
-              <h3 id="whatsapp-modal-title" className="text-lg font-bold text-slate-800">
-                Enviar WhatsApp (Prueba)
-              </h3>
-              <button
-                onClick={closeWhatsAppModal}
-                className="text-slate-400 hover:text-slate-600 transition-colors rounded-md focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2"
-              >
-                <span className="sr-only">Cerrar</span>
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-5">
-              <div className="text-sm text-slate-700">
-                <div className="font-semibold text-slate-900">{whatsAppTarget?.nombre}</div>
-                <div className="text-slate-500 font-mono">contact_id: {whatsAppTarget?.contact_id || 'N/A'}</div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <div className="sm:col-span-2">
-                  <label className="input-label">Template</label>
-                  <input
-                    type="text"
-                    value={whatsAppForm.templateName}
-                    onChange={(e) => setWhatsAppForm((p) => ({ ...p, templateName: e.target.value }))}
-                    className="input-field-prominent"
-                  />
-                </div>
-                <div>
-                  <label className="input-label">Lang</label>
-                  <input
-                    type="text"
-                    value={whatsAppForm.templateLang}
-                    onChange={(e) => setWhatsAppForm((p) => ({ ...p, templateLang: e.target.value }))}
-                    className="input-field-prominent"
-                  />
-                </div>
-                <div>
-                  <label className="input-label">MessageType</label>
-                  <input
-                    type="number"
-                    value={whatsAppForm.messageType}
-                    onChange={(e) => setWhatsAppForm((p) => ({ ...p, messageType: Number(e.target.value || 0) }))}
-                    className="input-field-prominent"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="input-label">Mensaje (opcional)</label>
-                  <input
-                    type="text"
-                    value={whatsAppForm.message}
-                    onChange={(e) => setWhatsAppForm((p) => ({ ...p, message: e.target.value }))}
-                    className="input-field-prominent"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="input-label">Placeholders (body)</label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <input
-                      type="text"
-                      placeholder="1"
-                      value={whatsAppForm.body1}
-                      onChange={(e) => setWhatsAppForm((p) => ({ ...p, body1: e.target.value }))}
-                      className="input-field-prominent"
-                    />
-                    <input
-                      type="text"
-                      placeholder="2"
-                      value={whatsAppForm.body2}
-                      onChange={(e) => setWhatsAppForm((p) => ({ ...p, body2: e.target.value }))}
-                      className="input-field-prominent"
-                    />
-                    <input
-                      type="text"
-                      placeholder="3"
-                      value={whatsAppForm.body3}
-                      onChange={(e) => setWhatsAppForm((p) => ({ ...p, body3: e.target.value }))}
-                      className="input-field-prominent"
-                    />
-                    <input
-                      type="text"
-                      placeholder="4"
-                      value={whatsAppForm.body4}
-                      onChange={(e) => setWhatsAppForm((p) => ({ ...p, body4: e.target.value }))}
-                      className="input-field-prominent"
-                    />
-                    <input
-                      type="text"
-                      placeholder="5"
-                      value={whatsAppForm.body5}
-                      onChange={(e) => setWhatsAppForm((p) => ({ ...p, body5: e.target.value }))}
-                      className="input-field-prominent"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {whatsAppResult && (
-                <pre className="text-xs bg-slate-900 text-slate-100 rounded-lg p-4 overflow-x-auto whitespace-pre-wrap">
-                  {whatsAppResult}
-                </pre>
-              )}
-
-              {whatsAppStatusResult && (
-                <pre className="text-xs bg-slate-900 text-slate-100 rounded-lg p-4 overflow-x-auto whitespace-pre-wrap">
-                  {whatsAppStatusResult}
-                </pre>
-              )}
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={closeWhatsAppModal}
-                  className="btn bg-white text-slate-700 border-slate-300 hover:bg-slate-50 flex-1 justify-center"
-                >
-                  Cerrar
-                </button>
-                <button
-                  type="button"
-                  onClick={checkWhatsAppStatus}
-                  disabled={whatsAppChecking || !whatsAppConversationId}
-                  className={`btn bg-white text-slate-700 border-slate-300 hover:bg-slate-50 flex-1 justify-center ${whatsAppChecking || !whatsAppConversationId ? 'opacity-60 cursor-not-allowed' : ''}`}
-                >
-                  {whatsAppChecking ? 'Consultando...' : 'Consultar estado'}
-                </button>
-                <button
-                  type="button"
-                  onClick={sendWhatsAppTest}
-                  disabled={whatsAppSending || !whatsAppTarget?.contact_id}
-                  className={`btn btn-primary flex-1 justify-center ${whatsAppSending || !whatsAppTarget?.contact_id ? 'opacity-60 cursor-not-allowed' : ''}`}
-                >
-                  {whatsAppSending ? 'Enviando...' : 'Enviar'}
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       )}

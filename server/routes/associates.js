@@ -230,42 +230,6 @@ const sendLeadConnectorWhatsAppTemplateMessage = async ({
   return { ok: true, skipped: false, data: parsed };
 };
 
-const getLeadConnectorConversationMessages = async ({ conversationId, locationId, limit, type }) => {
-  const token = await getLeadConnectorAccessToken(locationId);
-  if (!token) return { ok: false, skipped: true, error: leadConnectorLastTokenError || 'No hay access_token disponible' };
-
-  const url = new URL(`https://services.leadconnectorhq.com/conversations/${conversationId}/messages`);
-  if (limit !== undefined && limit !== null && String(limit).trim()) url.searchParams.set('limit', String(limit));
-  if (type !== undefined && type !== null && String(type).trim()) url.searchParams.set('type', String(type));
-
-  const doRequest = async (bearer) => {
-    const res = await fetch(url.toString(), {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'Version': LEADCONNECTOR_CONVERSATIONS_API_VERSION,
-        'Authorization': `Bearer ${bearer}`,
-      },
-    });
-    const text = await res.text();
-    const parsed = text ? (() => { try { return JSON.parse(text); } catch { return text; } })() : null;
-    return { res, parsed };
-  };
-
-  let { res, parsed } = await doRequest(token);
-  if (res.status === 401) {
-    const refreshed = await getLeadConnectorAccessToken(locationId, { forceRefresh: true });
-    if (refreshed) {
-      ({ res, parsed } = await doRequest(refreshed));
-    }
-  }
-
-  if (!res.ok) {
-    return { ok: false, skipped: false, error: typeof parsed === 'string' ? parsed : JSON.stringify(parsed), status: res.status };
-  }
-  return { ok: true, skipped: false, data: parsed };
-};
-
 router.get('/', async (req, res) => {
   const { active } = req.query;
   try {
@@ -311,25 +275,6 @@ router.get('/', async (req, res) => {
     res.json(asociados);
   } catch (err) {
     res.status(500).json({ error: err.message });
-  }
-});
-
-router.get('/whatsapp_debug/conversations/:conversationId/messages', async (req, res) => {
-  const conversationId = req.params.conversationId ? String(req.params.conversationId).trim() : '';
-  if (!conversationId) return res.status(400).json({ error: 'conversationId requerido' });
-
-  const { limit, type } = req.query || {};
-
-  try {
-    const r = await getLeadConnectorConversationMessages({
-      conversationId,
-      locationId: LEADCONNECTOR_LOCATION_ID,
-      limit,
-      type: type || 'TYPE_WHATSAPP',
-    });
-    return res.status(200).json(r);
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
   }
 });
 

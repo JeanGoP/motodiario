@@ -134,16 +134,24 @@ export function Overdue() {
 
   const handleSendWarning = async (motorcycle: MotorcycleOverdue) => {
     try {
-      await api.createNotification({
-        asociado_id: motorcycle.asociado_id,
-        motorcycle_id: motorcycle.id,
-        type: 'WARNING',
-        message: `Recordatorio: Su moto ${motorcycle.plate} tiene ${motorcycle.daysOverdue} día(s) de mora. Por favor realice el pago para evitar la desactivación.`,
-        status: 'PENDING',
-        channel: 'SMS',
+      const asociadoName = motorcycle.asociado?.nombre || '';
+      const centroName = motorcycle.asociado?.centros_costo?.nombre || '';
+
+      const send = await api.sendAsociadoWhatsAppTemplate(motorcycle.asociado_id, {
+        template: { name: 'utilidad_posventa', lang: 'es_MX' },
+        messageType: 19,
+        placeholders: {
+          body: [
+            asociadoName,
+            motorcycle.plate,
+            centroName,
+            String(motorcycle.daysOverdue),
+            'Recordatorio de mora',
+          ],
+        },
       });
 
-      alert('Notificación de advertencia programada');
+      alert(send?.ok ? 'Mensaje enviado' : `No se pudo enviar: ${send?.error || 'Error desconocido'}`);
     } catch (error: unknown) {
       alert('Error: ' + (error instanceof Error ? error.message : 'Ha ocurrido un error'));
     }
