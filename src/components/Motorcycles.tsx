@@ -166,7 +166,7 @@ export function Motorcycles() {
       year: motorcycle.year,
       plate: motorcycle.plate,
       daily_rate: motorcycle.daily_rate,
-      plan_months: motorcycle.plan_months || 0,
+      plan_months: motorcycle.plan_months || 12,
       status: motorcycle.status,
       created_at: motorcycle.created_at ? new Date(motorcycle.created_at).toISOString().split('T')[0] : getColombiaDate(),
       dias_gracia: motorcycle.dias_gracia || 0,
@@ -194,7 +194,7 @@ export function Motorcycles() {
       year: new Date().getFullYear(),
       plate: '',
       daily_rate: 0,
-      plan_months: 0,
+      plan_months: 12,
       status: 'ACTIVE',
       created_at: getColombiaDate(),
       dias_gracia: 0,
@@ -507,6 +507,22 @@ export function Motorcycles() {
                       onChange={(e) => setFormData({ ...formData, daily_rate: Number(e.target.value) })}
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label htmlFor="moto_plan_months" className="input-label">Plan (Meses)</label>
+                  <select
+                    id="moto_plan_months"
+                    required
+                    className="input-field"
+                    value={formData.plan_months}
+                    onChange={(e) => setFormData({ ...formData, plan_months: Number(e.target.value) })}
+                  >
+                    <option value="12">12 meses</option>
+                    <option value="15">15 meses</option>
+                    <option value="18">18 meses</option>
+                    <option value="24">24 meses</option>
+                  </select>
                 </div>
 
                 <div>

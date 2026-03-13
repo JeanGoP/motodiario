@@ -24,6 +24,8 @@ export function Payments() {
   const [asociados, setAsociados] = useState<Asociado[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState(new Date().toISOString().split('T')[0]);
   const [formData, setFormData] = useState({
@@ -32,12 +34,32 @@ export function Payments() {
     amount: 0,
     payment_date: new Date().toISOString().split('T')[0],
     receipt_number: '',
+    installment_number: 1,
+    payment_method: 'EFECTIVO',
     notes: '',
   });
 
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!submitSuccess) return;
+    const t = window.setTimeout(() => setSubmitSuccess(null), 5000);
+    return () => window.clearTimeout(t);
+  }, [submitSuccess]);
+
+  const normalizeDateOnly = (value: string | null | undefined) => {
+    if (!value) return '';
+    return value.includes('T') ? value.split('T')[0] : value;
+  };
+
+  const formatDateOnly = (value: string | null | undefined) => {
+    const s = normalizeDateOnly(value);
+    const [y, m, d] = s.split('-').map((part) => Number(part));
+    if (!y || !m || !d) return s;
+    return new Date(y, m - 1, d).toLocaleDateString();
+  };
 
   const loadData = async () => {
     try {
@@ -60,6 +82,7 @@ export function Payments() {
       setPayments(
         (paymentsData || []).map((p: PaymentFromApi) => ({
           ...p,
+          payment_date: normalizeDateOnly(p.payment_date),
           motorcycle: motoById[p.motorcycle_id],
           asociado: asociadoById[p.asociado_id],
           // distribution is already nested from API
@@ -77,15 +100,49 @@ export function Payments() {
     return `REC-${timestamp}`;
   };
 
+  const getNextInstallmentNumber = (motorcycleId: string) => {
+    if (!motorcycleId) return 1;
+    const nums = payments
+      .filter((p) => p.motorcycle_id === motorcycleId)
+      .map((p) => p.installment_number)
+      .filter((n): n is number => typeof n === 'number' && Number.isFinite(n));
+    const max = nums.length ? Math.max(...nums) : 0;
+    return max + 1;
+  };
+
+  const validateBeforeSubmit = (selectedMoto: MotorcycleWithDetails | undefined) => {
+    if (!selectedMoto) return 'Seleccione una moto válida';
+    if (!Number.isFinite(formData.amount) || formData.amount <= 0) return 'El monto debe ser mayor a 0';
+    if (!formData.payment_date) return 'La fecha de pago es requerida';
+    if (!formData.receipt_number?.trim()) return 'El número de recibo es requerido';
+    if (!Number.isInteger(formData.installment_number) || formData.installment_number <= 0) return 'El número de cuota debe ser un entero mayor a 0';
+    if (Number(selectedMoto.plan_months) > 0 && formData.installment_number > Number(selectedMoto.plan_months)) {
+      return `El número de cuota excede el plan de ${selectedMoto.plan_months} meses`;
+    }
+    const duplicatedInstallment = payments.some(
+      (p) => p.motorcycle_id === selectedMoto.id && p.installment_number === formData.installment_number
+    );
+    if (duplicatedInstallment) return 'Ya existe un pago registrado para esa cuota de la moto';
+    return null;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      setSubmitError(null);
+      setSubmitSuccess(null);
       const selectedMoto = motorcycles.find((m) => m.id === formData.motorcycle_id);
+      const validationError = validateBeforeSubmit(selectedMoto);
+      if (validationError) {
+        setSubmitError(validationError);
+        return;
+      }
       if (!selectedMoto) {
-        alert('Seleccione una moto válida');
+        setSubmitError('Seleccione una moto válida');
         return;
       }
 
+      const paymentDateForUi = formData.payment_date;
       const newPayment = await api.createPayment({
         ...formData,
         asociado_id: selectedMoto.asociado_id,
@@ -95,13 +152,15 @@ export function Payments() {
       
       if (confirm('Pago registrado correctamente. ¿Desea imprimir el recibo?')) {
         if (!asociado) {
-          alert('No se encontró el asociado para imprimir el recibo');
+          setSubmitError('No se encontró el asociado para imprimir el recibo');
           return;
         }
         printReceipt({
           receipt_number: newPayment.receipt_number,
-          payment_date: newPayment.payment_date,
+          payment_date: paymentDateForUi,
           amount: Number(newPayment.amount),
+          installment_number: newPayment.installment_number ?? null,
+          payment_method: newPayment.payment_method ?? null,
           asociado: {
             nombre: asociado.nombre,
             documento: asociado.documento,
@@ -115,10 +174,13 @@ export function Payments() {
       }
 
       setShowModal(false);
+      setSubmitSuccess(
+        `Pago registrado: ${newPayment.receipt_number} · ${formatDateOnly(paymentDateForUi)} · $${Number(newPayment.amount).toLocaleString()}`
+      );
       resetForm();
       loadData();
     } catch (error: unknown) {
-      alert('Error: ' + (error instanceof Error ? error.message : 'Ha ocurrido un error'));
+      setSubmitError(error instanceof Error ? error.message : 'Ha ocurrido un error');
     }
   };
 
@@ -129,12 +191,15 @@ export function Payments() {
       amount: 0,
       payment_date: new Date().toISOString().split('T')[0],
       receipt_number: generateReceiptNumber(),
+      installment_number: 1,
+      payment_method: 'EFECTIVO',
       notes: '',
     });
+    setSubmitError(null);
   };
 
   const filteredPayments = payments.filter(payment => {
-    const matchesDate = !dateFilter || payment.payment_date === dateFilter;
+    const matchesDate = !dateFilter || normalizeDateOnly(payment.payment_date) === dateFilter;
     const matchesSearch = 
       payment.receipt_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
       payment.asociado?.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -152,15 +217,15 @@ export function Payments() {
   // Let's keep the KPIs fixed to "Today" for now as per the original code, but maybe add a label.
   
   const totalToday = payments
-    .filter((p) => p.payment_date === new Date().toISOString().split('T')[0])
+    .filter((p) => normalizeDateOnly(p.payment_date) === new Date().toISOString().split('T')[0])
     .reduce((sum, p) => sum + Number(p.amount), 0);
 
   const totalAssociateToday = payments
-    .filter((p) => p.payment_date === new Date().toISOString().split('T')[0])
+    .filter((p) => normalizeDateOnly(p.payment_date) === new Date().toISOString().split('T')[0])
     .reduce((sum, p) => sum + Number(p.distribution?.associate_amount || 0), 0);
 
   const totalCompanyToday = payments
-    .filter((p) => p.payment_date === new Date().toISOString().split('T')[0])
+    .filter((p) => normalizeDateOnly(p.payment_date) === new Date().toISOString().split('T')[0])
     .reduce((sum, p) => sum + Number(p.distribution?.company_amount || 0), 0);
 
   if (loading) {
@@ -176,7 +241,7 @@ export function Payments() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Pagos</h2>
-          <p className="text-slate-600 mt-1">Registra y consulta los pagos diarios</p>
+          <p className="text-slate-600 mt-1">Registra y consulta los pagos de cuotas</p>
         </div>
         <button
           onClick={() => {
@@ -189,6 +254,18 @@ export function Payments() {
           Registrar Pago
         </button>
       </div>
+
+      {submitSuccess && (
+        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+          {submitSuccess}
+        </div>
+      )}
+
+      {submitError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {submitError}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="card p-6 border-l-4 border-l-green-500">
@@ -279,7 +356,7 @@ export function Payments() {
                         {payment.receipt_number}
                       </span>
                       <span className="text-xs text-slate-500">
-                        {new Date(payment.payment_date).toLocaleDateString()}
+                        {formatDateOnly(payment.payment_date)}
                       </span>
                     </div>
                   </td>
@@ -292,6 +369,9 @@ export function Payments() {
                       <span className="text-xs text-slate-500 flex items-center gap-1">
                         <Bike className="w-3 h-3 text-slate-400" />
                         {payment.motorcycle?.plate}
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        Cuota: {payment.installment_number ?? 'N/A'} · Método: {payment.payment_method ?? 'N/A'}
                       </span>
                     </div>
                   </td>
@@ -389,7 +469,8 @@ export function Payments() {
                       setFormData({ 
                         ...formData, 
                         motorcycle_id: selectedId,
-                        amount: selectedMoto ? Number(selectedMoto.daily_rate) : 0 
+                        amount: selectedMoto ? Number(selectedMoto.daily_rate) : 0,
+                        installment_number: selectedMoto ? getNextInstallmentNumber(selectedId) : 1,
                       });
                     }}
                     className="input-field"
@@ -404,6 +485,38 @@ export function Payments() {
                         </option>
                       );
                     })}
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="payment_installment_number" className="input-label">Número de Cuota</label>
+                  <input
+                    id="payment_installment_number"
+                    type="number"
+                    value={formData.installment_number}
+                    onChange={(e) => setFormData({ ...formData, installment_number: Number(e.target.value) })}
+                    className="input-field"
+                    min="1"
+                    step="1"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="payment_method" className="input-label">Método de Pago</label>
+                  <select
+                    id="payment_method"
+                    value={formData.payment_method}
+                    onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}
+                    className="input-field"
+                    required
+                  >
+                    <option value="EFECTIVO">Efectivo</option>
+                    <option value="TRANSFERENCIA">Transferencia</option>
+                    <option value="TARJETA">Tarjeta</option>
+                    <option value="NEQUI">Nequi</option>
+                    <option value="DAVIPLATA">Daviplata</option>
+                    <option value="OTRO">Otro</option>
                   </select>
                 </div>
                 

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
-import { FileText, Download, Calendar, DollarSign, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Motorcycle, Asociado, CostCenter, Payment, PaymentDistribution } from '../types/database';
+import { FileText, Download, Calendar, DollarSign, Filter, ChevronLeft, ChevronRight, Ban } from 'lucide-react';
+import { Motorcycle, Asociado, CostCenter, Deactivation, Payment, PaymentDistribution } from '../types/database';
 
 type ReportType =
   | 'overdue'
+  | 'deactivated'
   | 'payments'
   | 'distributions'
   | 'cash_receipts'
@@ -33,6 +34,7 @@ export function Reports() {
 
   const reportTypes = [
     { id: 'overdue', label: 'Reporte de Vencimientos', description: 'Estado actual de todas las motos con días vencidos y saldos', icon: Calendar },
+    { id: 'deactivated', label: 'Motos Desactivadas', description: 'Listado de motos desactivadas con detalle de desactivación', icon: Ban },
     { id: 'payments', label: 'Reporte de Pagos', description: 'Historial de pagos por rango de fechas', icon: DollarSign },
     { id: 'distributions', label: 'Reporte de Distribuciones', description: 'Distribución 70/30 por centro de costo', icon: Filter },
     { id: 'cash_receipts', label: 'Reporte de Recibos de Caja', description: 'Reporte de recibos de caja y anticipos', icon: FileText },
@@ -86,6 +88,13 @@ export function Reports() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
+      const parseDateOnly = (value: string) => {
+        const s = value.includes('T') ? value.split('T')[0] : value;
+        const [y, m, d] = s.split('-').map((part) => Number(part));
+        if (!y || !m || !d) return new Date(value);
+        return new Date(y, m - 1, d);
+      };
+
       const reportData = [];
 
       const centrosById = Object.fromEntries((costCentersList || []).map((c: CostCenter) => [c.id, c]));
@@ -98,7 +107,7 @@ export function Reports() {
         // Find last payment for this moto
         const motoPayments = (allPayments || [])
           .filter((p: Payment) => p.motorcycle_id === moto.id)
-          .sort((a: Payment, b: Payment) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime());
+          .sort((a: Payment, b: Payment) => parseDateOnly(b.payment_date).getTime() - parseDateOnly(a.payment_date).getTime());
         
         const lastPayment = motoPayments.length > 0 ? motoPayments[0] : null;
 
@@ -106,7 +115,7 @@ export function Reports() {
         let balance = 0;
 
         if (lastPayment) {
-          const lastPaymentDate = new Date(lastPayment.payment_date);
+          const lastPaymentDate = parseDateOnly(lastPayment.payment_date);
           lastPaymentDate.setHours(0, 0, 0, 0);
           const diffTime = today.getTime() - lastPaymentDate.getTime();
           const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
@@ -142,6 +151,68 @@ export function Reports() {
       setGeneratedDate(new Date().toISOString().split('T')[0]);
     } catch (error) {
       console.error('Error generating report:', error);
+      alert('Error al generar el reporte');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateDeactivatedMotorcyclesReport = async () => {
+    setLoading(true);
+    try {
+      const [allMotos, asociadosList, costCentersList, deactivations] = await Promise.all([
+        api.getMotorcycles(),
+        api.getAsociados(),
+        api.getCentrosCosto(),
+        api.getDeactivations(),
+      ]);
+
+      const deactivated = (allMotos || []).filter((m: Motorcycle) => m.status === 'DEACTIVATED');
+      const centrosById = Object.fromEntries((costCentersList || []).map((c: CostCenter) => [c.id, c]));
+      const asociadosById = Object.fromEntries((asociadosList || []).map((a: Asociado) => [a.id, a]));
+
+      const sortedDeactivations = [...(deactivations || [])].sort((a: Deactivation, b: Deactivation) => {
+        const aTime = new Date(a.deactivation_date || a.created_at || 0).getTime();
+        const bTime = new Date(b.deactivation_date || b.created_at || 0).getTime();
+        return bTime - aTime;
+      });
+
+      const lastDeactivationByMotoId = new Map<string, Deactivation>();
+      for (const d of sortedDeactivations) {
+        if (!lastDeactivationByMotoId.has(d.motorcycle_id)) {
+          lastDeactivationByMotoId.set(d.motorcycle_id, d);
+        }
+      }
+
+      const reportData = deactivated.map((moto) => {
+        const asociado = asociadosById[moto.asociado_id];
+        const centroCosto = asociado ? centrosById[asociado.centro_costo_id] : null;
+        const deactivation = lastDeactivationByMotoId.get(moto.id) || null;
+
+        return {
+          'Placa': moto.plate,
+          'Marca': moto.brand,
+          'Modelo': moto.model,
+          'Año': moto.year,
+          'Centro de Costo': centroCosto?.nombre || 'N/A',
+          'Asociado': asociado?.nombre || 'N/A',
+          'Documento': asociado?.documento || 'N/A',
+          'Teléfono': asociado?.telefono || 'N/A',
+          'Fecha Desactivación': deactivation?.deactivation_date || 'N/A',
+          'Días de Mora': deactivation?.days_overdue ?? 'N/A',
+          'Motivo': deactivation?.reason || 'N/A',
+          'Reactivada': deactivation?.reactivation_date ? 'Sí' : 'No',
+          'Fecha Reactivación': deactivation?.reactivation_date || 'N/A',
+          'Tarifa Diaria': moto.daily_rate,
+          'Plan (Meses)': moto.plan_months || 0,
+          'Estado': moto.status,
+        };
+      });
+
+      setPreviewData(reportData);
+      setGeneratedDate(new Date().toISOString().split('T')[0]);
+    } catch (error) {
+      console.error('Error generating deactivated motorcycles report:', error);
       alert('Error al generar el reporte');
     } finally {
       setLoading(false);
@@ -255,13 +326,196 @@ export function Reports() {
 
   // Stub for other reports to prevent crashes
   const generateMonthlyIncomeReport = async () => {
-      alert('Reporte en desarrollo');
+    setLoading(true);
+    try {
+      const payments = await api.getPayments(dateFrom, dateTo);
+
+      const normalizeDateOnly = (value: string) => (value.includes('T') ? value.split('T')[0] : value);
+      const getMonthKey = (dateOnly: string) => dateOnly.slice(0, 7);
+      const monthLabel = (monthKey: string) => {
+        const [y, m] = monthKey.split('-').map((p) => Number(p));
+        if (!y || !m) return monthKey;
+        const label = new Date(y, m - 1, 1).toLocaleString('es-CO', { month: 'long', year: 'numeric' });
+        return label.length ? label[0].toUpperCase() + label.slice(1) : monthKey;
+      };
+
+      const byMonth = new Map<
+        string,
+        {
+          paymentsCount: number;
+          totalAmount: number;
+          associateAmount: number;
+          companyAmount: number;
+        }
+      >();
+
+      for (const p of payments || []) {
+        const dateOnly = normalizeDateOnly(String(p.payment_date || ''));
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) continue;
+        const key = getMonthKey(dateOnly);
+
+        const amount = Number(p.amount) || 0;
+        const associate = Number((p as PaymentForReports).distribution?.associate_amount);
+        const company = Number((p as PaymentForReports).distribution?.company_amount);
+        const associateAmount = Number.isFinite(associate) ? associate : amount * 0.7;
+        const companyAmount = Number.isFinite(company) ? company : amount * 0.3;
+
+        const prev = byMonth.get(key) || { paymentsCount: 0, totalAmount: 0, associateAmount: 0, companyAmount: 0 };
+        byMonth.set(key, {
+          paymentsCount: prev.paymentsCount + 1,
+          totalAmount: prev.totalAmount + amount,
+          associateAmount: prev.associateAmount + associateAmount,
+          companyAmount: prev.companyAmount + companyAmount,
+        });
+      }
+
+      const keys = Array.from(byMonth.keys()).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+      const reportData: PreviewRow[] = keys.map((key) => {
+        const agg = byMonth.get(key)!;
+        return {
+          'Periodo': key,
+          'Mes': monthLabel(key),
+          'Pagos': agg.paymentsCount,
+          'Ingresos Total': `$${agg.totalAmount.toLocaleString()}`,
+          'Participación Asociados': `$${agg.associateAmount.toLocaleString()}`,
+          'Participación Empresa': `$${agg.companyAmount.toLocaleString()}`,
+        };
+      });
+
+      setPreviewData(reportData);
+      setGeneratedDate(`${dateFrom}_${dateTo}`);
+    } catch (error) {
+      console.error(error);
+      alert('Error al generar resumen financiero mensual');
+    } finally {
       setLoading(false);
+    }
   };
 
   const generateDebtSummaryReport = async () => {
-      alert('Reporte en desarrollo');
+    setLoading(true);
+    try {
+      const [allMotos, allPayments, asociadosList, costCentersList] = await Promise.all([
+        api.getMotorcycles(),
+        api.getPayments(),
+        api.getAsociados(),
+        api.getCentrosCosto(),
+      ]);
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const parseDateOnly = (value: string) => {
+        const s = value.includes('T') ? value.split('T')[0] : value;
+        const [y, m, d] = s.split('-').map((part) => Number(part));
+        if (!y || !m || !d) return new Date(value);
+        return new Date(y, m - 1, d);
+      };
+
+      const motos = (allMotos || []).filter((m: Motorcycle) => m.status === 'ACTIVE' || m.status === 'DEACTIVATED');
+      const centrosById = Object.fromEntries((costCentersList || []).map((c: CostCenter) => [c.id, c]));
+      const asociadosById = Object.fromEntries((asociadosList || []).map((a: Asociado) => [a.id, a]));
+
+      const lastPaymentByMotoId = new Map<string, { payment_date: string }>();
+      for (const p of allPayments || []) {
+        const motoId = (p as Payment).motorcycle_id;
+        const dateStr = String((p as Payment).payment_date || '');
+        if (!motoId || !dateStr) continue;
+        const prev = lastPaymentByMotoId.get(motoId);
+        if (!prev) {
+          lastPaymentByMotoId.set(motoId, { payment_date: dateStr });
+          continue;
+        }
+        if (parseDateOnly(dateStr).getTime() > parseDateOnly(prev.payment_date).getTime()) {
+          lastPaymentByMotoId.set(motoId, { payment_date: dateStr });
+        }
+      }
+
+      const byAsociado = new Map<
+        string,
+        {
+          asociado: Asociado | null;
+          centro: CostCenter | null;
+          activeMotos: number;
+          deactivatedMotos: number;
+          totalMotos: number;
+          totalDaysOverdue: number;
+          maxDaysOverdue: number;
+          totalDebt: number;
+        }
+      >();
+
+      for (const moto of motos) {
+        const asociado = asociadosById[moto.asociado_id] || null;
+        const centro = asociado ? centrosById[asociado.centro_costo_id] || null : null;
+
+        const lastPayment = lastPaymentByMotoId.get(moto.id) || null;
+
+        let daysOverdue = 0;
+        if (lastPayment?.payment_date) {
+          const lastPaymentDate = parseDateOnly(lastPayment.payment_date);
+          lastPaymentDate.setHours(0, 0, 0, 0);
+          const diffTime = today.getTime() - lastPaymentDate.getTime();
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          daysOverdue = Math.max(0, diffDays - 1);
+        } else {
+          const createdDate = new Date(moto.created_at);
+          createdDate.setHours(0, 0, 0, 0);
+          const diffTime = today.getTime() - createdDate.getTime();
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          daysOverdue = Math.max(0, diffDays);
+        }
+
+        const debt = daysOverdue * Number(moto.daily_rate || 0);
+
+        const prev =
+          byAsociado.get(moto.asociado_id) || {
+            asociado,
+            centro,
+            activeMotos: 0,
+            deactivatedMotos: 0,
+            totalMotos: 0,
+            totalDaysOverdue: 0,
+            maxDaysOverdue: 0,
+            totalDebt: 0,
+          };
+
+        byAsociado.set(moto.asociado_id, {
+          asociado: prev.asociado || asociado,
+          centro: prev.centro || centro,
+          activeMotos: prev.activeMotos + (moto.status === 'ACTIVE' ? 1 : 0),
+          deactivatedMotos: prev.deactivatedMotos + (moto.status === 'DEACTIVATED' ? 1 : 0),
+          totalMotos: prev.totalMotos + 1,
+          totalDaysOverdue: prev.totalDaysOverdue + daysOverdue,
+          maxDaysOverdue: Math.max(prev.maxDaysOverdue, daysOverdue),
+          totalDebt: prev.totalDebt + debt,
+        });
+      }
+
+      const rows = Array.from(byAsociado.values())
+        .filter((v) => v.totalDebt > 0)
+        .sort((a, b) => b.totalDebt - a.totalDebt)
+        .map((v) => ({
+          'Centro de Costo': v.centro?.nombre || 'N/A',
+          'Asociado': v.asociado?.nombre || 'N/A',
+          'Documento': v.asociado?.documento || 'N/A',
+          'Teléfono': v.asociado?.telefono || 'N/A',
+          'Motos Activas': v.activeMotos,
+          'Motos Desactivadas': v.deactivatedMotos,
+          'Motos Total': v.totalMotos,
+          'Días Mora Total': v.totalDaysOverdue,
+          'Máx Días Mora': v.maxDaysOverdue,
+          'Deuda Total': `$${v.totalDebt.toLocaleString()}`,
+        }));
+
+      setPreviewData(rows);
+      setGeneratedDate(new Date().toISOString().split('T')[0]);
+    } catch (error) {
+      console.error(error);
+      alert('Error al generar consolidado de deuda');
+    } finally {
       setLoading(false);
+    }
   };
 
 
@@ -269,6 +523,9 @@ export function Reports() {
     switch (reportType) {
       case 'overdue':
         generateOverdueReport();
+        break;
+      case 'deactivated':
+        generateDeactivatedMotorcyclesReport();
         break;
       case 'payments':
         generatePaymentsReport();
@@ -363,7 +620,7 @@ export function Reports() {
                 </select>
               </div>
 
-              {reportType !== 'overdue' && (
+              {reportType !== 'overdue' && reportType !== 'deactivated' && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div>
                     <label htmlFor="reports_date_from" className="input-label">Desde</label>

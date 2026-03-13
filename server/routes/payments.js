@@ -5,6 +5,115 @@ import { getPool } from '../db.js';
 
 const router = express.Router();
 
+const ALLOWED_PAYMENT_METHODS = new Set([
+  'EFECTIVO',
+  'TRANSFERENCIA',
+  'TARJETA',
+  'NEQUI',
+  'DAVIPLATA',
+  'OTRO',
+]);
+
+let pagosColumnsCache = {
+  checkedAt: 0,
+  hasInstallmentNumber: false,
+  hasPaymentMethod: false,
+};
+
+const getPagosColumnsSupport = async (request) => {
+  const now = Date.now();
+  if (now - pagosColumnsCache.checkedAt < 60_000) return pagosColumnsCache;
+
+  const cols = await request.query(`
+    SELECT COLUMN_NAME
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_NAME = 'pagos'
+      AND COLUMN_NAME IN ('installment_number', 'payment_method')
+  `);
+
+  const names = new Set((cols.recordset || []).map((r) => r.COLUMN_NAME));
+  pagosColumnsCache = {
+    checkedAt: now,
+    hasInstallmentNumber: names.has('installment_number'),
+    hasPaymentMethod: names.has('payment_method'),
+  };
+  return pagosColumnsCache;
+};
+
+const normalizeDateOnly = (value) => {
+  if (!value) return value;
+  if (typeof value === 'string') return value.includes('T') ? value.split('T')[0] : value;
+  if (value instanceof Date) {
+    const y = value.getUTCFullYear();
+    const m = String(value.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(value.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  return String(value);
+};
+
+const isValidISODate = (value) => {
+  if (typeof value !== 'string') return false;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime());
+};
+
+export const validatePaymentPayload = (body) => {
+  const motorcycle_id = typeof body?.motorcycle_id === 'string' ? body.motorcycle_id : '';
+  const asociado_id = typeof body?.asociado_id === 'string' ? body.asociado_id : '';
+  const receipt_number = typeof body?.receipt_number === 'string' ? body.receipt_number.trim() : '';
+  const notes = typeof body?.notes === 'string' ? body.notes : '';
+  const created_by = typeof body?.created_by === 'string' ? body.created_by : null;
+  const payment_date = body?.payment_date;
+  const amount = Number(body?.amount);
+
+  const installmentRaw = body?.installment_number;
+  const installment_number =
+    installmentRaw === undefined || installmentRaw === null || installmentRaw === ''
+      ? null
+      : Number(installmentRaw);
+
+  const paymentMethodRaw = body?.payment_method;
+  const payment_method =
+    paymentMethodRaw === undefined || paymentMethodRaw === null || paymentMethodRaw === ''
+      ? null
+      : String(paymentMethodRaw).trim().toUpperCase();
+
+  if (!motorcycle_id) return { ok: false, status: 400, error: 'motorcycle_id es requerido' };
+  if (!asociado_id) return { ok: false, status: 400, error: 'asociado_id es requerido' };
+  if (!Number.isFinite(amount) || amount <= 0) return { ok: false, status: 400, error: 'El monto debe ser mayor a 0' };
+  if (!isValidISODate(payment_date)) return { ok: false, status: 400, error: 'La fecha de pago es inválida' };
+  if (!receipt_number) return { ok: false, status: 400, error: 'El número de recibo es requerido' };
+
+  if (installment_number !== null) {
+    if (!Number.isInteger(installment_number) || installment_number <= 0) {
+      return { ok: false, status: 400, error: 'El número de cuota debe ser un entero mayor a 0' };
+    }
+  }
+
+  if (payment_method !== null) {
+    if (!ALLOWED_PAYMENT_METHODS.has(payment_method)) {
+      return { ok: false, status: 400, error: 'El método de pago no es válido' };
+    }
+  }
+
+  return {
+    ok: true,
+    data: {
+      motorcycle_id,
+      asociado_id,
+      amount,
+      payment_date,
+      receipt_number,
+      notes,
+      created_by,
+      installment_number,
+      payment_method,
+    },
+  };
+};
+
 router.get('/', async (req, res) => {
   const { from, to } = req.query;
   try {
@@ -41,6 +150,7 @@ router.get('/', async (req, res) => {
       const { dist_id, associate_amount, company_amount, dist_created_at, asociado_nombre, asociado_documento, motorcycle_plate, ...payment } = row;
       return {
         ...payment,
+        payment_date: normalizeDateOnly(payment.payment_date),
         asociado: payment.asociado_id ? {
           id: payment.asociado_id,
           nombre: asociado_nombre,
@@ -67,7 +177,23 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { motorcycle_id, asociado_id, amount, payment_date, receipt_number, notes, created_by } = req.body;
+  const validation = validatePaymentPayload(req.body);
+  if (!validation.ok) {
+    res.status(validation.status).json({ error: validation.error });
+    return;
+  }
+
+  const {
+    motorcycle_id,
+    asociado_id,
+    amount,
+    payment_date,
+    receipt_number,
+    notes,
+    created_by,
+    installment_number,
+    payment_method,
+  } = validation.data;
   
   const transaction = new sql.Transaction(await getPool());
   
@@ -76,21 +202,113 @@ router.post('/', async (req, res) => {
     const request = new sql.Request(transaction);
     
     const paymentId = randomUUID();
+    const columnSupport = await getPagosColumnsSupport(request);
 
-    request.input('id', sql.UniqueIdentifier, paymentId);
+    const requiresInstallmentColumn = installment_number !== null;
+    const requiresMethodColumn = payment_method !== null;
+
+    if (requiresInstallmentColumn && !columnSupport.hasInstallmentNumber) {
+      await transaction.rollback();
+      res.status(500).json({ error: "La base de datos no está actualizada: falta la columna 'installment_number'. Ejecuta la migración 005_add_payment_installment_and_method.sql" });
+      return;
+    }
+
+    if (requiresMethodColumn && !columnSupport.hasPaymentMethod) {
+      await transaction.rollback();
+      res.status(500).json({ error: "La base de datos no está actualizada: falta la columna 'payment_method'. Ejecuta la migración 005_add_payment_installment_and_method.sql" });
+      return;
+    }
+
+    request.input('receipt_number', sql.NVarChar, receipt_number);
+
+    const existingReceipt = await request.query(`
+      SELECT TOP 1 1 as exists_flag
+      FROM pagos
+      WHERE receipt_number = @receipt_number
+    `);
+    if (existingReceipt.recordset.length > 0) {
+      await transaction.rollback();
+      res.status(409).json({ error: 'Ya existe un pago con ese número de recibo' });
+      return;
+    }
+
     request.input('motorcycle_id', sql.UniqueIdentifier, motorcycle_id);
     request.input('asociado_id', sql.UniqueIdentifier, asociado_id);
+
+    const motoResult = await request.query(`
+      SELECT TOP 1 asociado_id, plan_months
+      FROM motos
+      WHERE id = @motorcycle_id
+    `);
+
+    if (motoResult.recordset.length === 0) {
+      await transaction.rollback();
+      res.status(400).json({ error: 'La moto no existe' });
+      return;
+    }
+
+    const moto = motoResult.recordset[0];
+    if (moto.asociado_id !== asociado_id) {
+      await transaction.rollback();
+      res.status(400).json({ error: 'El asociado no corresponde a la moto seleccionada' });
+      return;
+    }
+
+    if (installment_number !== null && Number(moto.plan_months) > 0 && installment_number > Number(moto.plan_months)) {
+      await transaction.rollback();
+      res.status(400).json({ error: `El número de cuota excede el plan de ${moto.plan_months} meses` });
+      return;
+    }
+
+    if (installment_number !== null && columnSupport.hasInstallmentNumber) {
+      request.input('installment_number', sql.Int, installment_number);
+      const existingInstallment = await request.query(`
+        SELECT TOP 1 1 as exists_flag
+        FROM pagos
+        WHERE motorcycle_id = @motorcycle_id
+          AND installment_number = @installment_number
+      `);
+
+      if (existingInstallment.recordset.length > 0) {
+        await transaction.rollback();
+        res.status(409).json({ error: 'Ya existe un pago registrado para esa cuota de la moto' });
+        return;
+      }
+    } else if (columnSupport.hasInstallmentNumber) {
+      request.input('installment_number', sql.Int, null);
+    }
+
+    request.input('id', sql.UniqueIdentifier, paymentId);
     request.input('amount', sql.Decimal(10, 2), amount);
-    request.input('payment_date', sql.Date, payment_date);
-    request.input('receipt_number', sql.NVarChar, receipt_number);
+    request.input('payment_date', sql.NVarChar(10), payment_date);
     request.input('notes', sql.NVarChar, notes);
     request.input('created_by', sql.NVarChar, created_by || null);
+    if (columnSupport.hasPaymentMethod) {
+      request.input('payment_method', sql.NVarChar(50), payment_method || null);
+    }
 
     // Insert Payment (Trigger tr_create_payment_distribution will create the distribution)
-    await request.query(`
-      INSERT INTO pagos (id, motorcycle_id, asociado_id, amount, payment_date, receipt_number, notes, created_by, created_at)
-      VALUES (@id, @motorcycle_id, @asociado_id, @amount, @payment_date, @receipt_number, @notes, @created_by, SYSDATETIMEOFFSET())
-    `);
+    if (columnSupport.hasInstallmentNumber && columnSupport.hasPaymentMethod) {
+      await request.query(`
+        INSERT INTO pagos (id, motorcycle_id, asociado_id, amount, payment_date, receipt_number, notes, created_by, installment_number, payment_method, created_at)
+        VALUES (@id, @motorcycle_id, @asociado_id, @amount, CONVERT(date, @payment_date), @receipt_number, @notes, @created_by, @installment_number, @payment_method, SYSDATETIMEOFFSET())
+      `);
+    } else if (columnSupport.hasInstallmentNumber) {
+      await request.query(`
+        INSERT INTO pagos (id, motorcycle_id, asociado_id, amount, payment_date, receipt_number, notes, created_by, installment_number, created_at)
+        VALUES (@id, @motorcycle_id, @asociado_id, @amount, CONVERT(date, @payment_date), @receipt_number, @notes, @created_by, @installment_number, SYSDATETIMEOFFSET())
+      `);
+    } else if (columnSupport.hasPaymentMethod) {
+      await request.query(`
+        INSERT INTO pagos (id, motorcycle_id, asociado_id, amount, payment_date, receipt_number, notes, created_by, payment_method, created_at)
+        VALUES (@id, @motorcycle_id, @asociado_id, @amount, CONVERT(date, @payment_date), @receipt_number, @notes, @created_by, @payment_method, SYSDATETIMEOFFSET())
+      `);
+    } else {
+      await request.query(`
+        INSERT INTO pagos (id, motorcycle_id, asociado_id, amount, payment_date, receipt_number, notes, created_by, created_at)
+        VALUES (@id, @motorcycle_id, @asociado_id, @amount, CONVERT(date, @payment_date), @receipt_number, @notes, @created_by, SYSDATETIMEOFFSET())
+      `);
+    }
     
     // Fetch inserted payment
     const paymentResult = await request.query(`SELECT * FROM pagos WHERE id = @id`);
@@ -103,6 +321,7 @@ router.post('/', async (req, res) => {
     
     res.status(201).json({
       ...payment,
+      payment_date: normalizeDateOnly(payment?.payment_date),
       distribution: distResult.recordset[0]
     });
 

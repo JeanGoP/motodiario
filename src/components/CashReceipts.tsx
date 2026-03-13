@@ -22,6 +22,18 @@ export function CashReceipts() {
     loadData();
   }, []);
 
+  const normalizeDateOnly = (value: string | null | undefined) => {
+    if (!value) return '';
+    return value.includes('T') ? value.split('T')[0] : value;
+  };
+
+  const formatDateOnly = (value: string | null | undefined) => {
+    const s = normalizeDateOnly(value);
+    const [y, m, d] = s.split('-').map((part) => Number(part));
+    if (!y || !m || !d) return s;
+    return new Date(y, m - 1, d).toLocaleDateString();
+  };
+
   const loadData = async () => {
     try {
       const [receiptsData, associatesData] = await Promise.all([
@@ -148,7 +160,7 @@ export function CashReceipts() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-slate-400" />
-                      {new Date(receipt.fecha).toLocaleDateString()}
+                      {formatDateOnly(receipt.fecha)}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
@@ -169,7 +181,7 @@ export function CashReceipts() {
                     <button
                       onClick={() => printCashReceipt({
                         receipt_number: 'N/A',
-                        date: receipt.fecha,
+                        date: normalizeDateOnly(receipt.fecha),
                         amount: Number(receipt.monto),
                         concept: receipt.concepto,
                         observations: receipt.observaciones ?? undefined,

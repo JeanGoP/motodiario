@@ -31,6 +31,16 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   const { asociado_id, brand, model, year, plate, daily_rate, status, created_at, plan_months } = req.body;
   try {
+    const allowedPlans = new Set([12, 15, 18, 24]);
+    const planMonthsValue =
+      plan_months === undefined || plan_months === null || plan_months === ''
+        ? 12
+        : Number(plan_months);
+    if (!Number.isFinite(planMonthsValue) || !allowedPlans.has(planMonthsValue)) {
+      res.status(400).json({ error: 'plan_months inválido. Valores permitidos: 12, 15, 18, 24' });
+      return;
+    }
+
     const pool = await getPool();
     const request = pool.request();
     request.input('asociado_id', sql.UniqueIdentifier, asociado_id);
@@ -40,7 +50,7 @@ router.post('/', async (req, res) => {
     request.input('plate', sql.NVarChar, plate);
     request.input('daily_rate', sql.Decimal(10, 2), daily_rate);
     request.input('status', sql.NVarChar, status);
-    request.input('plan_months', sql.Int, plan_months || 0);
+    request.input('plan_months', sql.Int, planMonthsValue);
     request.input('dias_gracia', sql.Int, req.body.dias_gracia || 0);
     
     // Use provided created_at or default to current time
@@ -63,6 +73,14 @@ router.put('/:id', async (req, res) => {
   const { id } = req.params;
   const { asociado_id, brand, model, year, plate, daily_rate, status, created_at, plan_months } = req.body;
   try {
+    const shouldUpdatePlan = !(plan_months === undefined || plan_months === null || plan_months === '');
+    const allowedPlans = new Set([12, 15, 18, 24]);
+    const planMonthsValue = shouldUpdatePlan ? Number(plan_months) : null;
+    if (shouldUpdatePlan && (!Number.isFinite(planMonthsValue) || !allowedPlans.has(planMonthsValue))) {
+      res.status(400).json({ error: 'plan_months inválido. Valores permitidos: 12, 15, 18, 24' });
+      return;
+    }
+
     const pool = await getPool();
     const request = pool.request();
     request.input('id', sql.UniqueIdentifier, id);
@@ -73,7 +91,6 @@ router.put('/:id', async (req, res) => {
     request.input('plate', sql.NVarChar, plate);
     request.input('daily_rate', sql.Decimal(10, 2), daily_rate);
     request.input('status', sql.NVarChar, status);
-    request.input('plan_months', sql.Int, plan_months || 0);
     request.input('dias_gracia', sql.Int, req.body.dias_gracia || 0);
     
     // Handle created_at update if provided
@@ -86,10 +103,14 @@ router.put('/:id', async (req, res) => {
           plate = @plate, 
           daily_rate = @daily_rate, 
           status = @status,
-          plan_months = @plan_months,
           dias_gracia = @dias_gracia,
           updated_at = SYSDATETIMEOFFSET()
     `;
+
+    if (shouldUpdatePlan) {
+      request.input('plan_months', sql.Int, planMonthsValue);
+      query += `, plan_months = @plan_months`;
+    }
 
     if (created_at) {
        request.input('created_at', sql.DateTimeOffset, new Date(created_at));

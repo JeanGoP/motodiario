@@ -2,6 +2,8 @@ export const printReceipt = (data: {
   receipt_number: string;
   payment_date: string;
   amount: number;
+  installment_number?: number | null;
+  payment_method?: string | null;
   asociado: {
     nombre: string;
     documento: string;
@@ -23,6 +25,13 @@ export const printReceipt = (data: {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(val);
+  };
+
+  const formatDateOnly = (value: string) => {
+    const s = typeof value === 'string' && value.includes('T') ? value.split('T')[0] : value;
+    const [y, m, d] = String(s).split('-').map((part) => Number(part));
+    if (!y || !m || !d) return String(s);
+    return new Date(y, m - 1, d).toLocaleDateString('es-CO');
   };
 
   const html = `
@@ -111,7 +120,7 @@ export const printReceipt = (data: {
           <strong>${data.receipt_number}</strong>
         </div>
         <div class="row" style="justify-content: center;">
-          <span>${new Date(data.payment_date).toLocaleDateString()}</span>
+          <span>${formatDateOnly(data.payment_date)}</span>
         </div>
       </div>
 
@@ -145,6 +154,18 @@ export const printReceipt = (data: {
           <span>MONTO TOTAL:</span>
           <span>${formatCurrency(amount)}</span>
         </div>
+        ${data.installment_number ? `
+          <div class="row">
+            <span>Cuota:</span>
+            <span>${data.installment_number}</span>
+          </div>
+        ` : ''}
+        ${data.payment_method ? `
+          <div class="row">
+            <span>Método:</span>
+            <span>${data.payment_method}</span>
+          </div>
+        ` : ''}
       </div>
 
       <div class="section">

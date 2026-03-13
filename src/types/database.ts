@@ -180,6 +180,8 @@ export type Database = {
           amount: number;
           payment_date: string;
           receipt_number: string;
+          installment_number: number | null;
+          payment_method: string | null;
           notes: string;
           created_at: string;
           created_by: string | null;
@@ -191,6 +193,8 @@ export type Database = {
           amount: number;
           payment_date: string;
           receipt_number: string;
+          installment_number?: number | null;
+          payment_method?: string | null;
           notes?: string;
           created_at?: string;
           created_by?: string | null;
@@ -202,6 +206,8 @@ export type Database = {
           amount?: number;
           payment_date?: string;
           receipt_number?: string;
+          installment_number?: number | null;
+          payment_method?: string | null;
           notes?: string;
           created_at?: string;
           created_by?: string | null;
