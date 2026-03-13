@@ -6,6 +6,7 @@ export function Associates() {
   interface Asociado {
     id: string;
     centro_costo_id: string;
+    contact_id?: string | null;
     nombre: string;
     documento: string;
     telefono: string;
@@ -66,11 +67,25 @@ export function Associates() {
       if (editingId) {
         await api.actualizarAsociado(editingId, formData);
       } else {
-        await api.crearAsociado(formData);
+        const created = await api.crearAsociado(formData);
+        const centroFromList = costCenters.find((cc) => cc.id === created.centro_costo_id) || null;
+        const createdWithCentro = {
+          ...created,
+          centro_costo: centroFromList || (created as unknown as { centro_costo?: CentroCosto }).centro_costo,
+        };
+        setAssociates((prev) => [createdWithCentro as unknown as Asociado, ...prev]);
+        api.syncAsociadoContact(created.id)
+          .then((sync) => {
+            if (!sync?.contact_id) return;
+            setAssociates((prev) =>
+              prev.map((a) => (a.id === created.id ? { ...a, contact_id: sync.contact_id } : a))
+            );
+          })
+          .catch(() => {});
       }
       setShowModal(false);
       resetForm();
-      loadData();
+      void loadData();
     } catch (error: unknown) {
       alert('Error: ' + (error instanceof Error ? error.message : 'Ha ocurrido un error'));
     }

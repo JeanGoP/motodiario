@@ -27,6 +27,7 @@ async function request<T = unknown>(path: string, options?: RequestInit & { useC
   // Asegurar que el path empiece con slash
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const url = `${baseUrl}${normalizedPath}`;
+  const method = (options?.method || 'GET').toUpperCase();
   
   // Check cache for GET requests if enabled
   if (options?.useCache && (!options.method || options.method === 'GET')) {
@@ -58,6 +59,7 @@ async function request<T = unknown>(path: string, options?: RequestInit & { useC
       throw new Error(errorMessage);
     }
     
+    if (method !== 'GET') cache.clear();
     if (res.status === 204) return null as T;
     const data: T = await res.json();
     
@@ -97,6 +99,7 @@ export const api = {
   // Asociados
   getAsociados: (activo?: boolean) => request<Asociado[]>(`/api/asociados${activo !== undefined ? `?active=${activo}` : ''}`, { useCache: true }),
   crearAsociado: (data: Record<string, unknown>) => request<Asociado>('/api/asociados', { method: 'POST', body: JSON.stringify(data) }),
+  syncAsociadoContact: (id: string) => request<{ ok: boolean; contact_id: string | null }>(`/api/asociados/${id}/sync_contact`, { method: 'POST' }),
   actualizarAsociado: (id: string, data: Record<string, unknown>) => request<Asociado>(`/api/asociados/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   eliminarAsociado: (id: string) => request<void>(`/api/asociados/${id}`, { method: 'DELETE' }),
   getDiasGraciaAsociado: (id: string, anio: number, mes: number) => request<number[]>(`/api/asociados/${id}/dias_gracia?anio=${anio}&mes=${mes}`),

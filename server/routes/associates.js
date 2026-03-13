@@ -156,8 +156,10 @@ router.get('/', async (req, res) => {
   const { active } = req.query;
   try {
     const pool = await getPool();
+    const { hasContactId } = await getAsociadosColumnsSupport(pool.request());
+    const contactIdSelect = hasContactId ? 'a.contact_id,' : '';
     let query = `
-      SELECT a.id, a.centro_costo_id, a.contact_id, a.nombre, a.documento, a.telefono, a.correo, a.direccion,
+      SELECT a.id, a.centro_costo_id, ${contactIdSelect} a.nombre, a.documento, a.telefono, a.correo, a.direccion,
              a.dias_gracia, a.activo, a.creado_en, a.actualizado_en,
              cc.id AS cc_id, cc.nombre AS cc_nombre, cc.codigo AS cc_codigo
       FROM asociados a
@@ -175,7 +177,7 @@ router.get('/', async (req, res) => {
     const asociados = result.recordset.map(row => ({
       id: row.id,
       centro_costo_id: row.centro_costo_id,
-      contact_id: row.contact_id ?? null,
+      contact_id: hasContactId ? (row.contact_id ?? null) : null,
       nombre: row.nombre,
       documento: row.documento,
       telefono: row.telefono,
@@ -219,8 +221,10 @@ router.post('/', async (req, res) => {
     const id = insertResult.recordset[0].id;
     const getRequest = pool.request();
     getRequest.input('id', sql.UniqueIdentifier, id);
+    const { hasContactId } = await getAsociadosColumnsSupport(pool.request());
+    const contactIdSelect = hasContactId ? 'a.contact_id,' : '';
     const result = await getRequest.query(`
-      SELECT a.id, a.centro_costo_id, a.contact_id, a.nombre, a.documento, a.telefono, a.correo, a.direccion,
+      SELECT a.id, a.centro_costo_id, ${contactIdSelect} a.nombre, a.documento, a.telefono, a.correo, a.direccion,
              a.dias_gracia, a.activo, a.creado_en, a.actualizado_en,
              cc.id AS cc_id, cc.nombre AS cc_nombre, cc.codigo AS cc_codigo
       FROM asociados a INNER JOIN centros_costo cc ON cc.id = a.centro_costo_id
@@ -228,32 +232,10 @@ router.post('/', async (req, res) => {
     `);
     const r = result.recordset[0];
 
-    try {
-      const upsertResult = await upsertLeadConnectorContact({
-        name: r.nombre,
-        email: r.correo,
-        phone: r.telefono,
-        locationId: LEADCONNECTOR_LOCATION_ID,
-      });
-
-      if (upsertResult?.ok && upsertResult.contactId) {
-        const columnsSupport = await getAsociadosColumnsSupport(pool.request());
-        if (columnsSupport.hasContactId) {
-          await pool.request()
-            .input('id', sql.UniqueIdentifier, id)
-            .input('contact_id', sql.NVarChar(128), upsertResult.contactId)
-            .query(`UPDATE asociados SET contact_id = @contact_id, actualizado_en = SYSDATETIMEOFFSET() WHERE id = @id`);
-          r.contact_id = upsertResult.contactId;
-        }
-      }
-    } catch (e) {
-      console.error('Error sincronizando contacto a LeadConnector:', e instanceof Error ? e.message : e);
-    }
-
     res.status(201).json({
       id: r.id,
       centro_costo_id: r.centro_costo_id,
-      contact_id: r.contact_id ?? null,
+      contact_id: hasContactId ? (r.contact_id ?? null) : null,
       nombre: r.nombre,
       documento: r.documento,
       telefono: r.telefono,
@@ -264,6 +246,49 @@ router.post('/', async (req, res) => {
       creado_en: r.creado_en,
       actualizado_en: r.actualizado_en,
       centro_costo: { id: r.cc_id, nombre: r.cc_nombre, codigo: r.cc_codigo }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/:id/sync_contact', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const pool = await getPool();
+    const { hasContactId } = await getAsociadosColumnsSupport(pool.request());
+
+    const getRequest = pool.request();
+    getRequest.input('id', sql.UniqueIdentifier, id);
+    const result = await getRequest.query(`
+      SELECT a.id, a.nombre, a.telefono, a.correo
+      FROM asociados a
+      WHERE a.id = @id
+    `);
+    const r = result.recordset[0] || null;
+    if (!r) return res.status(404).json({ error: 'Not found' });
+
+    const upsertResult = await upsertLeadConnectorContact({
+      name: r.nombre,
+      email: r.correo,
+      phone: r.telefono,
+      locationId: LEADCONNECTOR_LOCATION_ID,
+    });
+
+    if (upsertResult?.ok && upsertResult.contactId && hasContactId) {
+      await pool.request()
+        .input('id', sql.UniqueIdentifier, id)
+        .input('contact_id', sql.NVarChar(128), upsertResult.contactId)
+        .query(`UPDATE asociados SET contact_id = @contact_id, actualizado_en = SYSDATETIMEOFFSET() WHERE id = @id`);
+      return res.status(200).json({ ok: true, contact_id: upsertResult.contactId });
+    }
+
+    return res.status(200).json({
+      ok: false,
+      contact_id: null,
+      skipped: Boolean(upsertResult?.skipped),
+      error: upsertResult?.error ?? null,
+      status: upsertResult?.status ?? null,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -293,8 +318,10 @@ router.put('/:id', async (req, res) => {
     `);
     const getRequest = pool.request();
     getRequest.input('id', sql.UniqueIdentifier, id);
+    const { hasContactId } = await getAsociadosColumnsSupport(pool.request());
+    const contactIdSelect = hasContactId ? 'a.contact_id,' : '';
     const result = await getRequest.query(`
-      SELECT a.id, a.centro_costo_id, a.contact_id, a.nombre, a.documento, a.telefono, a.correo, a.direccion,
+      SELECT a.id, a.centro_costo_id, ${contactIdSelect} a.nombre, a.documento, a.telefono, a.correo, a.direccion,
              a.dias_gracia, a.activo, a.creado_en, a.actualizado_en,
              cc.id AS cc_id, cc.nombre AS cc_nombre, cc.codigo AS cc_codigo
       FROM asociados a INNER JOIN centros_costo cc ON cc.id = a.centro_costo_id
@@ -305,7 +332,7 @@ router.put('/:id', async (req, res) => {
     res.json({
       id: r.id,
       centro_costo_id: r.centro_costo_id,
-      contact_id: r.contact_id ?? null,
+      contact_id: hasContactId ? (r.contact_id ?? null) : null,
       nombre: r.nombre,
       documento: r.documento,
       telefono: r.telefono,
