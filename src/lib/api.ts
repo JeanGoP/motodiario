@@ -102,6 +102,13 @@ export const api = {
   syncAsociadoContact: (id: string) => request<{ ok: boolean; contact_id: string | null }>(`/api/asociados/${id}/sync_contact`, { method: 'POST' }),
   sendAsociadoWhatsAppTemplate: (id: string, payload: Record<string, unknown>) =>
     request<{ ok: boolean; skipped?: boolean; error?: string; status?: number; data?: unknown }>(`/api/asociados/${id}/send_whatsapp_template`, { method: 'POST', body: JSON.stringify(payload) }),
+  getWhatsAppConversationMessages: (conversationId: string, params?: { limit?: number; type?: string }) => {
+    const search = new URLSearchParams();
+    if (params?.limit !== undefined) search.set('limit', String(params.limit));
+    if (params?.type) search.set('type', params.type);
+    const q = search.toString();
+    return request<{ ok: boolean; skipped?: boolean; error?: string; status?: number; data?: unknown }>(`/api/asociados/whatsapp_debug/conversations/${conversationId}/messages${q ? `?${q}` : ''}`);
+  },
   actualizarAsociado: (id: string, data: Record<string, unknown>) => request<Asociado>(`/api/asociados/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   eliminarAsociado: (id: string) => request<void>(`/api/asociados/${id}`, { method: 'DELETE' }),
   getDiasGraciaAsociado: (id: string, anio: number, mes: number) => request<number[]>(`/api/asociados/${id}/dias_gracia?anio=${anio}&mes=${mes}`),

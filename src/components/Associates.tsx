@@ -45,6 +45,9 @@ export function Associates() {
   const [whatsAppTarget, setWhatsAppTarget] = useState<Asociado | null>(null);
   const [whatsAppSending, setWhatsAppSending] = useState(false);
   const [whatsAppResult, setWhatsAppResult] = useState<string | null>(null);
+  const [whatsAppConversationId, setWhatsAppConversationId] = useState<string | null>(null);
+  const [whatsAppChecking, setWhatsAppChecking] = useState(false);
+  const [whatsAppStatusResult, setWhatsAppStatusResult] = useState<string | null>(null);
   const [whatsAppForm, setWhatsAppForm] = useState({
     templateName: 'utilidad_posventa',
     templateLang: 'es_MX',
@@ -143,6 +146,8 @@ export function Associates() {
   const openWhatsAppTest = (associate: Asociado) => {
     setWhatsAppTarget(associate);
     setWhatsAppResult(null);
+    setWhatsAppConversationId(null);
+    setWhatsAppStatusResult(null);
     setWhatsAppForm((prev) => ({
       ...prev,
       body1: associate.nombre || '',
@@ -153,7 +158,10 @@ export function Associates() {
   const closeWhatsAppModal = () => {
     setShowWhatsAppModal(false);
     setWhatsAppSending(false);
+    setWhatsAppChecking(false);
     setWhatsAppResult(null);
+    setWhatsAppConversationId(null);
+    setWhatsAppStatusResult(null);
     setWhatsAppTarget(null);
   };
 
@@ -161,6 +169,8 @@ export function Associates() {
     if (!whatsAppTarget) return;
     setWhatsAppSending(true);
     setWhatsAppResult(null);
+    setWhatsAppConversationId(null);
+    setWhatsAppStatusResult(null);
     try {
       const payload = {
         template: { name: whatsAppForm.templateName, lang: whatsAppForm.templateLang },
@@ -172,10 +182,26 @@ export function Associates() {
       };
       const res = await api.sendAsociadoWhatsAppTemplate(whatsAppTarget.id, payload);
       setWhatsAppResult(JSON.stringify(res, null, 2));
+      const convId = (res as { data?: { conversationId?: unknown } })?.data?.conversationId;
+      if (convId) setWhatsAppConversationId(String(convId));
     } catch (error: unknown) {
       setWhatsAppResult(JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2));
     } finally {
       setWhatsAppSending(false);
+    }
+  };
+
+  const checkWhatsAppStatus = async () => {
+    if (!whatsAppConversationId) return;
+    setWhatsAppChecking(true);
+    setWhatsAppStatusResult(null);
+    try {
+      const res = await api.getWhatsAppConversationMessages(whatsAppConversationId, { limit: 20, type: 'TYPE_WHATSAPP' });
+      setWhatsAppStatusResult(JSON.stringify(res, null, 2));
+    } catch (error: unknown) {
+      setWhatsAppStatusResult(JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2));
+    } finally {
+      setWhatsAppChecking(false);
     }
   };
 
@@ -617,6 +643,12 @@ export function Associates() {
                 </pre>
               )}
 
+              {whatsAppStatusResult && (
+                <pre className="text-xs bg-slate-900 text-slate-100 rounded-lg p-4 overflow-x-auto whitespace-pre-wrap">
+                  {whatsAppStatusResult}
+                </pre>
+              )}
+
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
@@ -624,6 +656,14 @@ export function Associates() {
                   className="btn bg-white text-slate-700 border-slate-300 hover:bg-slate-50 flex-1 justify-center"
                 >
                   Cerrar
+                </button>
+                <button
+                  type="button"
+                  onClick={checkWhatsAppStatus}
+                  disabled={whatsAppChecking || !whatsAppConversationId}
+                  className={`btn bg-white text-slate-700 border-slate-300 hover:bg-slate-50 flex-1 justify-center ${whatsAppChecking || !whatsAppConversationId ? 'opacity-60 cursor-not-allowed' : ''}`}
+                >
+                  {whatsAppChecking ? 'Consultando...' : 'Consultar estado'}
                 </button>
                 <button
                   type="button"
