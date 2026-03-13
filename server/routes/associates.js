@@ -7,6 +7,8 @@ const router = express.Router();
 const LEADCONNECTOR_LOCATION_ID = process.env.LEADCONNECTOR_LOCATION_ID || 'x8eF7OoF2Ld9p1ASAUGe';
 const LEADCONNECTOR_API_VERSION = '2021-07-28';
 const LEADCONNECTOR_UPSERT_URL = 'https://services.leadconnectorhq.com/contacts/upsert';
+const LEADCONNECTOR_CONVERSATIONS_API_VERSION = '2021-04-15';
+const LEADCONNECTOR_MESSAGES_URL = 'https://services.leadconnectorhq.com/conversations/messages';
 
 let asociadosColumnsCache = {
   checkedAt: 0,
@@ -33,11 +35,11 @@ const getAsociadosColumnsSupport = async (request) => {
 };
 
 const webhookDbConfig = {
-  user: process.env.WEBHOOK_DB_USER,
-  password: process.env.WEBHOOK_DB_PASS,
-  server: process.env.WEBHOOK_DB_HOST || 'sintesiserpcloud.webhop.org',
-  database: process.env.WEBHOOK_DB_NAME || 'RopofyWebHook',
-  port: Number.parseInt(process.env.WEBHOOK_DB_PORT || '1433', 10),
+  user: process.env.WEBHOOK_DB_USER || process.env.WEBHOOK_DB_USERNAME || process.env.DB_USER,
+  password: process.env.WEBHOOK_DB_PASS || process.env.WEBHOOK_DB_PASSWORD || process.env.DB_PASS,
+  server: process.env.WEBHOOK_DB_HOST || process.env.WEBHOOK_DB_SERVER || 'sintesiserpcloud.webhop.org',
+  database: process.env.WEBHOOK_DB_NAME || process.env.WEBHOOK_DB_DATABASE || 'RopofyWebHook',
+  port: Number.parseInt(process.env.WEBHOOK_DB_PORT || process.env.WEBHOOK_DB_SQLPORT || '1433', 10),
   connectionTimeout: 8000,
   options: {
     encrypt: process.env.WEBHOOK_DB_ENCRYPT !== 'false',
@@ -51,14 +53,21 @@ const webhookDbConfig = {
 };
 
 let webhookPoolPromise;
+let leadConnectorLastTokenError = null;
 const getWebhookPool = async () => {
   const enabled = Boolean(webhookDbConfig.user && webhookDbConfig.password && webhookDbConfig.server && webhookDbConfig.database);
-  if (!enabled) return null;
+  if (!enabled) {
+    if (!leadConnectorLastTokenError) {
+      leadConnectorLastTokenError = 'Faltan credenciales WEBHOOK_DB_USER/WEBHOOK_DB_PASS para consultar el access_token';
+    }
+    return null;
+  }
   if (!webhookPoolPromise) {
     const pool = new sql.ConnectionPool(webhookDbConfig);
     webhookPoolPromise = pool.connect().catch((err) => {
       webhookPoolPromise = null;
-      throw err;
+      leadConnectorLastTokenError = `No se pudo conectar a Webhook DB (${webhookDbConfig.server}/${webhookDbConfig.database}): ${err?.message || String(err)}`;
+      return null;
     });
   }
   return webhookPoolPromise;
@@ -71,12 +80,23 @@ let leadConnectorTokenCache = {
 
 const fetchLeadConnectorAccessToken = async (locationId) => {
   const pool = await getWebhookPool();
-  if (!pool) return null;
+  if (!pool) {
+    if (!leadConnectorLastTokenError) {
+      leadConnectorLastTokenError = 'No se pudo obtener conexión a Webhook DB';
+    }
+    return null;
+  }
   const r = await pool.request()
     .input('locationId', sql.NVarChar, locationId)
     .query(`SELECT TOP 1 access_token FROM empresas WHERE locationid = @locationId`);
   const token = r.recordset?.[0]?.access_token ? String(r.recordset[0].access_token) : '';
-  return token.trim() ? token.trim() : null;
+  const trimmed = token.trim();
+  if (!trimmed) {
+    leadConnectorLastTokenError = `No se encontró access_token en empresas para locationId=${locationId}`;
+    return null;
+  }
+  leadConnectorLastTokenError = null;
+  return trimmed;
 };
 
 const getLeadConnectorAccessToken = async (locationId, opts = {}) => {
@@ -116,7 +136,7 @@ const extractContactIdFromLeadConnectorResponse = (data) => {
 
 const upsertLeadConnectorContact = async ({ name, email, phone, locationId }) => {
   const token = await getLeadConnectorAccessToken(locationId);
-  if (!token) return { ok: false, skipped: true, error: 'No hay access_token disponible' };
+  if (!token) return { ok: false, skipped: true, error: leadConnectorLastTokenError || 'No hay access_token disponible' };
 
   const body = { name, locationId };
   if (email && String(email).trim()) body.email = String(email).trim();
@@ -150,6 +170,64 @@ const upsertLeadConnectorContact = async ({ name, email, phone, locationId }) =>
     return { ok: false, skipped: false, error: typeof parsed === 'string' ? parsed : JSON.stringify(parsed), status: res.status };
   }
   return { ok: true, skipped: false, data: parsed, contactId: extractContactIdFromLeadConnectorResponse(parsed) };
+};
+
+const sendLeadConnectorWhatsAppTemplateMessage = async ({
+  contactId,
+  locationId,
+  templateName,
+  templateLang,
+  message,
+  messageType,
+  placeholders,
+}) => {
+  const token = await getLeadConnectorAccessToken(locationId);
+  if (!token) return { ok: false, skipped: true, error: leadConnectorLastTokenError || 'No hay access_token disponible' };
+
+  const payload = {
+    contactId,
+    type: 'WhatsApp',
+    ...(message && String(message).trim() ? { message: String(message) } : {}),
+    ...(Number.isFinite(messageType) ? { MessageType: Number(messageType) } : {}),
+    whatsapp: {
+      type: 'template',
+      template: { name: templateName, lang: templateLang },
+      placeholders: {
+        header: Array.isArray(placeholders?.header) ? placeholders.header : [],
+        body: Array.isArray(placeholders?.body) ? placeholders.body : [],
+        buttons: Array.isArray(placeholders?.buttons) ? placeholders.buttons : [],
+      },
+    },
+  };
+
+  const doRequest = async (bearer) => {
+    const res = await fetch(LEADCONNECTOR_MESSAGES_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Version': LEADCONNECTOR_CONVERSATIONS_API_VERSION,
+        'Authorization': `Bearer ${bearer}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    const text = await res.text();
+    const parsed = text ? (() => { try { return JSON.parse(text); } catch { return text; } })() : null;
+    return { res, parsed };
+  };
+
+  let { res, parsed } = await doRequest(token);
+  if (res.status === 401) {
+    const refreshed = await getLeadConnectorAccessToken(locationId, { forceRefresh: true });
+    if (refreshed) {
+      ({ res, parsed } = await doRequest(refreshed));
+    }
+  }
+
+  if (!res.ok) {
+    return { ok: false, skipped: false, error: typeof parsed === 'string' ? parsed : JSON.stringify(parsed), status: res.status };
+  }
+  return { ok: true, skipped: false, data: parsed };
 };
 
 router.get('/', async (req, res) => {
@@ -290,6 +368,95 @@ router.post('/:id/sync_contact', async (req, res) => {
       error: upsertResult?.error ?? null,
       status: upsertResult?.status ?? null,
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/:id/send_whatsapp_template', async (req, res) => {
+  const { id } = req.params;
+  const {
+    template,
+    placeholders,
+    message,
+    messageType = 19,
+  } = req.body || {};
+
+  const templateName = template?.name ? String(template.name).trim() : '';
+  const templateLang = template?.lang ? String(template.lang).trim() : '';
+  if (!templateName || !templateLang) {
+    return res.status(400).json({ error: 'template.name y template.lang requeridos' });
+  }
+
+  try {
+    const pool = await getPool();
+    const { hasContactId } = await getAsociadosColumnsSupport(pool.request());
+    if (!hasContactId) return res.status(400).json({ error: 'La base de datos no tiene el campo contact_id' });
+
+    const r = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .query(`
+        SELECT a.id, a.nombre, a.contact_id
+        FROM asociados a
+        WHERE a.id = @id
+      `);
+    const asociado = r.recordset[0] || null;
+    if (!asociado) return res.status(404).json({ error: 'Not found' });
+    const contactId = asociado.contact_id ? String(asociado.contact_id).trim() : '';
+    if (!contactId) return res.status(400).json({ error: 'El asociado no tiene contact_id' });
+
+    const sendResult = await sendLeadConnectorWhatsAppTemplateMessage({
+      contactId,
+      locationId: LEADCONNECTOR_LOCATION_ID,
+      templateName,
+      templateLang,
+      message,
+      messageType,
+      placeholders,
+    });
+
+    if (!sendResult.ok) {
+      return res.status(200).json(sendResult);
+    }
+    return res.status(200).json(sendResult);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/send_whatsapp_template', async (req, res) => {
+  const {
+    contactId,
+    template,
+    placeholders,
+    message,
+    messageType = 19,
+  } = req.body || {};
+
+  const normalizedContactId = contactId ? String(contactId).trim() : '';
+  if (!normalizedContactId) return res.status(400).json({ error: 'contactId requerido' });
+
+  const templateName = template?.name ? String(template.name).trim() : '';
+  const templateLang = template?.lang ? String(template.lang).trim() : '';
+  if (!templateName || !templateLang) {
+    return res.status(400).json({ error: 'template.name y template.lang requeridos' });
+  }
+
+  try {
+    const sendResult = await sendLeadConnectorWhatsAppTemplateMessage({
+      contactId: normalizedContactId,
+      locationId: LEADCONNECTOR_LOCATION_ID,
+      templateName,
+      templateLang,
+      message,
+      messageType,
+      placeholders,
+    });
+
+    if (!sendResult.ok) {
+      return res.status(200).json(sendResult);
+    }
+    return res.status(200).json(sendResult);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
