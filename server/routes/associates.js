@@ -329,6 +329,27 @@ router.put('/:id', async (req, res) => {
     `);
     const r = result.recordset[0] || null;
     if (!r) return res.status(404).json({ error: 'Not found' });
+
+    Promise.resolve()
+      .then(async () => {
+        const columnsSupport = await getAsociadosColumnsSupport(pool.request());
+        const upsertResult = await upsertLeadConnectorContact({
+          name: r.nombre,
+          email: r.correo,
+          phone: r.telefono,
+          locationId: LEADCONNECTOR_LOCATION_ID,
+        });
+        if (upsertResult?.ok && upsertResult.contactId && columnsSupport.hasContactId) {
+          await pool.request()
+            .input('id', sql.UniqueIdentifier, id)
+            .input('contact_id', sql.NVarChar(128), upsertResult.contactId)
+            .query(`UPDATE asociados SET contact_id = @contact_id, actualizado_en = SYSDATETIMEOFFSET() WHERE id = @id`);
+        }
+      })
+      .catch((e) => {
+        console.error('Error sincronizando contacto a LeadConnector:', e instanceof Error ? e.message : e);
+      });
+
     res.json({
       id: r.id,
       centro_costo_id: r.centro_costo_id,

@@ -66,6 +66,14 @@ export function Associates() {
     try {
       if (editingId) {
         await api.actualizarAsociado(editingId, formData);
+        api.syncAsociadoContact(editingId)
+          .then((sync) => {
+            if (!sync?.contact_id) return;
+            setAssociates((prev) =>
+              prev.map((a) => (a.id === editingId ? { ...a, contact_id: sync.contact_id } : a))
+            );
+          })
+          .catch(() => {});
       } else {
         const created = await api.crearAsociado(formData);
         const centroFromList = costCenters.find((cc) => cc.id === created.centro_costo_id) || null;
