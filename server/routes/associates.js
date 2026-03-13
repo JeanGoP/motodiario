@@ -7,7 +7,7 @@ const router = express.Router();
 const LEADCONNECTOR_LOCATION_ID = process.env.LEADCONNECTOR_LOCATION_ID || 'x8eF7OoF2Ld9p1ASAUGe';
 const LEADCONNECTOR_API_VERSION = '2021-07-28';
 const LEADCONNECTOR_UPSERT_URL = 'https://services.leadconnectorhq.com/contacts/upsert';
-const LEADCONNECTOR_CONVERSATIONS_API_VERSION = '2021-04-15';
+const LEADCONNECTOR_CONVERSATIONS_API_VERSION = '2021-07-28';
 const LEADCONNECTOR_MESSAGES_URL = 'https://services.leadconnectorhq.com/conversations/messages';
 
 let asociadosColumnsCache = {
@@ -191,7 +191,7 @@ const sendLeadConnectorWhatsAppTemplateMessage = async ({
     ...(Number.isFinite(messageType) ? { messageType: Number(messageType) } : {}),
     whatsapp: {
       type: 'template',
-      template: { name: templateName, lang: templateLang },
+      template: { name: templateName, language: templateLang, lang: templateLang },
       placeholders: {
         header: Array.isArray(placeholders?.header) ? placeholders.header : [],
         body: Array.isArray(placeholders?.body) ? placeholders.body : [],
