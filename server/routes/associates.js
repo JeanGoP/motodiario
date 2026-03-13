@@ -224,6 +224,43 @@ const sendLeadConnectorWhatsAppTemplateMessage = async ({
     }
   }
 
+  const parsedMessage = parsed && typeof parsed === 'object' && 'message' in parsed ? String(parsed.message || '') : '';
+  if (
+    res.status === 422 &&
+    (parsedMessage || '').toLowerCase().includes('there is no message or attachments')
+  ) {
+    const fallbackText = (message && String(message).trim())
+      ? String(message).trim()
+      : (Array.isArray(placeholders?.body) ? placeholders.body.filter((v) => v !== null && v !== undefined && String(v).trim()).map((v) => String(v).trim()).join(' - ') : 'Recordatorio');
+    const fallbackPayload = { ...payload, message: fallbackText };
+
+    const doFallbackRequest = async (bearer) => {
+      const fallbackRes = await fetch(LEADCONNECTOR_MESSAGES_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Version': LEADCONNECTOR_CONVERSATIONS_API_VERSION,
+          'Authorization': `Bearer ${bearer}`,
+        },
+        body: JSON.stringify(fallbackPayload),
+      });
+      const fallbackTextRes = await fallbackRes.text();
+      const fallbackParsed = fallbackTextRes ? (() => { try { return JSON.parse(fallbackTextRes); } catch { return fallbackTextRes; } })() : null;
+      return { fallbackRes, fallbackParsed };
+    };
+
+    let { fallbackRes, fallbackParsed } = await doFallbackRequest(token);
+    if (fallbackRes.status === 401) {
+      const refreshed = await getLeadConnectorAccessToken(locationId, { forceRefresh: true });
+      if (refreshed) {
+        ({ fallbackRes, fallbackParsed } = await doFallbackRequest(refreshed));
+      }
+    }
+    res = fallbackRes;
+    parsed = fallbackParsed;
+  }
+
   if (!res.ok) {
     return { ok: false, skipped: false, error: typeof parsed === 'string' ? parsed : JSON.stringify(parsed), status: res.status };
   }
