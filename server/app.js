@@ -81,7 +81,8 @@ apiRouter.get('/test-db', async (req, res) => {
     const result = await pool.request().query('SELECT 1 as n');
     res.json({ 
       status: 'Conexión Exitosa', 
-      server_time: new Date().toISOString(),
+      server_time_utc: new Date().toISOString(),
+      server_time_bogota: new Date().toLocaleString('sv-SE', { timeZone: 'America/Bogota' }).replace(' ', 'T'),
       test_query: result.recordset[0] 
     });
   } catch (err) {

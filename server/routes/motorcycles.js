@@ -8,6 +8,17 @@ export function preferRecurringDiasGracia(recurringDias, monthDias) {
   return Array.isArray(recurringDias) && recurringDias.length > 0 ? recurringDias : (monthDias || []);
 }
 
+const parseBogotaDateInput = (value) => {
+  if (!value) return null;
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [y, m, d] = value.split('-').map((p) => Number(p));
+    if (!y || !m || !d) return null;
+    return new Date(Date.UTC(y, m - 1, d, 5, 0, 0, 0));
+  }
+  const dt = new Date(value);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+};
+
 router.get('/', async (req, res) => {
   try {
     const pool = await getPool();
@@ -55,7 +66,7 @@ router.post('/', async (req, res) => {
     
     // Use provided created_at or default to current time
     // If created_at is provided, we cast it to DateTimeOffset or let SQL handle the string if valid
-    const createdAtValue = created_at ? new Date(created_at) : new Date();
+    const createdAtValue = parseBogotaDateInput(created_at) || new Date();
     request.input('created_at', sql.DateTimeOffset, createdAtValue);
 
     const result = await request.query(`
@@ -113,8 +124,11 @@ router.put('/:id', async (req, res) => {
     }
 
     if (created_at) {
-       request.input('created_at', sql.DateTimeOffset, new Date(created_at));
-       query += `, created_at = @created_at`;
+      const createdAtValue = parseBogotaDateInput(created_at);
+      if (createdAtValue) {
+        request.input('created_at', sql.DateTimeOffset, createdAtValue);
+        query += `, created_at = @created_at`;
+      }
     }
 
     query += `

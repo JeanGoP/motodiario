@@ -29,8 +29,8 @@ export function Motorcycles() {
   const [searchTerm, setSearchTerm] = useState('');
   
   // Helper para obtener fecha en zona horaria de Colombia
-  const getColombiaDate = () => {
-    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+  const getColombiaDate = (date: Date = new Date()) => {
+    return date.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
   };
 
   const [formData, setFormData] = useState({
@@ -168,7 +168,11 @@ export function Motorcycles() {
       daily_rate: motorcycle.daily_rate,
       plan_months: motorcycle.plan_months || 12,
       status: motorcycle.status,
-      created_at: motorcycle.created_at ? new Date(motorcycle.created_at).toISOString().split('T')[0] : getColombiaDate(),
+      created_at: motorcycle.created_at
+        ? /^\d{4}-\d{2}-\d{2}$/.test(motorcycle.created_at)
+          ? motorcycle.created_at
+          : getColombiaDate(new Date(motorcycle.created_at))
+        : getColombiaDate(),
       dias_gracia: motorcycle.dias_gracia || 0,
     });
     const d = new Date();

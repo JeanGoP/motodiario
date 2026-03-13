@@ -3,6 +3,9 @@ import { api } from '../lib/api';
 import { FileText, Download, Calendar, DollarSign, Filter, ChevronLeft, ChevronRight, Ban } from 'lucide-react';
 import { Motorcycle, Asociado, CostCenter, Deactivation, Payment, PaymentDistribution } from '../types/database';
 
+const getBogotaDateOnly = (date: Date = new Date()) =>
+  date.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+
 type ReportType =
   | 'overdue'
   | 'deactivated'
@@ -23,8 +26,8 @@ type PaymentForReports = Payment & {
 export function Reports() {
   const [loading, setLoading] = useState(false);
   const [reportType, setReportType] = useState<ReportType>('overdue');
-  const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0]);
-  const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
+  const [dateFrom, setDateFrom] = useState(getBogotaDateOnly());
+  const [dateTo, setDateTo] = useState(getBogotaDateOnly());
   const [previewData, setPreviewData] = useState<PreviewRow[]>([]);
   const [generatedDate, setGeneratedDate] = useState<string>('');
   const previewScrollRef = useRef<HTMLDivElement | null>(null);
@@ -148,7 +151,7 @@ export function Reports() {
       }
 
       setPreviewData(reportData);
-      setGeneratedDate(new Date().toISOString().split('T')[0]);
+      setGeneratedDate(getBogotaDateOnly());
     } catch (error) {
       console.error('Error generating report:', error);
       alert('Error al generar el reporte');
@@ -210,7 +213,7 @@ export function Reports() {
       });
 
       setPreviewData(reportData);
-      setGeneratedDate(new Date().toISOString().split('T')[0]);
+      setGeneratedDate(getBogotaDateOnly());
     } catch (error) {
       console.error('Error generating deactivated motorcycles report:', error);
       alert('Error al generar el reporte');
@@ -509,7 +512,7 @@ export function Reports() {
         }));
 
       setPreviewData(rows);
-      setGeneratedDate(new Date().toISOString().split('T')[0]);
+      setGeneratedDate(getBogotaDateOnly());
     } catch (error) {
       console.error(error);
       alert('Error al generar consolidado de deuda');

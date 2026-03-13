@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { Building2, Users, Bike, DollarSign, AlertTriangle, TrendingUp } from 'lucide-react';
 
+const getBogotaDateOnly = (date: Date = new Date()) =>
+  date.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+
 type HomeProps = {
   onNavigate?: (view: 'motorcycles' | 'transactions') => void;
 };
@@ -24,7 +27,7 @@ export function Home({ onNavigate }: HomeProps) {
 
   const loadStats = async () => {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getBogotaDateOnly();
 
       const [costCentersList, asociadosList, motorcycles, payments] = await Promise.all([
         api.getCentrosCosto(),

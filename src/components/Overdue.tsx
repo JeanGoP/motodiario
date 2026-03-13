@@ -3,6 +3,15 @@ import { api } from '../lib/api';
 import { Motorcycle, Asociado, CostCenter, Payment } from '../types/database';
 import { AlertTriangle, Calendar, Bell, Ban, CheckCircle } from 'lucide-react';
 
+const getBogotaDateOnly = (date: Date = new Date()) =>
+  date.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+
+const dateOnlyToUtcMs = (value: string) => {
+  const [y, m, d] = String(value).split('-').map((p) => Number(p));
+  if (!y || !m || !d) return NaN;
+  return Date.UTC(y, m - 1, d);
+};
+
 type MotorcycleOverdue = Motorcycle & {
   asociado?: Asociado & { centros_costo?: CostCenter };
   lastPayment?: string;
@@ -30,8 +39,14 @@ export function Overdue() {
       const motorcycles = (allMotos || []).filter((m: Motorcycle) => m.status === 'ACTIVE');
       const asociadosById = Object.fromEntries((allAsociados || []).map((a: Asociado) => [a.id, a]));
 
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const normalizeDateOnly = (value: string | null | undefined) => {
+        if (!value) return '';
+        const s = String(value);
+        return s.includes('T') ? s.split('T')[0] : s;
+      };
+
+      const msPerDay = 1000 * 60 * 60 * 24;
+      const todayMs = dateOnlyToUtcMs(getBogotaDateOnly());
 
       const overdueList: MotorcycleOverdue[] = [];
 
@@ -42,23 +57,26 @@ export function Overdue() {
         // Find last payment
         const motoPayments = (allPayments || [])
           .filter((p: Payment) => p.motorcycle_id === moto.id)
-          .sort((a: Payment, b: Payment) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime());
+          .sort((a: Payment, b: Payment) => {
+            const aMs = dateOnlyToUtcMs(normalizeDateOnly(a.payment_date));
+            const bMs = dateOnlyToUtcMs(normalizeDateOnly(b.payment_date));
+            return (bMs || 0) - (aMs || 0);
+          });
         
         const lastPayment = motoPayments.length > 0 ? motoPayments[0] : null;
 
         let daysOverdue = 0;
 
         if (lastPayment) {
-          const lastPaymentDate = new Date(lastPayment.payment_date);
-          lastPaymentDate.setHours(0, 0, 0, 0);
-          const diffTime = today.getTime() - lastPaymentDate.getTime();
-          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          const lastMs = dateOnlyToUtcMs(normalizeDateOnly(lastPayment.payment_date));
+          const diffDays =
+            Number.isFinite(todayMs) && Number.isFinite(lastMs) ? Math.floor((todayMs - lastMs) / msPerDay) : 0;
           daysOverdue = Math.max(0, diffDays - 1);
         } else {
-          const createdDate = new Date(moto.created_at);
-          createdDate.setHours(0, 0, 0, 0);
-          const diffTime = today.getTime() - createdDate.getTime();
-          daysOverdue = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          const createdMs = dateOnlyToUtcMs(getBogotaDateOnly(new Date(moto.created_at)));
+          const diffDays =
+            Number.isFinite(todayMs) && Number.isFinite(createdMs) ? Math.floor((todayMs - createdMs) / msPerDay) : 0;
+          daysOverdue = Math.max(0, diffDays);
         }
 
         if (daysOverdue > 0) {
@@ -94,7 +112,7 @@ export function Overdue() {
       await api.createDeactivation({
         motorcycle_id: motorcycle.id,
         asociado_id: motorcycle.asociado_id,
-        deactivation_date: new Date().toISOString().split('T')[0],
+        deactivation_date: getBogotaDateOnly(),
         days_overdue: motorcycle.daysOverdue,
         reason: `Desactivación automática por ${motorcycle.daysOverdue} días sin pagar`,
       });

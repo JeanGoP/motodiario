@@ -4,6 +4,9 @@ import { api } from '../lib/api';
 import { Plus, Receipt, DollarSign, TrendingUp, TrendingDown, Printer, Search, Calendar, User, Bike, X } from 'lucide-react';
 import { printReceipt } from '../utils/printReceipt';
 
+const getBogotaDateOnly = (date: Date = new Date()) =>
+  date.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+
 type PaymentWithDetails = Payment & {
   motorcycle?: Motorcycle;
   asociado?: Asociado;
@@ -27,12 +30,12 @@ export function Payments() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [dateFilter, setDateFilter] = useState(new Date().toISOString().split('T')[0]);
+  const [dateFilter, setDateFilter] = useState(getBogotaDateOnly());
   const [formData, setFormData] = useState({
     motorcycle_id: '',
     asociado_id: '',
     amount: 0,
-    payment_date: new Date().toISOString().split('T')[0],
+    payment_date: getBogotaDateOnly(),
     receipt_number: '',
     installment_number: 1,
     payment_method: 'EFECTIVO',
@@ -189,7 +192,7 @@ export function Payments() {
       motorcycle_id: '',
       asociado_id: '',
       amount: 0,
-      payment_date: new Date().toISOString().split('T')[0],
+      payment_date: getBogotaDateOnly(),
       receipt_number: generateReceiptNumber(),
       installment_number: 1,
       payment_method: 'EFECTIVO',
@@ -216,16 +219,18 @@ export function Payments() {
   // The user sees "Total Hoy" but maybe they want "Total Fecha Seleccionada".
   // Let's keep the KPIs fixed to "Today" for now as per the original code, but maybe add a label.
   
+  const todayBogota = getBogotaDateOnly();
+
   const totalToday = payments
-    .filter((p) => normalizeDateOnly(p.payment_date) === new Date().toISOString().split('T')[0])
+    .filter((p) => normalizeDateOnly(p.payment_date) === todayBogota)
     .reduce((sum, p) => sum + Number(p.amount), 0);
 
   const totalAssociateToday = payments
-    .filter((p) => normalizeDateOnly(p.payment_date) === new Date().toISOString().split('T')[0])
+    .filter((p) => normalizeDateOnly(p.payment_date) === todayBogota)
     .reduce((sum, p) => sum + Number(p.distribution?.associate_amount || 0), 0);
 
   const totalCompanyToday = payments
-    .filter((p) => normalizeDateOnly(p.payment_date) === new Date().toISOString().split('T')[0])
+    .filter((p) => normalizeDateOnly(p.payment_date) === todayBogota)
     .reduce((sum, p) => sum + Number(p.distribution?.company_amount || 0), 0);
 
   if (loading) {

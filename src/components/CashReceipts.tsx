@@ -4,6 +4,9 @@ import { Asociado } from '../types/database';
 import { Plus, Printer, FileText, Search, Calendar, X } from 'lucide-react';
 import { printCashReceipt } from '../utils/printCashReceipt';
 
+const getBogotaDateOnly = (date: Date = new Date()) =>
+  date.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+
 export function CashReceipts() {
   const [receipts, setReceipts] = useState<CashReceipt[]>([]);
   const [associates, setAssociates] = useState<Asociado[]>([]);
@@ -14,7 +17,7 @@ export function CashReceipts() {
     asociado_id: '',
     amount: '',
     concept: 'Anticipo',
-    date: new Date().toISOString().split('T')[0],
+    date: getBogotaDateOnly(),
     observations: ''
   });
 
@@ -95,7 +98,7 @@ export function CashReceipts() {
       asociado_id: '',
       amount: '',
       concept: 'Anticipo',
-      date: new Date().toISOString().split('T')[0],
+      date: getBogotaDateOnly(),
       observations: ''
     });
   };
