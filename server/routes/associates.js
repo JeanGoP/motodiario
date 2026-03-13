@@ -451,17 +451,40 @@ router.post('/:id/send_whatsapp_template', async (req, res) => {
     const r = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .query(`
-        SELECT a.id, a.nombre, a.contact_id
+        SELECT a.id, a.nombre, a.telefono, a.correo, a.contact_id
         FROM asociados a
         WHERE a.id = @id
       `);
     const asociado = r.recordset[0] || null;
     if (!asociado) return res.status(404).json({ error: 'Not found' });
-    const contactId = asociado.contact_id ? String(asociado.contact_id).trim() : '';
-    if (!contactId) return res.status(400).json({ error: 'El asociado no tiene contact_id' });
+    const previousContactId = asociado.contact_id ? String(asociado.contact_id).trim() : '';
+
+    const upsertResult = await upsertLeadConnectorContact({
+      name: asociado.nombre,
+      email: asociado.correo,
+      phone: asociado.telefono,
+      locationId: LEADCONNECTOR_LOCATION_ID,
+    });
+
+    const effectiveContactId = upsertResult?.ok && upsertResult.contactId ? String(upsertResult.contactId).trim() : previousContactId;
+    if (!effectiveContactId) {
+      return res.status(200).json({
+        ok: false,
+        skipped: Boolean(upsertResult?.skipped),
+        error: upsertResult?.error || 'El asociado no tiene contact_id y no se pudo sincronizar',
+        status: upsertResult?.status ?? null,
+      });
+    }
+
+    if (upsertResult?.ok && upsertResult.contactId && String(upsertResult.contactId).trim() && String(upsertResult.contactId).trim() !== previousContactId) {
+      await pool.request()
+        .input('id', sql.UniqueIdentifier, id)
+        .input('contact_id', sql.NVarChar(128), String(upsertResult.contactId).trim())
+        .query(`UPDATE asociados SET contact_id = @contact_id, actualizado_en = SYSDATETIMEOFFSET() WHERE id = @id`);
+    }
 
     const sendResult = await sendLeadConnectorWhatsAppTemplateMessage({
-      contactId,
+      contactId: effectiveContactId,
       locationId: LEADCONNECTOR_LOCATION_ID,
       templateName,
       templateLang,
@@ -473,7 +496,14 @@ router.post('/:id/send_whatsapp_template', async (req, res) => {
     if (!sendResult.ok) {
       return res.status(200).json(sendResult);
     }
-    return res.status(200).json(sendResult);
+    return res.status(200).json({
+      ...sendResult,
+      debug: {
+        previous_contact_id: previousContactId || null,
+        used_contact_id: effectiveContactId,
+        upsert_ok: Boolean(upsertResult?.ok),
+      },
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
