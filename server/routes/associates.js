@@ -8,6 +8,30 @@ const LEADCONNECTOR_LOCATION_ID = process.env.LEADCONNECTOR_LOCATION_ID || 'x8eF
 const LEADCONNECTOR_API_VERSION = '2021-07-28';
 const LEADCONNECTOR_UPSERT_URL = 'https://services.leadconnectorhq.com/contacts/upsert';
 
+let asociadosColumnsCache = {
+  checkedAt: 0,
+  hasContactId: false,
+};
+
+const getAsociadosColumnsSupport = async (request) => {
+  const now = Date.now();
+  if (now - asociadosColumnsCache.checkedAt < 60_000) return asociadosColumnsCache;
+
+  const cols = await request.query(`
+    SELECT COLUMN_NAME
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_NAME = 'asociados'
+      AND COLUMN_NAME IN ('contact_id')
+  `);
+
+  const names = new Set((cols.recordset || []).map((r) => r.COLUMN_NAME));
+  asociadosColumnsCache = {
+    checkedAt: now,
+    hasContactId: names.has('contact_id'),
+  };
+  return asociadosColumnsCache;
+};
+
 const webhookDbConfig = {
   user: process.env.WEBHOOK_DB_USER,
   password: process.env.WEBHOOK_DB_PASS,
@@ -70,6 +94,26 @@ const getLeadConnectorAccessToken = async (locationId, opts = {}) => {
   return token;
 };
 
+const extractContactIdFromLeadConnectorResponse = (data) => {
+  if (!data || typeof data !== 'object') return null;
+
+  const fromContact = data.contact && typeof data.contact === 'object' ? data.contact : null;
+  const candidates = [
+    fromContact?.id,
+    fromContact?.contactId,
+    data.contactId,
+    data.id,
+    Array.isArray(data.contacts) ? data.contacts?.[0]?.id : null,
+  ];
+
+  for (const v of candidates) {
+    if (!v) continue;
+    const s = String(v).trim();
+    if (s) return s;
+  }
+  return null;
+};
+
 const upsertLeadConnectorContact = async ({ name, email, phone, locationId }) => {
   const token = await getLeadConnectorAccessToken(locationId);
   if (!token) return { ok: false, skipped: true, error: 'No hay access_token disponible' };
@@ -105,7 +149,7 @@ const upsertLeadConnectorContact = async ({ name, email, phone, locationId }) =>
   if (!res.ok) {
     return { ok: false, skipped: false, error: typeof parsed === 'string' ? parsed : JSON.stringify(parsed), status: res.status };
   }
-  return { ok: true, skipped: false, data: parsed };
+  return { ok: true, skipped: false, data: parsed, contactId: extractContactIdFromLeadConnectorResponse(parsed) };
 };
 
 router.get('/', async (req, res) => {
@@ -113,7 +157,7 @@ router.get('/', async (req, res) => {
   try {
     const pool = await getPool();
     let query = `
-      SELECT a.id, a.centro_costo_id, a.nombre, a.documento, a.telefono, a.correo, a.direccion,
+      SELECT a.id, a.centro_costo_id, a.contact_id, a.nombre, a.documento, a.telefono, a.correo, a.direccion,
              a.dias_gracia, a.activo, a.creado_en, a.actualizado_en,
              cc.id AS cc_id, cc.nombre AS cc_nombre, cc.codigo AS cc_codigo
       FROM asociados a
@@ -131,6 +175,7 @@ router.get('/', async (req, res) => {
     const asociados = result.recordset.map(row => ({
       id: row.id,
       centro_costo_id: row.centro_costo_id,
+      contact_id: row.contact_id ?? null,
       nombre: row.nombre,
       documento: row.documento,
       telefono: row.telefono,
@@ -175,7 +220,7 @@ router.post('/', async (req, res) => {
     const getRequest = pool.request();
     getRequest.input('id', sql.UniqueIdentifier, id);
     const result = await getRequest.query(`
-      SELECT a.id, a.centro_costo_id, a.nombre, a.documento, a.telefono, a.correo, a.direccion,
+      SELECT a.id, a.centro_costo_id, a.contact_id, a.nombre, a.documento, a.telefono, a.correo, a.direccion,
              a.dias_gracia, a.activo, a.creado_en, a.actualizado_en,
              cc.id AS cc_id, cc.nombre AS cc_nombre, cc.codigo AS cc_codigo
       FROM asociados a INNER JOIN centros_costo cc ON cc.id = a.centro_costo_id
@@ -184,12 +229,23 @@ router.post('/', async (req, res) => {
     const r = result.recordset[0];
 
     try {
-      await upsertLeadConnectorContact({
+      const upsertResult = await upsertLeadConnectorContact({
         name: r.nombre,
         email: r.correo,
         phone: r.telefono,
         locationId: LEADCONNECTOR_LOCATION_ID,
       });
+
+      if (upsertResult?.ok && upsertResult.contactId) {
+        const columnsSupport = await getAsociadosColumnsSupport(pool.request());
+        if (columnsSupport.hasContactId) {
+          await pool.request()
+            .input('id', sql.UniqueIdentifier, id)
+            .input('contact_id', sql.NVarChar(128), upsertResult.contactId)
+            .query(`UPDATE asociados SET contact_id = @contact_id, actualizado_en = SYSDATETIMEOFFSET() WHERE id = @id`);
+          r.contact_id = upsertResult.contactId;
+        }
+      }
     } catch (e) {
       console.error('Error sincronizando contacto a LeadConnector:', e instanceof Error ? e.message : e);
     }
@@ -197,6 +253,7 @@ router.post('/', async (req, res) => {
     res.status(201).json({
       id: r.id,
       centro_costo_id: r.centro_costo_id,
+      contact_id: r.contact_id ?? null,
       nombre: r.nombre,
       documento: r.documento,
       telefono: r.telefono,
@@ -237,7 +294,7 @@ router.put('/:id', async (req, res) => {
     const getRequest = pool.request();
     getRequest.input('id', sql.UniqueIdentifier, id);
     const result = await getRequest.query(`
-      SELECT a.id, a.centro_costo_id, a.nombre, a.documento, a.telefono, a.correo, a.direccion,
+      SELECT a.id, a.centro_costo_id, a.contact_id, a.nombre, a.documento, a.telefono, a.correo, a.direccion,
              a.dias_gracia, a.activo, a.creado_en, a.actualizado_en,
              cc.id AS cc_id, cc.nombre AS cc_nombre, cc.codigo AS cc_codigo
       FROM asociados a INNER JOIN centros_costo cc ON cc.id = a.centro_costo_id
@@ -248,6 +305,7 @@ router.put('/:id', async (req, res) => {
     res.json({
       id: r.id,
       centro_costo_id: r.centro_costo_id,
+      contact_id: r.contact_id ?? null,
       nombre: r.nombre,
       documento: r.documento,
       telefono: r.telefono,

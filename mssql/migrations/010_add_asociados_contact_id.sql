@@ -1,0 +1,10 @@
+IF NOT EXISTS (
+  SELECT 1
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_NAME = 'asociados'
+    AND COLUMN_NAME = 'contact_id'
+)
+BEGIN
+  ALTER TABLE asociados
+  ADD contact_id NVARCHAR(128) NULL;
+END

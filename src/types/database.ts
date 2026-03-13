@@ -35,6 +35,7 @@ export type Database = {
         Row: {
           id: string;
           centro_costo_id: string;
+          contact_id: string | null;
           nombre: string;
           documento: string;
           telefono: string;
@@ -48,6 +49,7 @@ export type Database = {
         Insert: {
           id?: string;
           centro_costo_id: string;
+          contact_id?: string | null;
           nombre: string;
           documento: string;
           telefono: string;
@@ -61,6 +63,7 @@ export type Database = {
         Update: {
           id?: string;
           centro_costo_id?: string;
+          contact_id?: string | null;
           nombre?: string;
           documento?: string;
           telefono?: string;
