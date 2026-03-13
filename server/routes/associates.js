@@ -4,6 +4,110 @@ import { getPool } from '../db.js';
 
 const router = express.Router();
 
+const LEADCONNECTOR_LOCATION_ID = process.env.LEADCONNECTOR_LOCATION_ID || 'x8eF7OoF2Ld9p1ASAUGe';
+const LEADCONNECTOR_API_VERSION = '2021-07-28';
+const LEADCONNECTOR_UPSERT_URL = 'https://services.leadconnectorhq.com/contacts/upsert';
+
+const webhookDbConfig = {
+  user: process.env.WEBHOOK_DB_USER,
+  password: process.env.WEBHOOK_DB_PASS,
+  server: process.env.WEBHOOK_DB_HOST || 'sintesiserpcloud.webhop.org',
+  database: process.env.WEBHOOK_DB_NAME || 'RopofyWebHook',
+  port: Number.parseInt(process.env.WEBHOOK_DB_PORT || '1433', 10),
+  connectionTimeout: 8000,
+  options: {
+    encrypt: process.env.WEBHOOK_DB_ENCRYPT !== 'false',
+    trustServerCertificate: true,
+  },
+  pool: {
+    max: 5,
+    min: 0,
+    idleTimeoutMillis: 30000,
+  },
+};
+
+let webhookPoolPromise;
+const getWebhookPool = async () => {
+  const enabled = Boolean(webhookDbConfig.user && webhookDbConfig.password && webhookDbConfig.server && webhookDbConfig.database);
+  if (!enabled) return null;
+  if (!webhookPoolPromise) {
+    const pool = new sql.ConnectionPool(webhookDbConfig);
+    webhookPoolPromise = pool.connect().catch((err) => {
+      webhookPoolPromise = null;
+      throw err;
+    });
+  }
+  return webhookPoolPromise;
+};
+
+let leadConnectorTokenCache = {
+  token: null,
+  expiresAt: 0,
+};
+
+const fetchLeadConnectorAccessToken = async (locationId) => {
+  const pool = await getWebhookPool();
+  if (!pool) return null;
+  const r = await pool.request()
+    .input('locationId', sql.NVarChar, locationId)
+    .query(`SELECT TOP 1 access_token FROM empresas WHERE locationid = @locationId`);
+  const token = r.recordset?.[0]?.access_token ? String(r.recordset[0].access_token) : '';
+  return token.trim() ? token.trim() : null;
+};
+
+const getLeadConnectorAccessToken = async (locationId, opts = {}) => {
+  const forceRefresh = Boolean(opts.forceRefresh);
+  const now = Date.now();
+  if (!forceRefresh && leadConnectorTokenCache.token && leadConnectorTokenCache.expiresAt > now) {
+    return leadConnectorTokenCache.token;
+  }
+  const token = await fetchLeadConnectorAccessToken(locationId);
+  if (!token) return null;
+  leadConnectorTokenCache = {
+    token,
+    expiresAt: now + 23 * 60 * 60 * 1000,
+  };
+  return token;
+};
+
+const upsertLeadConnectorContact = async ({ name, email, phone, locationId }) => {
+  const token = await getLeadConnectorAccessToken(locationId);
+  if (!token) return { ok: false, skipped: true, error: 'No hay access_token disponible' };
+
+  const body = { name, locationId };
+  if (email && String(email).trim()) body.email = String(email).trim();
+  if (phone && String(phone).trim()) body.phone = String(phone).trim();
+
+  const doRequest = async (bearer) => {
+    const res = await fetch(LEADCONNECTOR_UPSERT_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Version': LEADCONNECTOR_API_VERSION,
+        'Authorization': `Bearer ${bearer}`,
+      },
+      body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    const parsed = text ? (() => { try { return JSON.parse(text); } catch { return text; } })() : null;
+    return { res, parsed };
+  };
+
+  let { res, parsed } = await doRequest(token);
+  if (res.status === 401) {
+    const refreshed = await getLeadConnectorAccessToken(locationId, { forceRefresh: true });
+    if (refreshed) {
+      ({ res, parsed } = await doRequest(refreshed));
+    }
+  }
+
+  if (!res.ok) {
+    return { ok: false, skipped: false, error: typeof parsed === 'string' ? parsed : JSON.stringify(parsed), status: res.status };
+  }
+  return { ok: true, skipped: false, data: parsed };
+};
+
 router.get('/', async (req, res) => {
   const { active } = req.query;
   try {
@@ -78,6 +182,18 @@ router.post('/', async (req, res) => {
       WHERE a.id = @id
     `);
     const r = result.recordset[0];
+
+    try {
+      await upsertLeadConnectorContact({
+        name: r.nombre,
+        email: r.correo,
+        phone: r.telefono,
+        locationId: LEADCONNECTOR_LOCATION_ID,
+      });
+    } catch (e) {
+      console.error('Error sincronizando contacto a LeadConnector:', e instanceof Error ? e.message : e);
+    }
+
     res.status(201).json({
       id: r.id,
       centro_costo_id: r.centro_costo_id,
