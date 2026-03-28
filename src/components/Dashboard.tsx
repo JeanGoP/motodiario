@@ -13,6 +13,8 @@ import {
   X,
   Wallet,
   ChevronRight,
+  ChevronDown,
+  Shield,
   User
 } from 'lucide-react';
 import { CostCenters } from './CostCenters';
@@ -31,22 +33,28 @@ type View = 'home' | 'cost-centers' | 'associates' | 'motorcycles' | 'transactio
 export function Dashboard() {
   const [currentView, setCurrentView] = useState<View>('home');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [catalogosOpen, setCatalogosOpen] = useState(true);
+  const [seguridadOpen, setSeguridadOpen] = useState(true);
   const { user, signOut } = useAuth();
 
-  const menuItems = [
+  const generalItems = [
     { id: 'home' as View, label: 'Inicio', icon: LayoutDashboard },
-    { id: 'cost-centers' as View, label: 'Centros de Costo', icon: Building2 },
-    { id: 'associates' as View, label: 'Asociados', icon: Users },
-    { id: 'motorcycles' as View, label: 'Motos', icon: Bike },
     { id: 'transactions' as View, label: 'Transacciones', icon: Wallet },
     { id: 'overdue' as View, label: 'Vencimientos', icon: AlertTriangle },
     { id: 'reports' as View, label: 'Reportes', icon: FileText },
     { id: 'notifications' as View, label: 'Notificaciones', icon: Bell },
   ];
-  const adminItems = user?.rol === 'admin'
+
+  const catalogosItems = [
+    { id: 'cost-centers' as View, label: 'Centros de Costo', icon: Building2 },
+    { id: 'associates' as View, label: 'Asociados', icon: Users },
+    { id: 'motorcycles' as View, label: 'Motos', icon: Bike },
+  ];
+
+  const seguridadItems = user?.rol === 'admin'
     ? [
       { id: 'empresas' as View, label: 'Empresas', icon: Building2 },
-      { id: 'usuarios-admin' as View, label: 'Usuarios', icon: User }
+      { id: 'usuarios-admin' as View, label: 'Seguridad', icon: Shield }
     ]
     : [];
 
@@ -74,7 +82,44 @@ export function Dashboard() {
     }
   };
 
-  const currentLabel = [...adminItems, ...menuItems].find(item => item.id === currentView)?.label || 'Dashboard';
+  const currentLabel = [...generalItems, ...catalogosItems, ...seguridadItems].find(item => item.id === currentView)?.label || 'Dashboard';
+
+  const renderItemButton = (item: { id: View; label: string; icon: React.ComponentType<{ className?: string }> }, opts?: { indent?: boolean }) => {
+    const Icon = item.icon;
+    const isActive = currentView === item.id;
+    const indentClass = opts?.indent ? 'pl-9' : '';
+    return (
+      <button
+        key={item.id}
+        onClick={() => {
+          setCurrentView(item.id);
+          setMobileMenuOpen(false);
+        }}
+        className={`group flex items-center w-full px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 border-l-4 ${indentClass} ${
+          isActive
+            ? 'bg-slate-800/50 text-white border-accent-500 shadow-[0_0_20px_rgba(99,102,241,0.18)]'
+            : 'border-transparent text-slate-400 hover:bg-slate-800 hover:text-white hover:border-slate-600'
+        }`}
+      >
+        <Icon className={`w-5 h-5 mr-3 transition-colors ${isActive ? 'text-accent-300' : 'text-slate-500 group-hover:text-white'}`} />
+        <span className="flex-1 text-left">{item.label}</span>
+        {isActive && <div className="w-1.5 h-1.5 rounded-full bg-accent-300 shadow-[0_0_10px_rgba(129,140,248,0.6)]" />}
+      </button>
+    );
+  };
+
+  const renderParentButton = (label: string, open: boolean, onToggle: () => void) => {
+    return (
+      <button
+        type="button"
+        onClick={onToggle}
+        className="group flex items-center w-full px-3 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 border-l-4 border-transparent text-slate-300 hover:bg-slate-800 hover:text-white hover:border-slate-600"
+      >
+        <span className="flex-1 text-left">{label}</span>
+        <ChevronDown className={`w-4 h-4 text-slate-500 group-hover:text-white transition-transform ${open ? 'rotate-0' : '-rotate-90'}`} />
+      </button>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
@@ -95,30 +140,33 @@ export function Dashboard() {
 
         {/* Navigation */}
         <div className="flex flex-col h-[calc(100%-4rem)] justify-between bg-slate-900">
-          <nav className="px-3 py-4 space-y-1 overflow-y-auto">
+          <nav className="px-3 py-4 overflow-y-auto flex-1 flex flex-col">
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4 px-3">Menú Principal</div>
-            {[...adminItems, ...menuItems].map((item) => {
-              const Icon = item.icon;
-              const isActive = currentView === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    setCurrentView(item.id);
-                    setMobileMenuOpen(false);
-                  }}
-                  className={`group flex items-center w-full px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 border-l-4 ${
-                    isActive
-                      ? 'bg-slate-800/50 text-white border-accent-500 shadow-[0_0_20px_rgba(99,102,241,0.18)]'
-                      : 'border-transparent text-slate-400 hover:bg-slate-800 hover:text-white hover:border-slate-600'
-                  }`}
-                >
-                  <Icon className={`w-5 h-5 mr-3 transition-colors ${isActive ? 'text-accent-300' : 'text-slate-500 group-hover:text-white'}`} />
-                  <span className="flex-1 text-left">{item.label}</span>
-                  {isActive && <div className="w-1.5 h-1.5 rounded-full bg-accent-300 shadow-[0_0_10px_rgba(129,140,248,0.6)]" />}
-                </button>
-              );
-            })}
+
+            <div className="space-y-1">
+              {generalItems.map((item) => renderItemButton(item))}
+            </div>
+
+            <div className="mt-4">
+              {renderParentButton('Catálogos', catalogosOpen, () => setCatalogosOpen(v => !v))}
+              {catalogosOpen && (
+                <div className="space-y-1 mt-1">
+                  {catalogosItems.map((item) => renderItemButton(item, { indent: true }))}
+                </div>
+              )}
+            </div>
+
+            {seguridadItems.length > 0 && (
+              <div className="mt-auto pt-6">
+                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-3">Seguridad</div>
+                {renderParentButton('Seguridad', seguridadOpen, () => setSeguridadOpen(v => !v))}
+                {seguridadOpen && (
+                  <div className="space-y-1 mt-1">
+                    {seguridadItems.map((item) => renderItemButton(item, { indent: true }))}
+                  </div>
+                )}
+              </div>
+            )}
           </nav>
 
           {/* User Profile & Logout */}
