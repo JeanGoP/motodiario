@@ -32,6 +32,15 @@ const isSuperAdmin = async (pool, userId, defaultEmpresaId) => {
   return !!r.recordset?.length;
 };
 
+const isEmpresaAdmin = async (pool, userId, empresaId) => {
+  if (!userId || !empresaId) return false;
+  const r = await pool.request()
+    .input('id', sql.UniqueIdentifier, userId)
+    .input('empresa_id', sql.UniqueIdentifier, empresaId)
+    .query(`SELECT TOP 1 1 AS ok FROM usuarios WHERE id = @id AND empresa_id = @empresa_id AND rol = N'admin' AND activo = 1`);
+  return !!r.recordset?.length;
+};
+
 router.get('/', async (req, res) => {
   const payload = getTokenPayload(req);
   if (!payload) return res.status(401).json({ error: 'No autorizado' });
@@ -39,15 +48,30 @@ router.get('/', async (req, res) => {
   try {
     const pool = await getPool();
     const defaultEmpresaId = await getDefaultEmpresaId(pool);
-    const ok = await isSuperAdmin(pool, payload.sub, defaultEmpresaId);
-    if (!ok) return res.status(403).json({ error: 'No autorizado' });
+    const superOk = await isSuperAdmin(pool, payload.sub, defaultEmpresaId);
 
-    const result = await pool.request().query(`
-      SELECT id, nombre, codigo, activo, leadconnector_location_id, creado_en, actualizado_en
-      FROM empresas
-      ORDER BY creado_en DESC
-    `);
-    res.json(result.recordset);
+    if (superOk) {
+      const result = await pool.request().query(`
+        SELECT id, nombre, codigo, activo, leadconnector_location_id, creado_en, actualizado_en
+        FROM empresas
+        ORDER BY creado_en DESC
+      `);
+      return res.json(result.recordset);
+    }
+
+    const empresaId = payload.empresa_id ? String(payload.empresa_id) : '';
+    if (!empresaId) return res.status(400).json({ error: 'Falta empresa_id' });
+    const empresaAdminOk = await isEmpresaAdmin(pool, payload.sub, empresaId);
+    if (!empresaAdminOk) return res.status(403).json({ error: 'No autorizado' });
+
+    const result = await pool.request()
+      .input('id', sql.UniqueIdentifier, empresaId)
+      .query(`
+        SELECT id, nombre, codigo, activo, leadconnector_location_id, creado_en, actualizado_en
+        FROM empresas
+        WHERE id = @id
+      `);
+    return res.json(result.recordset);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -93,8 +117,14 @@ router.put('/:id', async (req, res) => {
   try {
     const pool = await getPool();
     const defaultEmpresaId = await getDefaultEmpresaId(pool);
-    const ok = await isSuperAdmin(pool, payload.sub, defaultEmpresaId);
-    if (!ok) return res.status(403).json({ error: 'No autorizado' });
+    const superOk = await isSuperAdmin(pool, payload.sub, defaultEmpresaId);
+    if (!superOk) {
+      const empresaId = payload.empresa_id ? String(payload.empresa_id) : '';
+      if (!empresaId) return res.status(400).json({ error: 'Falta empresa_id' });
+      if (String(empresaId) !== String(id)) return res.status(403).json({ error: 'No autorizado' });
+      const empresaAdminOk = await isEmpresaAdmin(pool, payload.sub, empresaId);
+      if (!empresaAdminOk) return res.status(403).json({ error: 'No autorizado' });
+    }
 
     const request = pool.request();
     request.input('id', sql.UniqueIdentifier, id);
@@ -122,4 +152,3 @@ router.put('/:id', async (req, res) => {
 });
 
 export default router;
-
