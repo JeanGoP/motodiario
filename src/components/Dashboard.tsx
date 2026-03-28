@@ -15,6 +15,7 @@ import {
   ChevronRight,
   ChevronDown,
   Shield,
+  Folder,
   User
 } from 'lucide-react';
 import { CostCenters } from './CostCenters';
@@ -54,7 +55,7 @@ export function Dashboard() {
   const seguridadItems = user?.rol === 'admin'
     ? [
       { id: 'empresas' as View, label: 'Empresas', icon: Building2 },
-      { id: 'usuarios-admin' as View, label: 'Usuarios', icon: Shield }
+      { id: 'usuarios-admin' as View, label: 'Usuarios', icon: User }
     ]
     : [];
 
@@ -84,10 +85,13 @@ export function Dashboard() {
 
   const currentLabel = [...generalItems, ...catalogosItems, ...seguridadItems].find(item => item.id === currentView)?.label || 'Dashboard';
 
-  const renderItemButton = (item: { id: View; label: string; icon: React.ComponentType<{ className?: string }> }, opts?: { indent?: boolean }) => {
+  const renderItemButton = (item: { id: View; label: string; icon: React.ComponentType<{ className?: string }> }, opts?: { child?: boolean }) => {
     const Icon = item.icon;
     const isActive = currentView === item.id;
-    const indentClass = opts?.indent ? 'pl-9' : '';
+    const isChild = !!opts?.child;
+    const indentClass = isChild ? 'pl-9' : '';
+    const paddingClass = isChild ? 'py-2' : 'py-2.5';
+    const iconClass = isChild ? 'w-4 h-4' : 'w-5 h-5';
     return (
       <button
         key={item.id}
@@ -95,26 +99,32 @@ export function Dashboard() {
           setCurrentView(item.id);
           setMobileMenuOpen(false);
         }}
-        className={`group flex items-center w-full px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 border-l-4 ${indentClass} ${
+        className={`group flex items-center w-full px-3 ${paddingClass} text-sm font-medium rounded-lg transition-all duration-200 border-l-4 ${indentClass} ${
           isActive
             ? 'bg-slate-800/50 text-white border-accent-500 shadow-[0_0_20px_rgba(99,102,241,0.18)]'
             : 'border-transparent text-slate-400 hover:bg-slate-800 hover:text-white hover:border-slate-600'
         }`}
       >
-        <Icon className={`w-5 h-5 mr-3 transition-colors ${isActive ? 'text-accent-300' : 'text-slate-500 group-hover:text-white'}`} />
+        <Icon className={`${iconClass} mr-3 transition-colors ${isActive ? 'text-accent-300' : 'text-slate-500 group-hover:text-white'}`} />
         <span className="flex-1 text-left">{item.label}</span>
         {isActive && <div className="w-1.5 h-1.5 rounded-full bg-accent-300 shadow-[0_0_10px_rgba(129,140,248,0.6)]" />}
       </button>
     );
   };
 
-  const renderParentButton = (label: string, open: boolean, onToggle: () => void) => {
+  const renderParentButton = (label: string, icon: React.ComponentType<{ className?: string }>, open: boolean, active: boolean, onToggle: () => void) => {
+    const Icon = icon;
     return (
       <button
         type="button"
         onClick={onToggle}
-        className="group flex items-center w-full px-3 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 border-l-4 border-transparent text-slate-300 hover:bg-slate-800 hover:text-white hover:border-slate-600"
+        className={`group flex items-center w-full px-3 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 border-l-4 ${
+          active
+            ? 'bg-slate-800/40 text-white border-accent-500'
+            : 'border-transparent text-slate-300 hover:bg-slate-800 hover:text-white hover:border-slate-600'
+        }`}
       >
+        <Icon className={`w-5 h-5 mr-3 transition-colors ${active ? 'text-accent-300' : 'text-slate-500 group-hover:text-white'}`} />
         <span className="flex-1 text-left">{label}</span>
         <ChevronDown className={`w-4 h-4 text-slate-500 group-hover:text-white transition-transform ${open ? 'rotate-0' : '-rotate-90'}`} />
       </button>
@@ -141,17 +151,23 @@ export function Dashboard() {
         {/* Navigation */}
         <div className="flex flex-col h-[calc(100%-4rem)] justify-between bg-slate-900">
           <nav className="px-3 py-4 overflow-y-auto flex-1 flex flex-col">
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4 px-3">Menú Principal</div>
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4 px-3">Principal</div>
 
             <div className="space-y-1">
               {generalItems.map((item) => renderItemButton(item))}
             </div>
 
-            <div className="mt-4">
-              {renderParentButton('Catálogos', catalogosOpen, () => setCatalogosOpen(v => !v))}
+            <div className="mt-3">
+              {renderParentButton(
+                'Catálogos',
+                Folder,
+                catalogosOpen,
+                catalogosItems.some(i => i.id === currentView),
+                () => setCatalogosOpen(v => !v)
+              )}
               {catalogosOpen && (
                 <div className="space-y-1 mt-1">
-                  {catalogosItems.map((item) => renderItemButton(item, { indent: true }))}
+                  {catalogosItems.map((item) => renderItemButton(item, { child: true }))}
                 </div>
               )}
             </div>
@@ -159,10 +175,16 @@ export function Dashboard() {
             {seguridadItems.length > 0 && (
               <div className="mt-3">
                 <div className="h-px bg-slate-800/80 my-2 mx-3"></div>
-                {renderParentButton('Seguridad', seguridadOpen, () => setSeguridadOpen(v => !v))}
+                {renderParentButton(
+                  'Seguridad',
+                  Shield,
+                  seguridadOpen,
+                  seguridadItems.some(i => i.id === currentView),
+                  () => setSeguridadOpen(v => !v)
+                )}
                 {seguridadOpen && (
                   <div className="space-y-1 mt-1">
-                    {seguridadItems.map((item) => renderItemButton(item, { indent: true }))}
+                    {seguridadItems.map((item) => renderItemButton(item, { child: true }))}
                   </div>
                 )}
               </div>
