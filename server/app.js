@@ -11,6 +11,7 @@ import cashReceiptsRouter from './routes/cash_receipts.js';
 import notificationsRouter from './routes/notifications.js';
 import deactivationsRouter from './routes/deactivations.js';
 import authRouter from './routes/auth.js';
+import { getPool } from './db.js';
 
 const app = express();
 
@@ -57,6 +58,41 @@ app.get('/health', (req, res) => {
 
 // Crear un Router para todas las rutas de la API
 const apiRouter = express.Router();
+
+let defaultEmpresaCache = { id: null, checkedAt: 0 };
+
+const isUuid = (value) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(String(value || '').trim());
+
+const getDefaultEmpresaId = async () => {
+  const envEmpresaId = (process.env.DEFAULT_EMPRESA_ID || '').trim();
+  if (isUuid(envEmpresaId)) return envEmpresaId;
+
+  const now = Date.now();
+  if (defaultEmpresaCache.id && now - defaultEmpresaCache.checkedAt < 60_000) return defaultEmpresaCache.id;
+
+  try {
+    const pool = await getPool();
+    const exists = await pool.request().query(`SELECT OBJECT_ID('dbo.empresas') AS id`);
+    if (!exists.recordset?.[0]?.id) return null;
+    const r = await pool.request().query(`SELECT TOP 1 id FROM empresas ORDER BY creado_en ASC`);
+    const id = r.recordset?.[0]?.id ? String(r.recordset[0].id) : null;
+    defaultEmpresaCache = { id, checkedAt: now };
+    return id;
+  } catch {
+    return null;
+  }
+};
+
+apiRouter.use(async (req, res, next) => {
+  if (req.path.startsWith('/auth')) return next();
+
+  const headerEmpresaId = req.get('x-empresa-id');
+  const queryEmpresaId = req.query?.empresa_id;
+  const candidate = isUuid(headerEmpresaId) ? String(headerEmpresaId).trim() : (isUuid(queryEmpresaId) ? String(queryEmpresaId).trim() : null);
+  const resolved = candidate || (await getDefaultEmpresaId());
+  req.empresaId = resolved;
+  next();
+});
 
 apiRouter.use('/auth', authRouter);
 apiRouter.use('/centros_costo', costCentersRouter);

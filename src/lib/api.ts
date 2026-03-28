@@ -24,14 +24,25 @@ const cache = new Map<string, { data: unknown; timestamp: number }>();
 const CACHE_TTL = 60 * 1000; // 1 minute
 const inFlight = new Map<string, Promise<unknown>>();
 
+const getEmpresaId = () => {
+  const envEmpresaId = (import.meta.env.VITE_EMPRESA_ID as string | undefined) || '';
+  try {
+    const stored = typeof window !== 'undefined' ? window.localStorage.getItem('empresa_id') : null;
+    return stored || envEmpresaId;
+  } catch {
+    return envEmpresaId;
+  }
+};
+
 async function request<T = unknown>(path: string, options?: RequestInit & { useCache?: boolean }): Promise<T> {
+  const { useCache, ...fetchOptions } = options || {};
   // Asegurar que el path empiece con slash
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const url = `${baseUrl}${normalizedPath}`;
   const method = (options?.method || 'GET').toUpperCase();
   
   // Check cache for GET requests if enabled
-  if (options?.useCache && (!options.method || options.method === 'GET')) {
+  if (useCache && (!options?.method || options.method === 'GET')) {
     const cached = cache.get(url);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
       if (isDev) console.log(`[API] Serving from cache: ${url}`);
@@ -49,9 +60,13 @@ async function request<T = unknown>(path: string, options?: RequestInit & { useC
 
   try {
     const doFetch = async () => {
+      const headers = new Headers(fetchOptions.headers || undefined);
+      if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+      const empresaId = getEmpresaId();
+      if (empresaId) headers.set('x-empresa-id', empresaId);
       const res = await fetch(url, {
-        headers: { 'Content-Type': 'application/json' },
-        ...options
+        ...fetchOptions,
+        headers
       });
       
       if (!res.ok) {
@@ -71,7 +86,7 @@ async function request<T = unknown>(path: string, options?: RequestInit & { useC
       if (res.status === 204) return null as T;
       const data: T = await res.json();
       
-      if (options?.useCache && method === 'GET') {
+      if (useCache && method === 'GET') {
         cache.set(url, { data, timestamp: Date.now() });
       }
       

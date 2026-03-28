@@ -17,16 +17,26 @@ interface Usuario {
   rol?: string;
 }
 
-const getBaseUrl = () => {
-  const envUrl = import.meta.env.VITE_API_BASE_URL;
-  if (envUrl) return envUrl.replace(/\/api\/?$/, '').replace(/\/$/, '');
-  if (import.meta.env.MODE === 'production') return '';
-  return 'http://localhost:4000';
-};
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Usuario | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const getBaseUrl = () => {
+    const envUrl = import.meta.env.VITE_API_BASE_URL;
+    if (envUrl) return envUrl.replace(/\/api\/?$/, '').replace(/\/$/, '');
+    if (import.meta.env.MODE === 'production') return '';
+    return 'http://localhost:4000';
+  };
+
+  const getEmpresaId = () => {
+    const envEmpresaId = (import.meta.env.VITE_EMPRESA_ID as string | undefined) || '';
+    try {
+      const stored = typeof window !== 'undefined' ? window.localStorage.getItem('empresa_id') : null;
+      return stored || envEmpresaId;
+    } catch {
+      return envEmpresaId;
+    }
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -36,8 +46,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     (async () => {
       try {
+        const empresaId = getEmpresaId();
+        const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+        if (empresaId) headers['x-empresa-id'] = empresaId;
         const res = await fetch(`${getBaseUrl()}/api/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers
         });
         if (res.ok) {
           const u = await res.json();
@@ -58,9 +71,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const url = `${getBaseUrl()}/api/auth/login`;
     console.log('[Auth] Signing in to:', url);
     
+    const empresaId = getEmpresaId();
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (empresaId) headers['x-empresa-id'] = empresaId;
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ correo: email, password })
     });
     
@@ -80,9 +96,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = async (email: string, password: string) => {
     const url = `${getBaseUrl()}/api/auth/registro`;
     
+    const empresaId = getEmpresaId();
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (empresaId) headers['x-empresa-id'] = empresaId;
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ nombre: email.split('@')[0], correo: email, password })
     });
     

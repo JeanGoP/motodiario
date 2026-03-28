@@ -117,28 +117,34 @@ export const validatePaymentPayload = (body) => {
 router.get('/', async (req, res) => {
   const { from, to } = req.query;
   try {
+    const empresaId = req.empresaId;
+    if (!empresaId) return res.status(400).json({ error: 'Falta empresa_id' });
     const pool = await getPool();
     // Fetch payments and their distributions
     // We can do this in one query with JOIN, but the frontend expects separate objects or nested.
     // Let's do a JOIN and format it.
+    const request = pool.request().input('empresa_id', sql.UniqueIdentifier, empresaId);
     let query = `
       SELECT p.*, 
              d.id as dist_id, d.associate_amount, d.company_amount, d.created_at as dist_created_at,
              a.nombre as asociado_nombre, a.documento as asociado_documento,
              m.plate as motorcycle_plate
       FROM pagos p
-      LEFT JOIN distribuciones_pagos d ON p.id = d.payment_id
-      LEFT JOIN asociados a ON p.asociado_id = a.id
-      LEFT JOIN motos m ON p.motorcycle_id = m.id
+      LEFT JOIN distribuciones_pagos d ON p.id = d.payment_id AND d.empresa_id = p.empresa_id
+      LEFT JOIN asociados a ON p.asociado_id = a.id AND a.empresa_id = p.empresa_id
+      LEFT JOIN motos m ON p.motorcycle_id = m.id AND m.empresa_id = p.empresa_id
+      WHERE p.empresa_id = @empresa_id
     `;
 
     if (from && to) {
-      query += ` WHERE p.payment_date >= '${from}' AND p.payment_date <= '${to}'`;
+      request.input('from', sql.NVarChar(10), String(from));
+      request.input('to', sql.NVarChar(10), String(to));
+      query += ` AND p.payment_date >= CONVERT(date, @from) AND p.payment_date <= CONVERT(date, @to)`;
     }
 
     query += ` ORDER BY p.payment_date DESC`;
 
-    const result = await pool.request().query(query);
+    const result = await request.query(query);
     
     // Format result: distribution should be a nested object or separate?
     // Frontend logic:
@@ -182,6 +188,11 @@ router.post('/', async (req, res) => {
     res.status(validation.status).json({ error: validation.error });
     return;
   }
+  const empresaId = req.empresaId;
+  if (!empresaId) {
+    res.status(400).json({ error: 'Falta empresa_id' });
+    return;
+  }
 
   const {
     motorcycle_id,
@@ -200,6 +211,7 @@ router.post('/', async (req, res) => {
   try {
     await transaction.begin();
     const request = new sql.Request(transaction);
+    request.input('empresa_id', sql.UniqueIdentifier, empresaId);
     
     const paymentId = randomUUID();
     const columnSupport = await getPagosColumnsSupport(request);
@@ -224,7 +236,7 @@ router.post('/', async (req, res) => {
     const existingReceipt = await request.query(`
       SELECT TOP 1 1 as exists_flag
       FROM pagos
-      WHERE receipt_number = @receipt_number
+      WHERE receipt_number = @receipt_number AND empresa_id = @empresa_id
     `);
     if (existingReceipt.recordset.length > 0) {
       await transaction.rollback();
@@ -238,7 +250,7 @@ router.post('/', async (req, res) => {
     const motoResult = await request.query(`
       SELECT TOP 1 asociado_id, plan_months
       FROM motos
-      WHERE id = @motorcycle_id
+      WHERE id = @motorcycle_id AND empresa_id = @empresa_id
     `);
 
     if (motoResult.recordset.length === 0) {
@@ -266,6 +278,7 @@ router.post('/', async (req, res) => {
         SELECT TOP 1 1 as exists_flag
         FROM pagos
         WHERE motorcycle_id = @motorcycle_id
+          AND empresa_id = @empresa_id
           AND installment_number = @installment_number
       `);
 
@@ -290,32 +303,32 @@ router.post('/', async (req, res) => {
     // Insert Payment (Trigger tr_create_payment_distribution will create the distribution)
     if (columnSupport.hasInstallmentNumber && columnSupport.hasPaymentMethod) {
       await request.query(`
-        INSERT INTO pagos (id, motorcycle_id, asociado_id, amount, payment_date, receipt_number, notes, created_by, installment_number, payment_method, created_at)
-        VALUES (@id, @motorcycle_id, @asociado_id, @amount, CONVERT(date, @payment_date), @receipt_number, @notes, @created_by, @installment_number, @payment_method, SYSDATETIMEOFFSET())
+        INSERT INTO pagos (empresa_id, id, motorcycle_id, asociado_id, amount, payment_date, receipt_number, notes, created_by, installment_number, payment_method, created_at)
+        VALUES (@empresa_id, @id, @motorcycle_id, @asociado_id, @amount, CONVERT(date, @payment_date), @receipt_number, @notes, @created_by, @installment_number, @payment_method, SYSDATETIMEOFFSET())
       `);
     } else if (columnSupport.hasInstallmentNumber) {
       await request.query(`
-        INSERT INTO pagos (id, motorcycle_id, asociado_id, amount, payment_date, receipt_number, notes, created_by, installment_number, created_at)
-        VALUES (@id, @motorcycle_id, @asociado_id, @amount, CONVERT(date, @payment_date), @receipt_number, @notes, @created_by, @installment_number, SYSDATETIMEOFFSET())
+        INSERT INTO pagos (empresa_id, id, motorcycle_id, asociado_id, amount, payment_date, receipt_number, notes, created_by, installment_number, created_at)
+        VALUES (@empresa_id, @id, @motorcycle_id, @asociado_id, @amount, CONVERT(date, @payment_date), @receipt_number, @notes, @created_by, @installment_number, SYSDATETIMEOFFSET())
       `);
     } else if (columnSupport.hasPaymentMethod) {
       await request.query(`
-        INSERT INTO pagos (id, motorcycle_id, asociado_id, amount, payment_date, receipt_number, notes, created_by, payment_method, created_at)
-        VALUES (@id, @motorcycle_id, @asociado_id, @amount, CONVERT(date, @payment_date), @receipt_number, @notes, @created_by, @payment_method, SYSDATETIMEOFFSET())
+        INSERT INTO pagos (empresa_id, id, motorcycle_id, asociado_id, amount, payment_date, receipt_number, notes, created_by, payment_method, created_at)
+        VALUES (@empresa_id, @id, @motorcycle_id, @asociado_id, @amount, CONVERT(date, @payment_date), @receipt_number, @notes, @created_by, @payment_method, SYSDATETIMEOFFSET())
       `);
     } else {
       await request.query(`
-        INSERT INTO pagos (id, motorcycle_id, asociado_id, amount, payment_date, receipt_number, notes, created_by, created_at)
-        VALUES (@id, @motorcycle_id, @asociado_id, @amount, CONVERT(date, @payment_date), @receipt_number, @notes, @created_by, SYSDATETIMEOFFSET())
+        INSERT INTO pagos (empresa_id, id, motorcycle_id, asociado_id, amount, payment_date, receipt_number, notes, created_by, created_at)
+        VALUES (@empresa_id, @id, @motorcycle_id, @asociado_id, @amount, CONVERT(date, @payment_date), @receipt_number, @notes, @created_by, SYSDATETIMEOFFSET())
       `);
     }
     
     // Fetch inserted payment
-    const paymentResult = await request.query(`SELECT * FROM pagos WHERE id = @id`);
+    const paymentResult = await request.query(`SELECT * FROM pagos WHERE id = @id AND empresa_id = @empresa_id`);
     const payment = paymentResult.recordset[0];
 
     // Fetch automatically created distribution
-    const distResult = await request.query(`SELECT * FROM distribuciones_pagos WHERE payment_id = @id`);
+    const distResult = await request.query(`SELECT * FROM distribuciones_pagos WHERE payment_id = @id AND empresa_id = @empresa_id`);
     
     await transaction.commit();
     

@@ -12,6 +12,7 @@ BEGIN TRY
   DELETE FROM asociados;
   DELETE FROM centros_costo;
   DELETE FROM usuarios;
+  DELETE FROM empresas WHERE codigo <> N'DEFAULT';
 
   COMMIT TRANSACTION;
 END TRY

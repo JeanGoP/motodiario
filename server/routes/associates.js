@@ -4,7 +4,7 @@ import { getPool } from '../db.js';
 
 const router = express.Router();
 
-const LEADCONNECTOR_LOCATION_ID = process.env.LEADCONNECTOR_LOCATION_ID || 'x8eF7OoF2Ld9p1ASAUGe';
+const DEFAULT_LEADCONNECTOR_LOCATION_ID = process.env.LEADCONNECTOR_LOCATION_ID || 'x8eF7OoF2Ld9p1ASAUGe';
 const LEADCONNECTOR_API_VERSION = '2021-07-28';
 const LEADCONNECTOR_UPSERT_URL = 'https://services.leadconnectorhq.com/contacts/upsert';
 const LEADCONNECTOR_CONVERSATIONS_API_VERSION = '2021-07-28';
@@ -32,6 +32,27 @@ const getAsociadosColumnsSupport = async (request) => {
     hasContactId: names.has('contact_id'),
   };
   return asociadosColumnsCache;
+};
+
+let empresasSettingsCache = new Map();
+
+const getEmpresaLeadConnectorLocationId = async (pool, empresaId) => {
+  if (!empresaId) return DEFAULT_LEADCONNECTOR_LOCATION_ID;
+  const cached = empresasSettingsCache.get(empresaId);
+  const now = Date.now();
+  if (cached && cached.checkedAt && now - cached.checkedAt < 60_000) return cached.locationId || DEFAULT_LEADCONNECTOR_LOCATION_ID;
+
+  try {
+    const r = await pool.request()
+      .input('empresa_id', sql.UniqueIdentifier, empresaId)
+      .query(`SELECT TOP 1 leadconnector_location_id FROM empresas WHERE id = @empresa_id`);
+    const raw = r.recordset?.[0]?.leadconnector_location_id ? String(r.recordset[0].leadconnector_location_id).trim() : '';
+    const locationId = raw || DEFAULT_LEADCONNECTOR_LOCATION_ID;
+    empresasSettingsCache.set(empresaId, { locationId, checkedAt: now });
+    return locationId;
+  } catch {
+    return DEFAULT_LEADCONNECTOR_LOCATION_ID;
+  }
 };
 
 const webhookDbConfig = {
@@ -270,24 +291,29 @@ const sendLeadConnectorWhatsAppTemplateMessage = async ({
 router.get('/', async (req, res) => {
   const { active } = req.query;
   try {
+    const empresaId = req.empresaId;
+    if (!empresaId) return res.status(400).json({ error: 'Falta empresa_id' });
     const pool = await getPool();
     const { hasContactId } = await getAsociadosColumnsSupport(pool.request());
     const contactIdSelect = hasContactId ? 'a.contact_id,' : '';
+    const request = pool.request().input('empresa_id', sql.UniqueIdentifier, empresaId);
     let query = `
       SELECT a.id, a.centro_costo_id, ${contactIdSelect} a.nombre, a.documento, a.telefono, a.correo, a.direccion,
              a.dias_gracia, a.activo, a.creado_en, a.actualizado_en,
              cc.id AS cc_id, cc.nombre AS cc_nombre, cc.codigo AS cc_codigo
       FROM asociados a
-      LEFT JOIN centros_costo cc ON cc.id = a.centro_costo_id
+      LEFT JOIN centros_costo cc ON cc.id = a.centro_costo_id AND cc.empresa_id = a.empresa_id
+      WHERE a.empresa_id = @empresa_id
     `;
     
     if (active !== undefined) {
-      query += ` WHERE a.activo = ${active === 'true' ? 1 : 0}`;
+      request.input('activo', sql.Bit, active === 'true');
+      query += ` AND a.activo = @activo`;
     }
     
     query += ` ORDER BY a.nombre ASC`;
 
-    const result = await pool.request().query(query);
+    const result = await request.query(query);
     
     const asociados = result.recordset.map(row => ({
       id: row.id,
@@ -318,8 +344,11 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   const { centro_costo_id, nombre, documento, telefono, correo = '', direccion = '', dias_gracia = 2, activo = true } = req.body;
   try {
+    const empresaId = req.empresaId;
+    if (!empresaId) return res.status(400).json({ error: 'Falta empresa_id' });
     const pool = await getPool();
     const request = pool.request();
+    request.input('empresa_id', sql.UniqueIdentifier, empresaId);
     request.input('centro_costo_id', sql.UniqueIdentifier, centro_costo_id);
     request.input('nombre', sql.NVarChar, nombre);
     request.input('documento', sql.NVarChar, documento);
@@ -328,14 +357,23 @@ router.post('/', async (req, res) => {
     request.input('direccion', sql.NVarChar, direccion);
     request.input('dias_gracia', sql.Int, dias_gracia);
     request.input('activo', sql.Bit, activo);
+
+    const ccCheck = await request.query(`
+      SELECT TOP 1 1 AS ok
+      FROM centros_costo
+      WHERE id = @centro_costo_id AND empresa_id = @empresa_id
+    `);
+    if (!ccCheck.recordset?.length) return res.status(400).json({ error: 'Centro de costo inválido' });
+
     const insertResult = await request.query(`
-      INSERT INTO asociados (centro_costo_id, nombre, documento, telefono, correo, direccion, dias_gracia, activo, creado_en, actualizado_en)
+      INSERT INTO asociados (empresa_id, centro_costo_id, nombre, documento, telefono, correo, direccion, dias_gracia, activo, creado_en, actualizado_en)
       OUTPUT inserted.id
-      VALUES (@centro_costo_id, @nombre, @documento, @telefono, @correo, @direccion, @dias_gracia, @activo, SYSDATETIMEOFFSET(), SYSDATETIMEOFFSET())
+      VALUES (@empresa_id, @centro_costo_id, @nombre, @documento, @telefono, @correo, @direccion, @dias_gracia, @activo, SYSDATETIMEOFFSET(), SYSDATETIMEOFFSET())
     `);
     const id = insertResult.recordset[0].id;
     const getRequest = pool.request();
     getRequest.input('id', sql.UniqueIdentifier, id);
+    getRequest.input('empresa_id', sql.UniqueIdentifier, empresaId);
     const { hasContactId } = await getAsociadosColumnsSupport(pool.request());
     const contactIdSelect = hasContactId ? 'a.contact_id,' : '';
     const result = await getRequest.query(`
@@ -343,7 +381,7 @@ router.post('/', async (req, res) => {
              a.dias_gracia, a.activo, a.creado_en, a.actualizado_en,
              cc.id AS cc_id, cc.nombre AS cc_nombre, cc.codigo AS cc_codigo
       FROM asociados a INNER JOIN centros_costo cc ON cc.id = a.centro_costo_id
-      WHERE a.id = @id
+      WHERE a.id = @id AND a.empresa_id = @empresa_id
     `);
     const r = result.recordset[0];
 
@@ -370,31 +408,36 @@ router.post('/', async (req, res) => {
 router.post('/:id/sync_contact', async (req, res) => {
   const { id } = req.params;
   try {
+    const empresaId = req.empresaId;
+    if (!empresaId) return res.status(400).json({ error: 'Falta empresa_id' });
     const pool = await getPool();
     const { hasContactId } = await getAsociadosColumnsSupport(pool.request());
 
     const getRequest = pool.request();
     getRequest.input('id', sql.UniqueIdentifier, id);
+    getRequest.input('empresa_id', sql.UniqueIdentifier, empresaId);
     const result = await getRequest.query(`
       SELECT a.id, a.nombre, a.telefono, a.correo
       FROM asociados a
-      WHERE a.id = @id
+      WHERE a.id = @id AND a.empresa_id = @empresa_id
     `);
     const r = result.recordset[0] || null;
     if (!r) return res.status(404).json({ error: 'Not found' });
 
+    const locationId = await getEmpresaLeadConnectorLocationId(pool, empresaId);
     const upsertResult = await upsertLeadConnectorContact({
       name: r.nombre,
       email: r.correo,
       phone: r.telefono,
-      locationId: LEADCONNECTOR_LOCATION_ID,
+      locationId,
     });
 
     if (upsertResult?.ok && upsertResult.contactId && hasContactId) {
       await pool.request()
         .input('id', sql.UniqueIdentifier, id)
+        .input('empresa_id', sql.UniqueIdentifier, empresaId)
         .input('contact_id', sql.NVarChar(128), upsertResult.contactId)
-        .query(`UPDATE asociados SET contact_id = @contact_id, actualizado_en = SYSDATETIMEOFFSET() WHERE id = @id`);
+        .query(`UPDATE asociados SET contact_id = @contact_id, actualizado_en = SYSDATETIMEOFFSET() WHERE id = @id AND empresa_id = @empresa_id`);
       return res.status(200).json({ ok: true, contact_id: upsertResult.contactId });
     }
 
@@ -426,26 +469,30 @@ router.post('/:id/send_whatsapp_template', async (req, res) => {
   }
 
   try {
+    const empresaId = req.empresaId;
+    if (!empresaId) return res.status(400).json({ error: 'Falta empresa_id' });
     const pool = await getPool();
     const { hasContactId } = await getAsociadosColumnsSupport(pool.request());
     if (!hasContactId) return res.status(400).json({ error: 'La base de datos no tiene el campo contact_id' });
 
     const r = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
+      .input('empresa_id', sql.UniqueIdentifier, empresaId)
       .query(`
         SELECT a.id, a.nombre, a.telefono, a.correo, a.contact_id
         FROM asociados a
-        WHERE a.id = @id
+        WHERE a.id = @id AND a.empresa_id = @empresa_id
       `);
     const asociado = r.recordset[0] || null;
     if (!asociado) return res.status(404).json({ error: 'Not found' });
     const previousContactId = asociado.contact_id ? String(asociado.contact_id).trim() : '';
 
+    const locationId = await getEmpresaLeadConnectorLocationId(pool, empresaId);
     const upsertResult = await upsertLeadConnectorContact({
       name: asociado.nombre,
       email: asociado.correo,
       phone: asociado.telefono,
-      locationId: LEADCONNECTOR_LOCATION_ID,
+      locationId,
     });
 
     const effectiveContactId = upsertResult?.ok && upsertResult.contactId ? String(upsertResult.contactId).trim() : previousContactId;
@@ -461,13 +508,14 @@ router.post('/:id/send_whatsapp_template', async (req, res) => {
     if (upsertResult?.ok && upsertResult.contactId && String(upsertResult.contactId).trim() && String(upsertResult.contactId).trim() !== previousContactId) {
       await pool.request()
         .input('id', sql.UniqueIdentifier, id)
+        .input('empresa_id', sql.UniqueIdentifier, empresaId)
         .input('contact_id', sql.NVarChar(128), String(upsertResult.contactId).trim())
-        .query(`UPDATE asociados SET contact_id = @contact_id, actualizado_en = SYSDATETIMEOFFSET() WHERE id = @id`);
+        .query(`UPDATE asociados SET contact_id = @contact_id, actualizado_en = SYSDATETIMEOFFSET() WHERE id = @id AND empresa_id = @empresa_id`);
     }
 
     const sendResult = await sendLeadConnectorWhatsAppTemplateMessage({
       contactId: effectiveContactId,
-      locationId: LEADCONNECTOR_LOCATION_ID,
+      locationId,
       templateName,
       templateLang,
       message,
@@ -510,9 +558,13 @@ router.post('/send_whatsapp_template', async (req, res) => {
   }
 
   try {
+    const empresaId = req.empresaId;
+    if (!empresaId) return res.status(400).json({ error: 'Falta empresa_id' });
+    const pool = await getPool();
+    const locationId = await getEmpresaLeadConnectorLocationId(pool, empresaId);
     const sendResult = await sendLeadConnectorWhatsAppTemplateMessage({
       contactId: normalizedContactId,
-      locationId: LEADCONNECTOR_LOCATION_ID,
+      locationId,
       templateName,
       templateLang,
       message,
@@ -533,9 +585,12 @@ router.put('/:id', async (req, res) => {
   const { id } = req.params;
   const { centro_costo_id, nombre, documento, telefono, correo = '', direccion = '', dias_gracia = 2, activo = true } = req.body;
   try {
+    const empresaId = req.empresaId;
+    if (!empresaId) return res.status(400).json({ error: 'Falta empresa_id' });
     const pool = await getPool();
     const request = pool.request();
     request.input('id', sql.UniqueIdentifier, id);
+    request.input('empresa_id', sql.UniqueIdentifier, empresaId);
     request.input('centro_costo_id', sql.UniqueIdentifier, centro_costo_id);
     request.input('nombre', sql.NVarChar, nombre);
     request.input('documento', sql.NVarChar, documento);
@@ -544,14 +599,23 @@ router.put('/:id', async (req, res) => {
     request.input('direccion', sql.NVarChar, direccion);
     request.input('dias_gracia', sql.Int, dias_gracia);
     request.input('activo', sql.Bit, activo);
+
+    const ccCheck = await request.query(`
+      SELECT TOP 1 1 AS ok
+      FROM centros_costo
+      WHERE id = @centro_costo_id AND empresa_id = @empresa_id
+    `);
+    if (!ccCheck.recordset?.length) return res.status(400).json({ error: 'Centro de costo inválido' });
+
     await request.query(`
       UPDATE asociados
       SET centro_costo_id = @centro_costo_id, nombre = @nombre, documento = @documento, telefono = @telefono, correo = @correo,
           direccion = @direccion, dias_gracia = @dias_gracia, activo = @activo, actualizado_en = SYSDATETIMEOFFSET()
-      WHERE id = @id
+      WHERE id = @id AND empresa_id = @empresa_id
     `);
     const getRequest = pool.request();
     getRequest.input('id', sql.UniqueIdentifier, id);
+    getRequest.input('empresa_id', sql.UniqueIdentifier, empresaId);
     const { hasContactId } = await getAsociadosColumnsSupport(pool.request());
     const contactIdSelect = hasContactId ? 'a.contact_id,' : '';
     const result = await getRequest.query(`
@@ -559,11 +623,12 @@ router.put('/:id', async (req, res) => {
              a.dias_gracia, a.activo, a.creado_en, a.actualizado_en,
              cc.id AS cc_id, cc.nombre AS cc_nombre, cc.codigo AS cc_codigo
       FROM asociados a INNER JOIN centros_costo cc ON cc.id = a.centro_costo_id
-      WHERE a.id = @id
+      WHERE a.id = @id AND a.empresa_id = @empresa_id
     `);
     const r = result.recordset[0] || null;
     if (!r) return res.status(404).json({ error: 'Not found' });
 
+    const locationId = await getEmpresaLeadConnectorLocationId(pool, empresaId);
     Promise.resolve()
       .then(async () => {
         const columnsSupport = await getAsociadosColumnsSupport(pool.request());
@@ -571,13 +636,14 @@ router.put('/:id', async (req, res) => {
           name: r.nombre,
           email: r.correo,
           phone: r.telefono,
-          locationId: LEADCONNECTOR_LOCATION_ID,
+          locationId,
         });
         if (upsertResult?.ok && upsertResult.contactId && columnsSupport.hasContactId) {
           await pool.request()
             .input('id', sql.UniqueIdentifier, id)
+            .input('empresa_id', sql.UniqueIdentifier, empresaId)
             .input('contact_id', sql.NVarChar(128), upsertResult.contactId)
-            .query(`UPDATE asociados SET contact_id = @contact_id, actualizado_en = SYSDATETIMEOFFSET() WHERE id = @id`);
+            .query(`UPDATE asociados SET contact_id = @contact_id, actualizado_en = SYSDATETIMEOFFSET() WHERE id = @id AND empresa_id = @empresa_id`);
         }
       })
       .catch((e) => {
@@ -607,10 +673,13 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   const { id } = req.params;
   try {
+    const empresaId = req.empresaId;
+    if (!empresaId) return res.status(400).json({ error: 'Falta empresa_id' });
     const pool = await getPool();
     const request = pool.request();
     request.input('id', sql.UniqueIdentifier, id);
-    await request.query(`DELETE FROM asociados WHERE id = @id`);
+    request.input('empresa_id', sql.UniqueIdentifier, empresaId);
+    await request.query(`DELETE FROM asociados WHERE id = @id AND empresa_id = @empresa_id`);
     res.status(204).end();
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -622,14 +691,22 @@ router.get('/:id/dias_gracia', async (req, res) => {
   const { anio, mes } = req.query;
   if (!anio || !mes) return res.status(400).json({ error: 'anio y mes requeridos' });
   try {
+    const empresaId = req.empresaId;
+    if (!empresaId) return res.status(400).json({ error: 'Falta empresa_id' });
     const pool = await getPool();
+    const exists = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .input('empresa_id', sql.UniqueIdentifier, empresaId)
+      .query(`SELECT TOP 1 1 AS ok FROM asociados WHERE id = @id AND empresa_id = @empresa_id`);
+    if (!exists.recordset?.length) return res.status(404).json({ error: 'Not found' });
     const r = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
+      .input('empresa_id', sql.UniqueIdentifier, empresaId)
       .input('anio', sql.Int, Number(anio))
       .input('mes', sql.Int, Number(mes))
       .query(`
         SELECT dia FROM dias_gracia_asociados
-        WHERE asociado_id = @id AND anio = @anio AND mes = @mes
+        WHERE asociado_id = @id AND empresa_id = @empresa_id AND anio = @anio AND mes = @mes
         ORDER BY dia ASC
       `);
     res.json(r.recordset.map(d => d.dia));
@@ -643,23 +720,32 @@ router.post('/:id/dias_gracia', async (req, res) => {
   const { anio, mes, dias } = req.body;
   if (!anio || !mes || !Array.isArray(dias)) return res.status(400).json({ error: 'Datos inválidos' });
   try {
+    const empresaId = req.empresaId;
+    if (!empresaId) return res.status(400).json({ error: 'Falta empresa_id' });
     const pool = await getPool();
+    const exists = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .input('empresa_id', sql.UniqueIdentifier, empresaId)
+      .query(`SELECT TOP 1 1 AS ok FROM asociados WHERE id = @id AND empresa_id = @empresa_id`);
+    if (!exists.recordset?.length) return res.status(404).json({ error: 'Not found' });
     const tx = new sql.Transaction(await getPool());
     await tx.begin();
     const reqDel = new sql.Request(tx);
     reqDel.input('id', sql.UniqueIdentifier, id);
+    reqDel.input('empresa_id', sql.UniqueIdentifier, empresaId);
     reqDel.input('anio', sql.Int, Number(anio));
     reqDel.input('mes', sql.Int, Number(mes));
-    await reqDel.query(`DELETE FROM dias_gracia_asociados WHERE asociado_id = @id AND anio = @anio AND mes = @mes`);
+    await reqDel.query(`DELETE FROM dias_gracia_asociados WHERE asociado_id = @id AND empresa_id = @empresa_id AND anio = @anio AND mes = @mes`);
     for (const dia of dias) {
       const reqIns = new sql.Request(tx);
       reqIns.input('id', sql.UniqueIdentifier, id);
+      reqIns.input('empresa_id', sql.UniqueIdentifier, empresaId);
       reqIns.input('anio', sql.Int, Number(anio));
       reqIns.input('mes', sql.Int, Number(mes));
       reqIns.input('dia', sql.Int, Number(dia));
       await reqIns.query(`
-        INSERT INTO dias_gracia_asociados (asociado_id, anio, mes, dia, creado_en)
-        VALUES (@id, @anio, @mes, @dia, SYSDATETIMEOFFSET())
+        INSERT INTO dias_gracia_asociados (empresa_id, asociado_id, anio, mes, dia, creado_en)
+        VALUES (@empresa_id, @id, @anio, @mes, @dia, SYSDATETIMEOFFSET())
       `);
     }
     await tx.commit();
