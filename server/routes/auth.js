@@ -184,6 +184,21 @@ router.post('/login', async (req, res) => {
       }
     }
 
+    if (!authUser) {
+      const r = await pool.request()
+        .input('correo', sql.NVarChar, correo)
+        .query(`
+          SELECT TOP 2 id, nombre, correo, hash_password, rol, activo, empresa_id
+          FROM usuarios
+          WHERE correo = @correo
+          ORDER BY creado_en DESC
+        `);
+      if (r.recordset?.length === 1) {
+        const row = r.recordset[0];
+        authUser = { user: row, empresaId: String(row.empresa_id) };
+      }
+    }
+
     if (!authUser) return res.status(401).json({ error: 'Credenciales inválidas' });
     const u = authUser.user;
     if (!u.activo) return res.status(403).json({ error: 'Usuario inactivo' });
