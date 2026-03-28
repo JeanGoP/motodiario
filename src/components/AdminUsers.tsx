@@ -1,16 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
-import { Plus, Search, X, User, Users } from 'lucide-react';
+import { Plus, Search, X, User, Users, KeyRound } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 type Empresa = { id: string; nombre: string; codigo: string; activo: boolean };
 type Usuario = { id: string; nombre: string; correo: string; rol: string; activo: boolean; creado_en: string };
 
 export function AdminUsers() {
+  const { user } = useAuth();
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [empresaId, setEmpresaId] = useState<string>('');
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordUser, setPasswordUser] = useState<Usuario | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState({
     nombre: '',
@@ -19,6 +23,7 @@ export function AdminUsers() {
     rol: 'usuario',
     activo: true
   });
+  const [passwordForm, setPasswordForm] = useState({ password: '', confirm: '' });
 
   useEffect(() => {
     loadEmpresas();
@@ -63,6 +68,29 @@ export function AdminUsers() {
     setFormData({ nombre: '', correo: '', password: '', rol: 'usuario', activo: true });
   };
 
+  const openChangePassword = (u: Usuario) => {
+    setPasswordUser(u);
+    setPasswordForm({ password: '', confirm: '' });
+    setShowPasswordModal(true);
+  };
+
+  const submitChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passwordUser) return;
+    if (!passwordForm.password) return alert('Escribe una contraseña');
+    if (passwordForm.password.length < 6) return alert('La contraseña debe tener mínimo 6 caracteres');
+    if (passwordForm.password !== passwordForm.confirm) return alert('Las contraseñas no coinciden');
+    try {
+      await api.cambiarPasswordUsuario(passwordUser.id, passwordForm.password);
+      setShowPasswordModal(false);
+      setPasswordUser(null);
+      setPasswordForm({ password: '', confirm: '' });
+      alert('Contraseña actualizada');
+    } catch (error: unknown) {
+      alert('Error: ' + (error instanceof Error ? error.message : 'Ha ocurrido un error'));
+    }
+  };
+
   const openCreate = () => {
     resetForm();
     setShowModal(true);
@@ -88,6 +116,7 @@ export function AdminUsers() {
   };
 
   const empresaNombre = useMemo(() => empresas.find(e => e.id === empresaId)?.nombre || '', [empresas, empresaId]);
+  const canChangePasswords = user?.correo === 'admin@motodiario.local';
   const filteredUsuarios = usuarios.filter(u =>
     u.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
     u.correo.toLowerCase().includes(searchTerm.toLowerCase())
@@ -162,6 +191,17 @@ export function AdminUsers() {
               <div><span className="text-slate-500">Empresa:</span> <span className="font-medium">{empresaNombre}</span></div>
               <div><span className="text-slate-500">ID:</span> <span className="font-mono text-xs">{u.id}</span></div>
             </div>
+            {canChangePasswords && (
+              <div className="flex gap-3 pt-4 border-t border-slate-100 mt-4">
+                <button
+                  onClick={() => openChangePassword(u)}
+                  className="btn btn-secondary flex-1 justify-center border-transparent bg-slate-50 hover:bg-white shadow-none hover:shadow-sm"
+                >
+                  <KeyRound className="w-4 h-4 mr-2" />
+                  Cambiar contraseña
+                </button>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -257,7 +297,59 @@ export function AdminUsers() {
           </div>
         </div>
       )}
+
+      {showPasswordModal && passwordUser && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <h3 className="text-lg font-bold text-slate-900">Cambiar contraseña</h3>
+              <button
+                onClick={() => { setShowPasswordModal(false); setPasswordUser(null); setPasswordForm({ password: '', confirm: '' }); }}
+                className="text-slate-400 hover:text-slate-600 transition-colors rounded-md"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={submitChangePassword} className="p-6 space-y-4">
+              <div className="text-sm text-slate-600">
+                Usuario: <span className="font-medium text-slate-900">{passwordUser.nombre}</span> <span className="text-slate-500">({passwordUser.correo})</span>
+              </div>
+              <div>
+                <label className="input-label">Nueva contraseña</label>
+                <input
+                  type="password"
+                  className="input-field"
+                  value={passwordForm.password}
+                  onChange={(e) => setPasswordForm(prev => ({ ...prev, password: e.target.value }))}
+                  required
+                />
+              </div>
+              <div>
+                <label className="input-label">Confirmar contraseña</label>
+                <input
+                  type="password"
+                  className="input-field"
+                  value={passwordForm.confirm}
+                  onChange={(e) => setPasswordForm(prev => ({ ...prev, confirm: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  className="btn btn-secondary flex-1 justify-center"
+                  onClick={() => { setShowPasswordModal(false); setPasswordUser(null); setPasswordForm({ password: '', confirm: '' }); }}
+                >
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary flex-1 justify-center">
+                  Guardar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

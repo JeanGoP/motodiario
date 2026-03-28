@@ -126,6 +126,35 @@ router.post('/usuarios', async (req, res) => {
   }
 });
 
+router.put('/usuarios/:id/password', async (req, res) => {
+  const { id } = req.params;
+  const { password } = req.body || {};
+  if (!password) return res.status(400).json({ error: 'Faltan campos' });
+  if (String(password).length < 6) return res.status(400).json({ error: 'Contraseña inválida' });
+
+  try {
+    const admin = await getAdminScope(req);
+    if (!admin.ok) return res.status(admin.status).json({ error: admin.error });
+    if (!admin.isSuperAdmin) return res.status(403).json({ error: 'No autorizado' });
+
+    const pool = await getPool();
+    const existing = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .query('SELECT TOP 1 id FROM usuarios WHERE id = @id');
+    if (!existing.recordset?.length) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    const hash = await bcrypt.hash(password, 10);
+    await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .input('hash', sql.NVarChar, hash)
+      .query('UPDATE usuarios SET hash_password = @hash WHERE id = @id');
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/login', async (req, res) => {
   const { correo, password } = req.body;
   if (!correo || !password) {

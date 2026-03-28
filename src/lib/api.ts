@@ -133,6 +133,7 @@ export const api = {
   // Usuarios (admin)
   getUsuarios: (empresaId?: string) => request<Array<{ id: string; nombre: string; correo: string; rol: string; activo: boolean; creado_en: string }>>(`/api/auth/usuarios${empresaId ? `?empresa_id=${encodeURIComponent(empresaId)}` : ''}`),
   crearUsuario: (data: Record<string, unknown>) => request<{ id: string; nombre: string; correo: string; rol: string; activo: boolean; creado_en: string }>('/api/auth/usuarios', { method: 'POST', body: JSON.stringify(data) }),
+  cambiarPasswordUsuario: (id: string, password: string) => request<{ ok: boolean }>(`/api/auth/usuarios/${id}/password`, { method: 'PUT', body: JSON.stringify({ password }) }),
 
   // Centros de Costo
   getCentrosCosto: () => request<CostCenter[]>('/api/centros_costo', { useCache: true }),
