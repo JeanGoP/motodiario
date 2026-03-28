@@ -45,7 +45,9 @@ const getTokenPayload = (req) => {
 
 const getDefaultEmpresaId = async (pool) => {
   try {
-    const r = await pool.request().query(`SELECT TOP 1 id FROM empresas WHERE es_default = 1`);
+    const r = await pool.request()
+      .input('codigo', sql.NVarChar, 'DEFAULT')
+      .query(`SELECT TOP 1 id FROM empresas WHERE codigo = @codigo`);
     return r.recordset?.[0]?.id ? String(r.recordset[0].id) : null;
   } catch {
     return null;

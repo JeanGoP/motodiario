@@ -37,6 +37,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const getStoredEmpresaId = () => {
+    try {
+      return typeof window !== 'undefined' ? (window.localStorage.getItem('empresa_id') || '') : '';
+    } catch {
+      return '';
+    }
+  };
+
   const parseJwt = (token: string): Record<string, unknown> | null => {
     try {
       const parts = token.split('.');
@@ -47,6 +55,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return JSON.parse(json);
     } catch {
       return null;
+    }
+  };
+
+  const detectSuperAdmin = async (token: string, empresaId: string) => {
+    try {
+      const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+      if (empresaId) headers['x-empresa-id'] = empresaId;
+      const res = await fetch(`${getBaseUrl()}/api/empresas`, { headers });
+      if (!res.ok) return false;
+      const data = await res.json();
+      return Array.isArray(data) && data.length > 1;
+    } catch {
+      return false;
     }
   };
 
@@ -161,8 +182,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         const jwt = parseJwt(token);
-        const tokenEmpresaId = typeof jwt?.empresa_id === 'string' ? jwt.empresa_id : null;
-        if (tokenEmpresaId) localStorage.setItem('empresa_id', tokenEmpresaId);
+        const tokenEmpresaId = typeof jwt?.empresa_id === 'string' ? jwt.empresa_id : '';
+        const tokenRol = typeof jwt?.rol === 'string' ? jwt.rol : '';
+        const storedEmpresaId = getStoredEmpresaId();
+        const initialEmpresaId = storedEmpresaId || tokenEmpresaId;
+        const superOk = tokenRol === 'admin' ? await detectSuperAdmin(token, initialEmpresaId) : false;
+
+        if (!superOk && tokenEmpresaId) localStorage.setItem('empresa_id', tokenEmpresaId);
+        if (superOk) {
+          const nextEmpresaId = storedEmpresaId || tokenEmpresaId;
+          if (nextEmpresaId) localStorage.setItem('empresa_id', nextEmpresaId);
+        }
+
         await fetchAndApplyEmpresaTheme(token);
         const empresaId = getEmpresaId();
         const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
@@ -189,8 +220,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     const url = `${getBaseUrl()}/api/auth/login`;
-    console.log('[Auth] Signing in to:', url);
-    
     const empresaId = getEmpresaId();
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (empresaId) headers['x-empresa-id'] = empresaId;
@@ -202,7 +231,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      console.error('[Auth] Login error response:', err);
       let msg = err.error || 'Error de inicio de sesión';
       if (err.message) msg += `: ${err.message}`;
       throw new Error(msg);
@@ -211,8 +239,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await res.json();
     localStorage.setItem('token', data.token);
     const jwt = parseJwt(data.token);
-    const tokenEmpresaId = typeof jwt?.empresa_id === 'string' ? jwt.empresa_id : null;
-    if (tokenEmpresaId) localStorage.setItem('empresa_id', tokenEmpresaId);
+    const tokenEmpresaId = typeof jwt?.empresa_id === 'string' ? jwt.empresa_id : '';
+    const tokenRol = typeof jwt?.rol === 'string' ? jwt.rol : '';
+    const superOk = tokenRol === 'admin' ? await detectSuperAdmin(data.token, empresaId || tokenEmpresaId) : false;
+    if (!superOk && tokenEmpresaId) localStorage.setItem('empresa_id', tokenEmpresaId);
+    if (superOk) {
+      const nextEmpresaId = empresaId || tokenEmpresaId;
+      if (nextEmpresaId) localStorage.setItem('empresa_id', nextEmpresaId);
+    }
     await fetchAndApplyEmpresaTheme(data.token);
     setUser(data.usuario);
   };
