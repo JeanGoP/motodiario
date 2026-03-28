@@ -44,8 +44,12 @@ const getTokenPayload = (req) => {
 };
 
 const getDefaultEmpresaId = async (pool) => {
-  const r = await pool.request().query(`SELECT TOP 1 id FROM empresas WHERE es_default = 1`);
-  return r.recordset?.[0]?.id ? String(r.recordset[0].id) : null;
+  try {
+    const r = await pool.request().query(`SELECT TOP 1 id FROM empresas WHERE es_default = 1`);
+    return r.recordset?.[0]?.id ? String(r.recordset[0].id) : null;
+  } catch {
+    return null;
+  }
 };
 
 const isSuperAdminUser = async (pool, userId, defaultEmpresaId) => {
