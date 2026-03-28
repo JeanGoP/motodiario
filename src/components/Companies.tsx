@@ -1,17 +1,8 @@
 import { useEffect, useState } from 'react';
-import { api } from '../lib/api';
+import { api, type Empresa as EmpresaApi } from '../lib/api';
 import { Building2, Plus, Search, X, Check, Edit2 } from 'lucide-react';
 
-type Empresa = {
-  id: string;
-  nombre: string;
-  codigo: string;
-  activo: boolean;
-  leadconnector_location_id: string | null;
-  tema_acento?: string | null;
-  creado_en: string;
-  actualizado_en: string;
-};
+type Empresa = EmpresaApi;
 
 export function Companies() {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
@@ -24,7 +15,10 @@ export function Companies() {
     codigo: '',
     activo: true,
     leadconnector_location_id: '',
-    tema_acento: '#6366f1'
+    tema_acento: '#6366f1',
+    erp_sync: false,
+    erp_api_url: '',
+    erp_api_token: ''
   });
 
   useEffect(() => {
@@ -43,7 +37,7 @@ export function Companies() {
   };
 
   const resetForm = () => {
-    setFormData({ nombre: '', codigo: '', activo: true, leadconnector_location_id: '', tema_acento: '#6366f1' });
+    setFormData({ nombre: '', codigo: '', activo: true, leadconnector_location_id: '', tema_acento: '#6366f1', erp_sync: false, erp_api_url: '', erp_api_token: '' });
     setEditingId(null);
   };
 
@@ -59,20 +53,46 @@ export function Companies() {
       codigo: empresa.codigo,
       activo: empresa.activo,
       leadconnector_location_id: empresa.leadconnector_location_id || '',
-      tema_acento: empresa.tema_acento || '#6366f1'
+      tema_acento: empresa.tema_acento || '#6366f1',
+      erp_sync: !!empresa.erp_sync,
+      erp_api_url: empresa.erp_api_url || '',
+      erp_api_token: empresa.erp_api_token || ''
     });
     setShowModal(true);
   };
 
+  const isValidHttpUrl = (value: string) => {
+    const raw = value.trim();
+    if (!raw) return false;
+    try {
+      const u = new URL(raw);
+      return u.protocol === 'http:' || u.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  };
+
+  const isValidErpToken = (value: string) => /^[A-Za-z0-9-]+$/.test(value.trim());
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      if (formData.erp_sync) {
+        if (!formData.erp_api_url.trim()) throw new Error('Falta URL de API ERP');
+        if (!isValidHttpUrl(formData.erp_api_url)) throw new Error('URL de API ERP inválida (debe ser http/https)');
+        if (!formData.erp_api_token.trim()) throw new Error('Falta Token de API ERP');
+        if (!isValidErpToken(formData.erp_api_token)) throw new Error('Token de API ERP inválido (solo alfanuméricos y guiones)');
+      }
+
       const payload = {
         nombre: formData.nombre,
         codigo: formData.codigo,
         activo: formData.activo,
         leadconnector_location_id: formData.leadconnector_location_id.trim() ? formData.leadconnector_location_id.trim() : null,
-        tema_acento: formData.tema_acento
+        tema_acento: formData.tema_acento,
+        erp_sync: formData.erp_sync,
+        erp_api_url: formData.erp_sync ? (formData.erp_api_url.trim() ? formData.erp_api_url.trim() : null) : null,
+        erp_api_token: formData.erp_sync ? (formData.erp_api_token.trim() ? formData.erp_api_token.trim() : null) : null
       };
       if (editingId) await api.actualizarEmpresa(editingId, payload);
       else await api.crearEmpresa(payload);
@@ -247,6 +267,43 @@ export function Companies() {
                   onChange={(e) => setFormData(prev => ({ ...prev, leadconnector_location_id: e.target.value }))}
                 />
               </div>
+              <div className="flex items-center gap-2">
+                <input
+                  id="empresa-erp-sync"
+                  type="checkbox"
+                  checked={formData.erp_sync}
+                  onChange={(e) => setFormData(prev => ({ ...prev, erp_sync: e.target.checked }))}
+                />
+                <label htmlFor="empresa-erp-sync" className="text-sm text-slate-700">Sincronizar con ERP</label>
+              </div>
+              {formData.erp_sync && (
+                <>
+                  <div>
+                    <label className="input-label">URL de API ERP</label>
+                    <input
+                      type="url"
+                      className="input-field font-mono"
+                      value={formData.erp_api_url}
+                      onChange={(e) => setFormData(prev => ({ ...prev, erp_api_url: e.target.value }))}
+                      maxLength={500}
+                      required
+                      placeholder="https://erp.ejemplo.com/api"
+                    />
+                  </div>
+                  <div>
+                    <label className="input-label">Token de API ERP</label>
+                    <input
+                      type="password"
+                      className="input-field font-mono"
+                      value={formData.erp_api_token}
+                      onChange={(e) => setFormData(prev => ({ ...prev, erp_api_token: e.target.value }))}
+                      maxLength={255}
+                      required
+                      placeholder="TOKEN-ERP-123"
+                    />
+                  </div>
+                </>
+              )}
               <div>
                 <label className="input-label">Color principal</label>
                 <div className="flex items-center gap-3">

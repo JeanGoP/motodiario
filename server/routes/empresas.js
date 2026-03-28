@@ -43,6 +43,47 @@ const isEmpresaAdmin = async (pool, userId, empresaId) => {
 
 const isHexColor = (value) => /^#[0-9a-fA-F]{6}$/.test(String(value || '').trim());
 
+const isValidHttpUrl = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return false;
+  try {
+    const u = new URL(raw);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
+const isValidErpToken = (value) => /^[A-Za-z0-9-]+$/.test(String(value || '').trim());
+
+export function validateEmpresaErpConfig({ erp_sync, erp_api_url, erp_api_token }) {
+  const sync = Boolean(erp_sync);
+  const urlRaw = typeof erp_api_url === 'string' ? erp_api_url.trim() : '';
+  const tokenRaw = typeof erp_api_token === 'string' ? erp_api_token.trim() : '';
+  const url = urlRaw || null;
+  const token = tokenRaw || null;
+
+  if (!sync) return { ok: true, data: { erp_sync: false, erp_api_url: null, erp_api_token: null } };
+
+  if (!url) return { ok: false, status: 400, error: 'Falta URL de API ERP' };
+  if (url.length > 500) return { ok: false, status: 400, error: 'URL de API ERP excede 500 caracteres' };
+  if (!isValidHttpUrl(url)) return { ok: false, status: 400, error: 'URL de API ERP inválida (debe ser http/https)' };
+
+  if (!token) return { ok: false, status: 400, error: 'Falta Token de API ERP' };
+  if (token.length > 255) return { ok: false, status: 400, error: 'Token de API ERP excede 255 caracteres' };
+  if (!isValidErpToken(token)) return { ok: false, status: 400, error: 'Token de API ERP inválido (solo alfanuméricos y guiones)' };
+
+  return { ok: true, data: { erp_sync: true, erp_api_url: url, erp_api_token: token } };
+}
+
+export function applyEmpresaErpInputs(request, { erp_sync, erp_api_url, erp_api_token }) {
+  request.input('erp_sync', sql.Bit, !!erp_sync);
+  request.input('erp_api_url', sql.NVarChar(500), erp_api_url);
+  request.input('erp_api_token', sql.NVarChar(255), erp_api_token);
+}
+
+export const EMPRESA_SELECT_FIELDS = 'id, nombre, codigo, activo, leadconnector_location_id, tema_acento, erp_sync, erp_api_url, erp_api_token, creado_en, actualizado_en';
+
 router.get('/mi', async (req, res) => {
   const payload = getTokenPayload(req);
   if (!payload) return res.status(401).json({ error: 'No autorizado' });
@@ -66,7 +107,7 @@ router.get('/mi', async (req, res) => {
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, empresaId)
       .query(`
-        SELECT id, nombre, codigo, activo, leadconnector_location_id, tema_acento, creado_en, actualizado_en
+        SELECT ${EMPRESA_SELECT_FIELDS}
         FROM empresas
         WHERE id = @id
       `);
@@ -87,7 +128,7 @@ router.get('/', async (req, res) => {
 
     if (superOk) {
       const result = await pool.request().query(`
-        SELECT id, nombre, codigo, activo, leadconnector_location_id, tema_acento, creado_en, actualizado_en
+        SELECT ${EMPRESA_SELECT_FIELDS}
         FROM empresas
         ORDER BY creado_en DESC
       `);
@@ -102,7 +143,7 @@ router.get('/', async (req, res) => {
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, empresaId)
       .query(`
-        SELECT id, nombre, codigo, activo, leadconnector_location_id, tema_acento, creado_en, actualizado_en
+        SELECT ${EMPRESA_SELECT_FIELDS}
         FROM empresas
         WHERE id = @id
       `);
@@ -116,9 +157,11 @@ router.post('/', async (req, res) => {
   const payload = getTokenPayload(req);
   if (!payload) return res.status(401).json({ error: 'No autorizado' });
 
-  const { nombre, codigo, leadconnector_location_id = null, activo = true, tema_acento = '#6366f1' } = req.body || {};
+  const { nombre, codigo, leadconnector_location_id = null, activo = true, tema_acento = '#6366f1', erp_sync = false, erp_api_url = null, erp_api_token = null } = req.body || {};
   if (!nombre || !codigo) return res.status(400).json({ error: 'Faltan campos' });
   if (tema_acento && !isHexColor(tema_acento)) return res.status(400).json({ error: 'Color inválido' });
+  const erp = validateEmpresaErpConfig({ erp_sync, erp_api_url, erp_api_token });
+  if (!erp.ok) return res.status(erp.status).json({ error: erp.error });
 
   try {
     const pool = await getPool();
@@ -132,10 +175,11 @@ router.post('/', async (req, res) => {
     request.input('activo', sql.Bit, !!activo);
     request.input('leadconnector_location_id', sql.NVarChar, leadconnector_location_id);
     request.input('tema_acento', sql.NVarChar, tema_acento);
+    applyEmpresaErpInputs(request, erp.data);
     const result = await request.query(`
-      INSERT INTO empresas (id, nombre, codigo, activo, leadconnector_location_id, tema_acento, creado_en, actualizado_en)
-      OUTPUT inserted.id, inserted.nombre, inserted.codigo, inserted.activo, inserted.leadconnector_location_id, inserted.tema_acento, inserted.creado_en, inserted.actualizado_en
-      VALUES (NEWID(), @nombre, @codigo, @activo, @leadconnector_location_id, @tema_acento, SYSDATETIMEOFFSET(), SYSDATETIMEOFFSET())
+      INSERT INTO empresas (id, nombre, codigo, activo, leadconnector_location_id, tema_acento, erp_sync, erp_api_url, erp_api_token, creado_en, actualizado_en)
+      OUTPUT inserted.id, inserted.nombre, inserted.codigo, inserted.activo, inserted.leadconnector_location_id, inserted.tema_acento, inserted.erp_sync, inserted.erp_api_url, inserted.erp_api_token, inserted.creado_en, inserted.actualizado_en
+      VALUES (NEWID(), @nombre, @codigo, @activo, @leadconnector_location_id, @tema_acento, @erp_sync, @erp_api_url, @erp_api_token, SYSDATETIMEOFFSET(), SYSDATETIMEOFFSET())
     `);
     res.status(201).json(result.recordset[0]);
   } catch (err) {
@@ -148,9 +192,11 @@ router.put('/:id', async (req, res) => {
   if (!payload) return res.status(401).json({ error: 'No autorizado' });
 
   const { id } = req.params;
-  const { nombre, codigo, leadconnector_location_id = null, activo = true, tema_acento } = req.body || {};
+  const { nombre, codigo, leadconnector_location_id = null, activo = true, tema_acento, erp_sync = false, erp_api_url = null, erp_api_token = null } = req.body || {};
   if (!nombre || !codigo) return res.status(400).json({ error: 'Faltan campos' });
   if (tema_acento !== undefined && tema_acento !== null && !isHexColor(tema_acento)) return res.status(400).json({ error: 'Color inválido' });
+  const erp = validateEmpresaErpConfig({ erp_sync, erp_api_url, erp_api_token });
+  if (!erp.ok) return res.status(erp.status).json({ error: erp.error });
 
   try {
     const pool = await getPool();
@@ -171,6 +217,7 @@ router.put('/:id', async (req, res) => {
     request.input('activo', sql.Bit, !!activo);
     request.input('leadconnector_location_id', sql.NVarChar, leadconnector_location_id);
     request.input('tema_acento', sql.NVarChar, tema_acento ?? null);
+    applyEmpresaErpInputs(request, erp.data);
     const result = await request.query(`
       UPDATE empresas
       SET nombre = @nombre,
@@ -178,10 +225,13 @@ router.put('/:id', async (req, res) => {
           activo = @activo,
           leadconnector_location_id = @leadconnector_location_id,
           tema_acento = COALESCE(@tema_acento, tema_acento),
+          erp_sync = @erp_sync,
+          erp_api_url = @erp_api_url,
+          erp_api_token = @erp_api_token,
           actualizado_en = SYSDATETIMEOFFSET()
       WHERE id = @id;
 
-      SELECT id, nombre, codigo, activo, leadconnector_location_id, tema_acento, creado_en, actualizado_en
+      SELECT ${EMPRESA_SELECT_FIELDS}
       FROM empresas
       WHERE id = @id;
     `);
