@@ -137,6 +137,35 @@ export type Empresa = {
   actualizado_en: string;
 };
 
+export type ContableCuenta = {
+  id: string;
+  codigo: string;
+  nombre: string;
+  activo: boolean;
+  creado_en: string;
+  actualizado_en: string;
+};
+
+export type ContableReglaActivaLinea = {
+  id: string;
+  cuenta_id: string;
+  cuenta_codigo: string;
+  cuenta_nombre: string;
+  movimiento: 'DEBITO' | 'CREDITO';
+  porcentaje: number;
+};
+
+export type ContableReglaActiva = {
+  id: string;
+  tipo_cuota: string;
+  version: number;
+  activa: boolean;
+  creada_por: string | null;
+  creada_en: string;
+  comentario: string | null;
+  lineas: ContableReglaActivaLinea[];
+};
+
 export const api = {
   // Empresas (admin)
   getEmpresas: () => request<Empresa[]>('/api/empresas'),
@@ -195,4 +224,12 @@ export const api = {
   // Deactivations
   getDeactivations: () => request<Deactivation[]>('/api/deactivations', { useCache: true }),
   createDeactivation: (data: Record<string, unknown>) => request<Deactivation>('/api/deactivations', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Contabilidad
+  getContableCuentas: () => request<ContableCuenta[]>('/api/contabilidad/cuentas', { useCache: true }),
+  createContableCuenta: (data: Record<string, unknown>) => request<ContableCuenta>('/api/contabilidad/cuentas', { method: 'POST', body: JSON.stringify(data) }),
+  updateContableCuenta: (id: string, data: Record<string, unknown>) => request<ContableCuenta>(`/api/contabilidad/cuentas/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteContableCuenta: (id: string) => request<void>(`/api/contabilidad/cuentas/${id}`, { method: 'DELETE' }),
+  getContableReglaActiva: (params?: { tipo_cuota?: string }) => request<ContableReglaActiva | null>(`/api/contabilidad/reglas/activa${params?.tipo_cuota ? `?tipo_cuota=${encodeURIComponent(params.tipo_cuota)}` : ''}`),
+  createContableRegla: (data: Record<string, unknown>) => request<{ id: string; empresa_id: string; tipo_cuota: string; version: number; activa: boolean }>('/api/contabilidad/reglas', { method: 'POST', body: JSON.stringify(data) }),
 };

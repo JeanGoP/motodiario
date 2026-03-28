@@ -2,6 +2,7 @@ import express from 'express';
 import sql from 'mssql';
 import { randomUUID } from 'crypto';
 import { getPool } from '../db.js';
+import { computeAsiento } from './accounting.js';
 
 const router = express.Router();
 
@@ -329,6 +330,68 @@ router.post('/', async (req, res) => {
 
     // Fetch automatically created distribution
     const distResult = await request.query(`SELECT * FROM distribuciones_pagos WHERE payment_id = @id AND empresa_id = @empresa_id`);
+
+    const contabilidadSupport = await request.query(`
+      SELECT 
+        OBJECT_ID('dbo.contable_reglas_versiones') AS reglas,
+        OBJECT_ID('dbo.contable_regla_lineas') AS regla_lineas,
+        OBJECT_ID('dbo.contable_asientos') AS asientos,
+        OBJECT_ID('dbo.contable_asiento_lineas') AS asiento_lineas
+    `);
+    const s = contabilidadSupport.recordset?.[0] || {};
+    const contabilidadOk = !!(s.reglas && s.regla_lineas && s.asientos && s.asiento_lineas);
+
+    if (contabilidadOk) {
+      const reglaActiva = await request.query(`
+        SELECT TOP 1 id, tipo_cuota, version
+        FROM contable_reglas_versiones
+        WHERE empresa_id = @empresa_id AND tipo_cuota = N'CUOTA' AND activa = 1
+        ORDER BY version DESC
+      `);
+      const regla = reglaActiva.recordset?.[0] || null;
+      if (regla) {
+        const reglaLineasRequest = new sql.Request(transaction);
+        reglaLineasRequest.input('empresa_id', sql.UniqueIdentifier, empresaId);
+        reglaLineasRequest.input('regla_id', sql.UniqueIdentifier, regla.id);
+        const reglaLineas = await reglaLineasRequest.query(`
+          SELECT cuenta_id, movimiento, porcentaje
+          FROM contable_regla_lineas
+          WHERE empresa_id = @empresa_id AND regla_version_id = @regla_id
+        `);
+        const computed = computeAsiento({ monto: amount, lineas: reglaLineas.recordset || [] });
+        if (computed.ok) {
+          const asientoId = randomUUID();
+          const descripcion = installment_number ? `Pago cuota ${installment_number} (${receipt_number})` : `Pago cuota (${receipt_number})`;
+          const asientoRequest = new sql.Request(transaction);
+          asientoRequest.input('empresa_id', sql.UniqueIdentifier, empresaId);
+          asientoRequest.input('asiento_id', sql.UniqueIdentifier, asientoId);
+          asientoRequest.input('origen', sql.NVarChar(32), 'PAGO');
+          asientoRequest.input('origen_id', sql.UniqueIdentifier, paymentId);
+          asientoRequest.input('regla_version_id', sql.UniqueIdentifier, regla.id);
+          asientoRequest.input('fecha', sql.NVarChar(10), payment_date);
+          asientoRequest.input('descripcion', sql.NVarChar(255), descripcion);
+          await asientoRequest.query(`
+              INSERT INTO contable_asientos (id, empresa_id, origen, origen_id, regla_version_id, fecha, descripcion, creado_en)
+              VALUES (@asiento_id, @empresa_id, @origen, @origen_id, @regla_version_id, CONVERT(date, @fecha), @descripcion, SYSDATETIMEOFFSET())
+            `);
+
+          for (const l of computed.data) {
+            const lineaRequest = new sql.Request(transaction);
+            lineaRequest.input('empresa_id', sql.UniqueIdentifier, empresaId);
+            lineaRequest.input('linea_id', sql.UniqueIdentifier, randomUUID());
+            lineaRequest.input('asiento_id', sql.UniqueIdentifier, asientoId);
+            lineaRequest.input('cuenta_id', sql.UniqueIdentifier, l.cuenta_id);
+            lineaRequest.input('movimiento', sql.NVarChar(6), l.movimiento);
+            lineaRequest.input('porcentaje', sql.Decimal(9, 4), l.porcentaje);
+            lineaRequest.input('valor', sql.Decimal(18, 2), l.valor);
+            await lineaRequest.query(`
+                INSERT INTO contable_asiento_lineas (id, empresa_id, asiento_id, cuenta_id, movimiento, porcentaje, valor, creado_en)
+                VALUES (@linea_id, @empresa_id, @asiento_id, @cuenta_id, @movimiento, @porcentaje, @valor, SYSDATETIMEOFFSET())
+              `);
+          }
+        }
+      }
+    }
     
     await transaction.commit();
     

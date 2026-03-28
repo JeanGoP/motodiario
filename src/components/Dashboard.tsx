@@ -28,8 +28,9 @@ import { Notifications } from './Notifications';
 import { Home } from './Home';
 import { Companies } from './Companies';
 import { AdminUsers } from './AdminUsers';
+import { AccountingConfig } from './AccountingConfig';
 
-type View = 'home' | 'cost-centers' | 'associates' | 'motorcycles' | 'transactions' | 'overdue' | 'reports' | 'notifications' | 'empresas' | 'usuarios-admin';
+type View = 'home' | 'cost-centers' | 'associates' | 'motorcycles' | 'transactions' | 'overdue' | 'reports' | 'notifications' | 'empresas' | 'usuarios-admin' | 'contabilidad-config';
 
 export function Dashboard() {
   const [currentView, setCurrentView] = useState<View>('home');
@@ -55,7 +56,8 @@ export function Dashboard() {
   const seguridadItems = user?.rol === 'admin'
     ? [
       { id: 'empresas' as View, label: 'Empresas', icon: Building2 },
-      { id: 'usuarios-admin' as View, label: 'Usuarios', icon: User }
+      { id: 'usuarios-admin' as View, label: 'Usuarios', icon: User },
+      { id: 'contabilidad-config' as View, label: 'Config. Contable', icon: FileText }
     ]
     : [];
 
@@ -79,6 +81,7 @@ export function Dashboard() {
       case 'notifications': return <Notifications />;
       case 'empresas': return <Companies />;
       case 'usuarios-admin': return <AdminUsers />;
+      case 'contabilidad-config': return <AccountingConfig />;
       default: return <Home />;
     }
   };
