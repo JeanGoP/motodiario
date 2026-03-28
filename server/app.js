@@ -40,7 +40,7 @@ app.use(cors({
     callback(new Error(`Not allowed by CORS (Origin: ${origin})`));
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-empresa-id'],
   optionsSuccessStatus: 204
 }));
 app.options('*', cors());
@@ -84,8 +84,6 @@ const getDefaultEmpresaId = async () => {
 };
 
 apiRouter.use(async (req, res, next) => {
-  if (req.path.startsWith('/auth')) return next();
-
   const headerEmpresaId = req.get('x-empresa-id');
   const queryEmpresaId = req.query?.empresa_id;
   const candidate = isUuid(headerEmpresaId) ? String(headerEmpresaId).trim() : (isUuid(queryEmpresaId) ? String(queryEmpresaId).trim() : null);

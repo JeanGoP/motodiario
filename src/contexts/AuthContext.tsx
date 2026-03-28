@@ -4,7 +4,6 @@ interface AuthContextType {
   user: Usuario | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -93,34 +92,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.usuario);
   };
 
-  const signUp = async (email: string, password: string) => {
-    const url = `${getBaseUrl()}/api/auth/registro`;
-    
-    const empresaId = getEmpresaId();
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (empresaId) headers['x-empresa-id'] = empresaId;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ nombre: email.split('@')[0], correo: email, password })
-    });
-    
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      console.error('[Auth] Signup error response:', err);
-      let msg = err.error || 'Error al crear la cuenta';
-      if (err.message) msg += `: ${err.message}`;
-      throw new Error(msg);
-    }
-  };
-
   const signOut = async () => {
     localStorage.removeItem('token');
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );

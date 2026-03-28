@@ -7,22 +7,41 @@ const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret';
 const TOKEN_EXP = '7d';
 
-router.post('/registro', async (req, res) => {
-  const { nombre, correo, password, rol = 'usuario' } = req.body;
-  if (!nombre || !correo || !password) {
-    return res.status(400).json({ error: 'Faltan campos' });
-  }
+const getTokenPayload = (req) => {
+  const auth = req.headers.authorization || '';
+  const [, token] = auth.split(' ');
+  if (!token) return null;
   try {
-    const empresaId = req.empresaId;
-    if (!empresaId) return res.status(400).json({ error: 'Falta empresa_id' });
+    return jwt.verify(token, JWT_SECRET);
+  } catch {
+    return null;
+  }
+};
+
+router.post('/registro', async (req, res) => {
+  res.status(403).json({ error: 'Registro deshabilitado. Solicite acceso al administrador.' });
+});
+
+router.post('/usuarios', async (req, res) => {
+  const { nombre, correo, password, rol = 'usuario' } = req.body;
+  if (!nombre || !correo || !password) return res.status(400).json({ error: 'Faltan campos' });
+
+  const empresaId = req.empresaId;
+  if (!empresaId) return res.status(400).json({ error: 'Falta empresa_id' });
+
+  const payload = getTokenPayload(req);
+  if (!payload) return res.status(401).json({ error: 'No autorizado' });
+  if (payload.rol !== 'admin') return res.status(403).json({ error: 'No autorizado' });
+  if (String(payload.empresa_id) !== String(empresaId)) return res.status(403).json({ error: 'Empresa inválida' });
+
+  try {
     const pool = await getPool();
     const existing = await pool.request()
       .input('correo', sql.NVarChar, correo)
       .input('empresa_id', sql.UniqueIdentifier, empresaId)
       .query('SELECT id FROM usuarios WHERE correo = @correo AND empresa_id = @empresa_id');
-    if (existing.recordset.length) {
-      return res.status(409).json({ error: 'Correo ya registrado' });
-    }
+    if (existing.recordset.length) return res.status(409).json({ error: 'Correo ya registrado' });
+
     const hash = await bcrypt.hash(password, 10);
     const reqIns = pool.request();
     reqIns.input('empresa_id', sql.UniqueIdentifier, empresaId);

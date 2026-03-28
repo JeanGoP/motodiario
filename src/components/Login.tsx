@@ -5,10 +5,9 @@ import { Bike } from 'lucide-react';
 export function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const { signIn } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -16,13 +15,7 @@ export function Login() {
     setLoading(true);
 
     try {
-      if (isSignUp) {
-        await signUp(email, password);
-        setError('Cuenta creada exitosamente. Por favor inicia sesión.');
-        setIsSignUp(false);
-      } else {
-        await signIn(email, password);
-      }
+      await signIn(email, password);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Ha ocurrido un error');
     } finally {
@@ -54,7 +47,7 @@ export function Login() {
 
         <div className="bg-white rounded-2xl shadow-2xl shadow-slate-900/10 p-8 backdrop-blur-sm border border-white/50">
           <h2 className="text-xl font-bold text-slate-900 mb-6 text-center">
-            {isSignUp ? 'Crear Nueva Cuenta' : 'Bienvenido de Nuevo'}
+            Bienvenido de Nuevo
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -102,21 +95,14 @@ export function Login() {
                    <span>Procesando...</span>
                  </div>
               ) : (
-                isSignUp ? 'Registrar Cuenta' : 'Iniciar Sesión'
+                'Iniciar Sesión'
               )}
             </button>
 
             <div className="pt-4 border-t border-slate-100 text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSignUp(!isSignUp);
-                  setError('');
-                }}
-                className="text-sm text-accent-700 hover:text-accent-800 font-medium hover:underline transition-all"
-              >
-                {isSignUp ? '¿Ya tienes acceso? Inicia sesión' : '¿No tienes cuenta? Solicita acceso'}
-              </button>
+              <p className="text-sm text-slate-600">
+                ¿No tienes acceso? Solicítalo al administrador del sistema.
+              </p>
             </div>
           </form>
         </div>

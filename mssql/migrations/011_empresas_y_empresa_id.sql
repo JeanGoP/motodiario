@@ -40,6 +40,10 @@ BEGIN
         ALTER TABLE dbo.usuarios DROP CONSTRAINT UQ_usuarios_correo;
       IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE name = ''UQ_usuarios_empresa_correo'' AND type = ''UQ'' AND parent_object_id = OBJECT_ID(N''dbo.usuarios''))
         ALTER TABLE dbo.usuarios ADD CONSTRAINT UQ_usuarios_empresa_correo UNIQUE (empresa_id, correo);
+      IF NOT EXISTS (SELECT 1 FROM dbo.usuarios WHERE empresa_id = @empresa AND rol = N''admin'')
+         AND NOT EXISTS (SELECT 1 FROM dbo.usuarios WHERE empresa_id = @empresa AND correo = N''admin@motodiario.local'')
+        INSERT INTO dbo.usuarios (empresa_id, nombre, correo, hash_password, rol, activo, creado_en)
+        VALUES (@empresa, N''Administrador'', N''admin@motodiario.local'', N''$2a$10$Sla7Nw/E3BWhtLiY1NrJEe.7wYSOGyU9BezWpz/TY6Z9lpZwC9ltW'', N''admin'', 1, SYSDATETIMEOFFSET());
     ', N'@empresa uniqueidentifier', @empresa = @defaultEmpresaId;
 END
 
