@@ -23,8 +23,10 @@ import { Overdue } from './Overdue';
 import { Reports } from './Reports';
 import { Notifications } from './Notifications';
 import { Home } from './Home';
+import { Companies } from './Companies';
+import { AdminUsers } from './AdminUsers';
 
-type View = 'home' | 'cost-centers' | 'associates' | 'motorcycles' | 'transactions' | 'overdue' | 'reports' | 'notifications';
+type View = 'home' | 'cost-centers' | 'associates' | 'motorcycles' | 'transactions' | 'overdue' | 'reports' | 'notifications' | 'empresas' | 'usuarios-admin';
 
 export function Dashboard() {
   const [currentView, setCurrentView] = useState<View>('home');
@@ -41,6 +43,12 @@ export function Dashboard() {
     { id: 'reports' as View, label: 'Reportes', icon: FileText },
     { id: 'notifications' as View, label: 'Notificaciones', icon: Bell },
   ];
+  const adminItems = user?.rol === 'admin'
+    ? [
+      { id: 'empresas' as View, label: 'Empresas', icon: Building2 },
+      { id: 'usuarios-admin' as View, label: 'Usuarios', icon: User }
+    ]
+    : [];
 
   const handleSignOut = async () => {
     try {
@@ -60,11 +68,13 @@ export function Dashboard() {
       case 'overdue': return <Overdue />;
       case 'reports': return <Reports />;
       case 'notifications': return <Notifications />;
+      case 'empresas': return <Companies />;
+      case 'usuarios-admin': return <AdminUsers />;
       default: return <Home />;
     }
   };
 
-  const currentLabel = menuItems.find(item => item.id === currentView)?.label || 'Dashboard';
+  const currentLabel = [...adminItems, ...menuItems].find(item => item.id === currentView)?.label || 'Dashboard';
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
@@ -87,7 +97,7 @@ export function Dashboard() {
         <div className="flex flex-col h-[calc(100%-4rem)] justify-between bg-slate-900">
           <nav className="px-3 py-4 space-y-1 overflow-y-auto">
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4 px-3">Menú Principal</div>
-            {menuItems.map((item) => {
+            {[...adminItems, ...menuItems].map((item) => {
               const Icon = item.icon;
               const isActive = currentView === item.id;
               return (

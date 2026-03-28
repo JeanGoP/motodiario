@@ -62,6 +62,8 @@ async function request<T = unknown>(path: string, options?: RequestInit & { useC
     const doFetch = async () => {
       const headers = new Headers(fetchOptions.headers || undefined);
       if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+      const token = typeof window !== 'undefined' ? window.localStorage.getItem('token') : null;
+      if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
       const empresaId = getEmpresaId();
       if (empresaId) headers.set('x-empresa-id', empresaId);
       const res = await fetch(url, {
@@ -122,6 +124,15 @@ type PaymentWithDistribution = Payment & {
 };
 
 export const api = {
+  // Empresas (admin)
+  getEmpresas: () => request<Array<{ id: string; nombre: string; codigo: string; activo: boolean; leadconnector_location_id: string | null; creado_en: string; actualizado_en: string }>>('/api/empresas'),
+  crearEmpresa: (data: Record<string, unknown>) => request<{ id: string; nombre: string; codigo: string; activo: boolean; leadconnector_location_id: string | null; creado_en: string; actualizado_en: string }>('/api/empresas', { method: 'POST', body: JSON.stringify(data) }),
+  actualizarEmpresa: (id: string, data: Record<string, unknown>) => request<{ id: string; nombre: string; codigo: string; activo: boolean; leadconnector_location_id: string | null; creado_en: string; actualizado_en: string }>(`/api/empresas/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  // Usuarios (admin)
+  getUsuarios: (empresaId?: string) => request<Array<{ id: string; nombre: string; correo: string; rol: string; activo: boolean; creado_en: string }>>(`/api/auth/usuarios${empresaId ? `?empresa_id=${encodeURIComponent(empresaId)}` : ''}`),
+  crearUsuario: (data: Record<string, unknown>) => request<{ id: string; nombre: string; correo: string; rol: string; activo: boolean; creado_en: string }>('/api/auth/usuarios', { method: 'POST', body: JSON.stringify(data) }),
+
   // Centros de Costo
   getCentrosCosto: () => request<CostCenter[]>('/api/centros_costo', { useCache: true }),
   crearCentroCosto: (data: Record<string, unknown>) => request<CostCenter>('/api/centros_costo', { method: 'POST', body: JSON.stringify(data) }),

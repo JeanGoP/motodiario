@@ -11,6 +11,7 @@ import cashReceiptsRouter from './routes/cash_receipts.js';
 import notificationsRouter from './routes/notifications.js';
 import deactivationsRouter from './routes/deactivations.js';
 import authRouter from './routes/auth.js';
+import empresasRouter from './routes/empresas.js';
 import { getPool } from './db.js';
 
 const app = express();
@@ -93,6 +94,7 @@ apiRouter.use(async (req, res, next) => {
 });
 
 apiRouter.use('/auth', authRouter);
+apiRouter.use('/empresas', empresasRouter);
 apiRouter.use('/centros_costo', costCentersRouter);
 apiRouter.use('/asociados', associatesRouter);
 apiRouter.use('/motorcycles', motorcyclesRouter);
