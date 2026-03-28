@@ -1,8 +1,126 @@
 import express from 'express';
 import sql from 'mssql';
 import { getPool } from '../db.js';
+import jwt from 'jsonwebtoken';
 
 const router = express.Router();
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret';
+
+export function resolveEmpresaScope({ isSuperAdmin, tokenEmpresaId, requestEmpresaId, intent = 'read' }) {
+  const reqEmpresa = requestEmpresaId ? String(requestEmpresaId) : '';
+  const tokenEmpresa = tokenEmpresaId ? String(tokenEmpresaId) : '';
+
+  if (!reqEmpresa) return { ok: false, status: 400, error: 'Falta empresa_id' };
+  if (isSuperAdmin) return { ok: true, empresaId: reqEmpresa };
+  if (!tokenEmpresa) return { ok: false, status: 400, error: 'Falta empresa_id en el token' };
+  if (tokenEmpresa !== reqEmpresa) {
+    return intent === 'write'
+      ? { ok: false, status: 400, error: 'No puedes operar fuera de tu empresa asignada' }
+      : { ok: false, status: 403, error: 'No autorizado' };
+  }
+  return { ok: true, empresaId: tokenEmpresa };
+}
+
+export function canWrite({ rol }) {
+  return String(rol || '').toLowerCase() === 'admin';
+}
+
+export function validateEmpresaIdBody({ bodyEmpresaId, empresaId }) {
+  const b = bodyEmpresaId ? String(bodyEmpresaId) : '';
+  const e = empresaId ? String(empresaId) : '';
+  if (b && e && b !== e) return { ok: false, status: 400, error: 'empresa_id no coincide con la empresa de la sesión' };
+  return { ok: true };
+}
+
+const getTokenPayload = (req) => {
+  const auth = req.headers?.authorization ? String(req.headers.authorization) : '';
+  const token = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length).trim() : '';
+  if (!token) return null;
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch {
+    return null;
+  }
+};
+
+const getDefaultEmpresaId = async (pool) => {
+  const r = await pool.request().query(`SELECT TOP 1 id FROM empresas WHERE es_default = 1`);
+  return r.recordset?.[0]?.id ? String(r.recordset[0].id) : null;
+};
+
+const isSuperAdminUser = async (pool, userId, defaultEmpresaId) => {
+  if (!defaultEmpresaId) return false;
+  const r = await pool.request()
+    .input('id', sql.UniqueIdentifier, userId)
+    .input('empresa_id', sql.UniqueIdentifier, defaultEmpresaId)
+    .query(`
+      SELECT TOP 1 1 AS ok
+      FROM usuarios
+      WHERE id = @id AND empresa_id = @empresa_id AND rol = 'admin' AND activo = 1
+    `);
+  return Boolean(r.recordset?.length);
+};
+
+const getAuthContext = async (req, { intent = 'read' } = {}) => {
+  const payload = getTokenPayload(req);
+  if (!payload?.sub) return { ok: false, status: 401, error: 'No autenticado' };
+
+  const pool = await getPool();
+  const defaultEmpresaId = await getDefaultEmpresaId(pool);
+  const userId = String(payload.sub);
+  const isSuperAdmin = await isSuperAdminUser(pool, userId, defaultEmpresaId);
+
+  const scope = resolveEmpresaScope({
+    isSuperAdmin,
+    tokenEmpresaId: payload.empresa_id,
+    requestEmpresaId: req.empresaId,
+    intent,
+  });
+  if (!scope.ok) return scope;
+
+  const empresaIdForUserCheck = isSuperAdmin ? defaultEmpresaId : scope.empresaId;
+  if (!empresaIdForUserCheck) return { ok: false, status: 403, error: 'No autorizado' };
+
+  const u = await pool.request()
+    .input('id', sql.UniqueIdentifier, userId)
+    .input('empresa_id', sql.UniqueIdentifier, empresaIdForUserCheck)
+    .query(`
+      SELECT TOP 1 id, rol, activo
+      FROM usuarios
+      WHERE id = @id AND empresa_id = @empresa_id
+    `);
+  const row = u.recordset?.[0] || null;
+  if (!row || !row.activo) return { ok: false, status: 403, error: 'No autorizado' };
+
+  return {
+    ok: true,
+    pool,
+    empresaId: scope.empresaId,
+    userId,
+    rol: row.rol,
+    isSuperAdmin,
+    defaultEmpresaId,
+  };
+};
+
+const auditCreate = async (pool, { empresaId, userId, resource, resourceId, payload }) => {
+  try {
+    await pool.request()
+      .input('empresa_id', sql.UniqueIdentifier, empresaId)
+      .input('usuario_id', sql.UniqueIdentifier, userId)
+      .input('accion', sql.NVarChar(32), 'CREATE')
+      .input('recurso', sql.NVarChar(64), resource)
+      .input('recurso_id', sql.UniqueIdentifier, resourceId)
+      .input('payload_json', sql.NVarChar(sql.MAX), payload ? JSON.stringify(payload) : null)
+      .query(`
+        INSERT INTO audit_logs (empresa_id, usuario_id, accion, recurso, recurso_id, payload_json, creado_en)
+        VALUES (@empresa_id, @usuario_id, @accion, @recurso, @recurso_id, @payload_json, SYSDATETIMEOFFSET())
+      `);
+  } catch (e) {
+    console.error('Error auditando CREATE:', e instanceof Error ? e.message : e);
+  }
+};
 
 export function preferRecurringDiasGracia(recurringDias, monthDias) {
   return Array.isArray(recurringDias) && recurringDias.length > 0 ? recurringDias : (monthDias || []);
@@ -21,9 +139,9 @@ const parseBogotaDateInput = (value) => {
 
 router.get('/', async (req, res) => {
   try {
-    const empresaId = req.empresaId;
-    if (!empresaId) return res.status(400).json({ error: 'Falta empresa_id' });
-    const pool = await getPool();
+    const auth = await getAuthContext(req, { intent: 'read' });
+    if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
+    const { empresaId, pool } = auth;
     const result = await pool.request()
       .input('empresa_id', sql.UniqueIdentifier, empresaId)
       .query(`
@@ -47,8 +165,12 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   const { asociado_id, brand, model, year, plate, daily_rate, status, created_at, plan_months } = req.body;
   try {
-    const empresaId = req.empresaId;
-    if (!empresaId) return res.status(400).json({ error: 'Falta empresa_id' });
+    const auth = await getAuthContext(req, { intent: 'write' });
+    if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
+    if (!canWrite(auth)) return res.status(403).json({ error: 'Forbidden' });
+    const empresaBodyCheck = validateEmpresaIdBody({ bodyEmpresaId: req.body?.empresa_id, empresaId: auth.empresaId });
+    if (!empresaBodyCheck.ok) return res.status(empresaBodyCheck.status).json({ error: empresaBodyCheck.error });
+    const empresaId = auth.empresaId;
     const allowedPlans = new Set([12, 15, 18, 24]);
     const planMonthsValue =
       plan_months === undefined || plan_months === null || plan_months === ''
@@ -59,7 +181,7 @@ router.post('/', async (req, res) => {
       return;
     }
 
-    const pool = await getPool();
+    const pool = auth.pool;
     const request = pool.request();
     request.input('empresa_id', sql.UniqueIdentifier, empresaId);
     request.input('asociado_id', sql.UniqueIdentifier, asociado_id);
@@ -92,7 +214,17 @@ router.post('/', async (req, res) => {
       OUTPUT inserted.*
       VALUES (@empresa_id, @asociado_id, @brand, @model, @year, @plate, @daily_rate, @status, @plan_months, @dias_gracia, @created_at, SYSDATETIMEOFFSET())
     `);
-    res.status(201).json(result.recordset[0]);
+    const created = result.recordset[0];
+    if (created?.id) {
+      await auditCreate(pool, {
+        empresaId,
+        userId: auth.userId,
+        resource: 'motos',
+        resourceId: created.id,
+        payload: { asociado_id, brand, model, year, plate, daily_rate, status, created_at: createdAtValue, plan_months: planMonthsValue, dias_gracia: req.body.dias_gracia || 0 },
+      });
+    }
+    res.status(201).json(created);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -102,8 +234,10 @@ router.put('/:id', async (req, res) => {
   const { id } = req.params;
   const { asociado_id, brand, model, year, plate, daily_rate, status, created_at, plan_months } = req.body;
   try {
-    const empresaId = req.empresaId;
-    if (!empresaId) return res.status(400).json({ error: 'Falta empresa_id' });
+    const auth = await getAuthContext(req, { intent: 'write' });
+    if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
+    if (!canWrite(auth)) return res.status(403).json({ error: 'Forbidden' });
+    const empresaId = auth.empresaId;
     const shouldUpdatePlan = !(plan_months === undefined || plan_months === null || plan_months === '');
     const allowedPlans = new Set([12, 15, 18, 24]);
     const planMonthsValue = shouldUpdatePlan ? Number(plan_months) : null;
@@ -112,7 +246,7 @@ router.put('/:id', async (req, res) => {
       return;
     }
 
-    const pool = await getPool();
+    const pool = auth.pool;
     const request = pool.request();
     request.input('id', sql.UniqueIdentifier, id);
     request.input('empresa_id', sql.UniqueIdentifier, empresaId);
@@ -177,9 +311,11 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    const empresaId = req.empresaId;
-    if (!empresaId) return res.status(400).json({ error: 'Falta empresa_id' });
-    const pool = await getPool();
+    const auth = await getAuthContext(req, { intent: 'write' });
+    if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
+    if (!canWrite(auth)) return res.status(403).json({ error: 'Forbidden' });
+    const empresaId = auth.empresaId;
+    const pool = auth.pool;
     const request = pool.request();
     request.input('id', sql.UniqueIdentifier, id);
     request.input('empresa_id', sql.UniqueIdentifier, empresaId);
@@ -195,9 +331,10 @@ router.get('/:id/dias_gracia', async (req, res) => {
   const { anio, mes } = req.query;
   if (!anio || !mes) return res.status(400).json({ error: 'anio y mes requeridos' });
   try {
-    const empresaId = req.empresaId;
-    if (!empresaId) return res.status(400).json({ error: 'Falta empresa_id' });
-    const pool = await getPool();
+    const auth = await getAuthContext(req, { intent: 'read' });
+    if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
+    const empresaId = auth.empresaId;
+    const pool = auth.pool;
     const motoExists = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .input('empresa_id', sql.UniqueIdentifier, empresaId)
@@ -240,17 +377,20 @@ router.post('/:id/dias_gracia', async (req, res) => {
   const isRecurring = Boolean(recurring);
   if (!Array.isArray(dias)) return res.status(400).json({ error: 'Datos inválidos' });
   if (!isRecurring && (!anio || !mes)) return res.status(400).json({ error: 'Datos inválidos' });
+  let tx;
   try {
-    const empresaId = req.empresaId;
-    if (!empresaId) return res.status(400).json({ error: 'Falta empresa_id' });
-    const pool = await getPool();
+    const auth = await getAuthContext(req, { intent: 'write' });
+    if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
+    if (!canWrite(auth)) return res.status(403).json({ error: 'Forbidden' });
+    const empresaId = auth.empresaId;
+    const pool = auth.pool;
     const motoExists = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .input('empresa_id', sql.UniqueIdentifier, empresaId)
       .query(`SELECT TOP 1 1 AS ok FROM motos WHERE id = @id AND empresa_id = @empresa_id`);
     if (!motoExists.recordset?.length) return res.status(404).json({ error: 'Not found' });
 
-    const tx = new sql.Transaction(await getPool());
+    tx = new sql.Transaction(await getPool());
     await tx.begin();
     const anioDb = isRecurring ? 0 : Number(anio);
     const mesDb = isRecurring ? 0 : Number(mes);
@@ -282,7 +422,7 @@ router.post('/:id/dias_gracia', async (req, res) => {
     await tx.commit();
     res.status(200).json({ ok: true });
   } catch (err) {
-    try { await tx.rollback(); } catch {}
+    try { if (tx) await tx.rollback(); } catch {}
     res.status(500).json({ error: err.message });
   }
 });
