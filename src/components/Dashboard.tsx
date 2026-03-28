@@ -33,8 +33,8 @@ type View = 'home' | 'cost-centers' | 'associates' | 'motorcycles' | 'transactio
 export function Dashboard() {
   const [currentView, setCurrentView] = useState<View>('home');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [catalogosOpen, setCatalogosOpen] = useState(true);
-  const [seguridadOpen, setSeguridadOpen] = useState(true);
+  const [catalogosOpen, setCatalogosOpen] = useState(false);
+  const [seguridadOpen, setSeguridadOpen] = useState(false);
   const { user, signOut } = useAuth();
 
   const generalItems = [
