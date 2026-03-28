@@ -22,6 +22,7 @@ const isDev = import.meta.env.DEV;
 // Simple in-memory cache
 const cache = new Map<string, { data: unknown; timestamp: number }>();
 const CACHE_TTL = 60 * 1000; // 1 minute
+const inFlight = new Map<string, Promise<unknown>>();
 
 async function request<T = unknown>(path: string, options?: RequestInit & { useCache?: boolean }): Promise<T> {
   // Asegurar que el path empiece con slash
@@ -38,40 +39,56 @@ async function request<T = unknown>(path: string, options?: RequestInit & { useC
     }
   }
 
+  const inFlightKey = `${method}:${url}`;
+  if (method === 'GET') {
+    const existing = inFlight.get(inFlightKey);
+    if (existing) return (await existing) as T;
+  }
+
   if (isDev) console.log(`[API] Requesting: ${url}`);
 
   try {
-    const res = await fetch(url, {
-      headers: { 'Content-Type': 'application/json' },
-      ...options
-    });
-    
-    if (!res.ok) {
-      let errorMessage = `HTTP ${res.status}`;
-      try {
-        const errorBody = await res.json();
-        if (isDev) console.error('[API] Error response body:', errorBody);
-        if (errorBody?.error) errorMessage = errorBody.error;
-        if (errorBody?.message) errorMessage += `: ${errorBody.message}`;
-      } catch (e) {
-        if (isDev) console.error('[API] Could not parse error body:', e);
+    const doFetch = async () => {
+      const res = await fetch(url, {
+        headers: { 'Content-Type': 'application/json' },
+        ...options
+      });
+      
+      if (!res.ok) {
+        let errorMessage = `HTTP ${res.status}`;
+        try {
+          const errorBody = await res.json();
+          if (isDev) console.error('[API] Error response body:', errorBody);
+          if (errorBody?.error) errorMessage = errorBody.error;
+          if (errorBody?.message) errorMessage += `: ${errorBody.message}`;
+        } catch (e) {
+          if (isDev) console.error('[API] Could not parse error body:', e);
+        }
+        throw new Error(errorMessage);
       }
-      throw new Error(errorMessage);
-    }
-    
-    if (method !== 'GET') cache.clear();
-    if (res.status === 204) return null as T;
-    const data: T = await res.json();
-    
-    // Store in cache if enabled
-    if (options?.useCache) {
-      cache.set(url, { data, timestamp: Date.now() });
-    }
-    
+      
+      if (method !== 'GET') cache.clear();
+      if (res.status === 204) return null as T;
+      const data: T = await res.json();
+      
+      if (options?.useCache && method === 'GET') {
+        cache.set(url, { data, timestamp: Date.now() });
+      }
+      
+      return data;
+    };
+
+    const fetchPromise = method === 'GET' ? doFetch() : null;
+    if (fetchPromise) inFlight.set(inFlightKey, fetchPromise);
+
+    const data = fetchPromise ? await fetchPromise : await doFetch();
     return data;
+    
   } catch (err) {
     if (isDev) console.error('[API] Network or Parse Error:', err);
     throw err;
+  } finally {
+    if (method === 'GET') inFlight.delete(inFlightKey);
   }
 }
 
@@ -116,7 +133,7 @@ export const api = {
   setDiasGraciaMoto: (id: string, payload: { anio: number; mes: number; dias: number[]; recurring?: boolean }) => request<void>(`/api/motorcycles/${id}/dias_gracia`, { method: 'POST', body: JSON.stringify(payload) }),
 
   // Payments
-  getPayments: (from?: string, to?: string) => request<PaymentWithDistribution[]>(`/api/payments${from && to ? `?from=${from}&to=${to}` : ''}`),
+  getPayments: (from?: string, to?: string) => request<PaymentWithDistribution[]>(`/api/payments${from && to ? `?from=${from}&to=${to}` : ''}`, { useCache: true }),
   createPayment: (data: Record<string, unknown>) => request<PaymentWithDistribution>('/api/payments', { method: 'POST', body: JSON.stringify(data) }),
 
   getCashReceipts: (filters?: { from?: string; to?: string; asociado_id?: string }) => {
@@ -124,16 +141,16 @@ export const api = {
     if (filters?.from) params.append('from', filters.from);
     if (filters?.to) params.append('to', filters.to);
     if (filters?.asociado_id) params.append('asociado_id', filters.asociado_id);
-    return request<CashReceipt[]>(`/api/recibos_caja?${params.toString()}`);
+    return request<CashReceipt[]>(`/api/recibos_caja?${params.toString()}`, { useCache: true });
   },
   createCashReceipt: (data: Record<string, unknown>) => request<CashReceipt>('/api/recibos_caja', { method: 'POST', body: JSON.stringify(data) }),
 
   // Notifications
-  getNotifications: () => request<Notification[]>('/api/notifications'),
+  getNotifications: () => request<Notification[]>('/api/notifications', { useCache: true }),
   createNotification: (data: Record<string, unknown>) => request<Notification>('/api/notifications', { method: 'POST', body: JSON.stringify(data) }),
   updateNotification: (id: string, data: Record<string, unknown>) => request<Notification>(`/api/notifications/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 
   // Deactivations
-  getDeactivations: () => request<Deactivation[]>('/api/deactivations'),
+  getDeactivations: () => request<Deactivation[]>('/api/deactivations', { useCache: true }),
   createDeactivation: (data: Record<string, unknown>) => request<Deactivation>('/api/deactivations', { method: 'POST', body: JSON.stringify(data) }),
 };

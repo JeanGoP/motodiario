@@ -1,6 +1,6 @@
 import { useEffect, useState, type SVGProps } from 'react';
 import { api } from '../lib/api';
-import { Motorcycle, Asociado, CostCenter, Payment } from '../types/database';
+import { Motorcycle, Asociado, CostCenter } from '../types/database';
 import { AlertTriangle, Calendar, Bell, Ban, CheckCircle } from 'lucide-react';
 
 const getBogotaDateOnly = (date: Date = new Date()) =>
@@ -45,6 +45,17 @@ export function Overdue() {
         return s.includes('T') ? s.split('T')[0] : s;
       };
 
+      const lastPaymentByMotoId = new Map<string, { payment_date: string; ms: number }>();
+      for (const p of allPayments || []) {
+        const dateOnly = normalizeDateOnly(p.payment_date);
+        const ms = dateOnlyToUtcMs(dateOnly);
+        if (!Number.isFinite(ms)) continue;
+        const prev = lastPaymentByMotoId.get(p.motorcycle_id);
+        if (!prev || ms > prev.ms) {
+          lastPaymentByMotoId.set(p.motorcycle_id, { payment_date: dateOnly, ms });
+        }
+      }
+
       const msPerDay = 1000 * 60 * 60 * 24;
       const todayMs = dateOnlyToUtcMs(getBogotaDateOnly());
 
@@ -53,22 +64,12 @@ export function Overdue() {
       for (const moto of motorcycles) {
         // Enrich moto with asociado and centro_costo
         const asociadoFull = asociadosById[moto.asociado_id];
-        
-        // Find last payment
-        const motoPayments = (allPayments || [])
-          .filter((p: Payment) => p.motorcycle_id === moto.id)
-          .sort((a: Payment, b: Payment) => {
-            const aMs = dateOnlyToUtcMs(normalizeDateOnly(a.payment_date));
-            const bMs = dateOnlyToUtcMs(normalizeDateOnly(b.payment_date));
-            return (bMs || 0) - (aMs || 0);
-          });
-        
-        const lastPayment = motoPayments.length > 0 ? motoPayments[0] : null;
+        const lastPayment = lastPaymentByMotoId.get(moto.id) || null;
 
         let daysOverdue = 0;
 
         if (lastPayment) {
-          const lastMs = dateOnlyToUtcMs(normalizeDateOnly(lastPayment.payment_date));
+          const lastMs = lastPayment.ms;
           const diffDays =
             Number.isFinite(todayMs) && Number.isFinite(lastMs) ? Math.floor((todayMs - lastMs) / msPerDay) : 0;
           daysOverdue = Math.max(0, diffDays - 1);
