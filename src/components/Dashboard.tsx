@@ -54,7 +54,7 @@ export function Dashboard() {
   const seguridadItems = user?.rol === 'admin'
     ? [
       { id: 'empresas' as View, label: 'Empresas', icon: Building2 },
-      { id: 'usuarios-admin' as View, label: 'Seguridad', icon: Shield }
+      { id: 'usuarios-admin' as View, label: 'Usuarios', icon: Shield }
     ]
     : [];
 
@@ -157,8 +157,8 @@ export function Dashboard() {
             </div>
 
             {seguridadItems.length > 0 && (
-              <div className="mt-auto pt-6">
-                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-3">Seguridad</div>
+              <div className="mt-3">
+                <div className="h-px bg-slate-800/80 my-2 mx-3"></div>
                 {renderParentButton('Seguridad', seguridadOpen, () => setSeguridadOpen(v => !v))}
                 {seguridadOpen && (
                   <div className="space-y-1 mt-1">
