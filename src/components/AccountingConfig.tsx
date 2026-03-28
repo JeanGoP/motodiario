@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, type ContableCuenta, type ContableReglaActivaLinea } from '../lib/api';
+import { api, type ContableCuenta, type ContableReglaActivaLinea, type Empresa } from '../lib/api';
 import { Plus, Trash2, Save, RefreshCw } from 'lucide-react';
 
 type LineaDraft = {
@@ -52,6 +52,7 @@ const computePreview = (monto: number, lineas: LineaDraft[]) => {
 export function AccountingConfig() {
   const [tab, setTab] = useState<'cuentas' | 'reglas'>('reglas');
   const [loading, setLoading] = useState(true);
+  const [empresa, setEmpresa] = useState<Empresa | null>(null);
   const [cuentas, setCuentas] = useState<ContableCuenta[]>([]);
   const [tipoCuota, setTipoCuota] = useState('CUOTA');
   const [comentario, setComentario] = useState('');
@@ -64,10 +65,12 @@ export function AccountingConfig() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [cuentasData, regla] = await Promise.all([
+      const [miEmpresa, cuentasData, regla] = await Promise.all([
+        api.getMiEmpresa(),
         api.getContableCuentas(),
         api.getContableReglaActiva({ tipo_cuota: tipoCuota })
       ]);
+      setEmpresa(miEmpresa);
       setCuentas(cuentasData || []);
       if (regla) {
         setComentario(regla.comentario || '');
@@ -169,12 +172,22 @@ export function AccountingConfig() {
     );
   }
 
+  const empresaId = (() => {
+    try {
+      return window.localStorage.getItem('empresa_id') || '';
+    } catch {
+      return '';
+    }
+  })();
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Configuración Contable</h2>
-          <p className="text-slate-500 mt-1">Define reglas de contabilización por tipo de cuota (por empresa)</p>
+          <p className="text-slate-500 mt-1">
+            {empresa ? `Empresa: ${empresa.nombre} (${empresa.codigo})` : (empresaId ? `Empresa ID: ${empresaId}` : 'Empresa: (no seleccionada)')}
+          </p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => loadAll()} className="btn btn-secondary whitespace-nowrap">
