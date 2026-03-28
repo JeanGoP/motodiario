@@ -8,6 +8,7 @@ type Empresa = {
   codigo: string;
   activo: boolean;
   leadconnector_location_id: string | null;
+  tema_acento?: string | null;
   creado_en: string;
   actualizado_en: string;
 };
@@ -22,7 +23,8 @@ export function Companies() {
     nombre: '',
     codigo: '',
     activo: true,
-    leadconnector_location_id: ''
+    leadconnector_location_id: '',
+    tema_acento: '#6366f1'
   });
 
   useEffect(() => {
@@ -41,7 +43,7 @@ export function Companies() {
   };
 
   const resetForm = () => {
-    setFormData({ nombre: '', codigo: '', activo: true, leadconnector_location_id: '' });
+    setFormData({ nombre: '', codigo: '', activo: true, leadconnector_location_id: '', tema_acento: '#6366f1' });
     setEditingId(null);
   };
 
@@ -56,7 +58,8 @@ export function Companies() {
       nombre: empresa.nombre,
       codigo: empresa.codigo,
       activo: empresa.activo,
-      leadconnector_location_id: empresa.leadconnector_location_id || ''
+      leadconnector_location_id: empresa.leadconnector_location_id || '',
+      tema_acento: empresa.tema_acento || '#6366f1'
     });
     setShowModal(true);
   };
@@ -68,7 +71,8 @@ export function Companies() {
         nombre: formData.nombre,
         codigo: formData.codigo,
         activo: formData.activo,
-        leadconnector_location_id: formData.leadconnector_location_id.trim() ? formData.leadconnector_location_id.trim() : null
+        leadconnector_location_id: formData.leadconnector_location_id.trim() ? formData.leadconnector_location_id.trim() : null,
+        tema_acento: formData.tema_acento
       };
       if (editingId) await api.actualizarEmpresa(editingId, payload);
       else await api.crearEmpresa(payload);
@@ -158,6 +162,13 @@ export function Companies() {
               <div className="text-sm text-slate-600 space-y-1">
                 <div><span className="text-slate-500">ID:</span> <span className="font-mono text-xs">{empresa.id}</span></div>
                 <div><span className="text-slate-500">LeadConnector:</span> <span className="font-mono text-xs">{empresa.leadconnector_location_id || '-'}</span></div>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-500">Color:</span>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="w-3.5 h-3.5 rounded border border-slate-300" style={{ backgroundColor: empresa.tema_acento || '#6366f1' }}></span>
+                    <span className="font-mono text-xs">{empresa.tema_acento || '#6366f1'}</span>
+                  </span>
+                </div>
               </div>
 
               <div className="flex gap-3 pt-4 border-t border-slate-100 mt-4">
@@ -235,6 +246,23 @@ export function Companies() {
                   value={formData.leadconnector_location_id}
                   onChange={(e) => setFormData(prev => ({ ...prev, leadconnector_location_id: e.target.value }))}
                 />
+              </div>
+              <div>
+                <label className="input-label">Color principal</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={formData.tema_acento}
+                    onChange={(e) => setFormData(prev => ({ ...prev, tema_acento: e.target.value }))}
+                    className="h-10 w-14 rounded border border-slate-300 bg-white"
+                  />
+                  <input
+                    className="input-field font-mono"
+                    value={formData.tema_acento}
+                    onChange={(e) => setFormData(prev => ({ ...prev, tema_acento: e.target.value }))}
+                    placeholder="#6366f1"
+                  />
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <input

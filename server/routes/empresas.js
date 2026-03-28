@@ -41,6 +41,41 @@ const isEmpresaAdmin = async (pool, userId, empresaId) => {
   return !!r.recordset?.length;
 };
 
+const isHexColor = (value) => /^#[0-9a-fA-F]{6}$/.test(String(value || '').trim());
+
+router.get('/mi', async (req, res) => {
+  const payload = getTokenPayload(req);
+  if (!payload) return res.status(401).json({ error: 'No autorizado' });
+
+  try {
+    const pool = await getPool();
+    const defaultEmpresaId = await getDefaultEmpresaId(pool);
+    const superOk = await isSuperAdmin(pool, payload.sub, defaultEmpresaId);
+    const headerEmpresaId = typeof req.headers['x-empresa-id'] === 'string' ? req.headers['x-empresa-id'] : '';
+    const empresaId = superOk ? (headerEmpresaId || String(payload.empresa_id || '')) : String(payload.empresa_id || '');
+    if (!empresaId) return res.status(400).json({ error: 'Falta empresa_id' });
+
+    if (!superOk) {
+      const u = await pool.request()
+        .input('id', sql.UniqueIdentifier, payload.sub)
+        .input('empresa_id', sql.UniqueIdentifier, empresaId)
+        .query(`SELECT TOP 1 id FROM usuarios WHERE id = @id AND empresa_id = @empresa_id AND activo = 1`);
+      if (!u.recordset?.length) return res.status(403).json({ error: 'No autorizado' });
+    }
+
+    const result = await pool.request()
+      .input('id', sql.UniqueIdentifier, empresaId)
+      .query(`
+        SELECT id, nombre, codigo, activo, leadconnector_location_id, tema_acento, creado_en, actualizado_en
+        FROM empresas
+        WHERE id = @id
+      `);
+    res.json(result.recordset[0] || null);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/', async (req, res) => {
   const payload = getTokenPayload(req);
   if (!payload) return res.status(401).json({ error: 'No autorizado' });
@@ -52,7 +87,7 @@ router.get('/', async (req, res) => {
 
     if (superOk) {
       const result = await pool.request().query(`
-        SELECT id, nombre, codigo, activo, leadconnector_location_id, creado_en, actualizado_en
+        SELECT id, nombre, codigo, activo, leadconnector_location_id, tema_acento, creado_en, actualizado_en
         FROM empresas
         ORDER BY creado_en DESC
       `);
@@ -67,7 +102,7 @@ router.get('/', async (req, res) => {
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, empresaId)
       .query(`
-        SELECT id, nombre, codigo, activo, leadconnector_location_id, creado_en, actualizado_en
+        SELECT id, nombre, codigo, activo, leadconnector_location_id, tema_acento, creado_en, actualizado_en
         FROM empresas
         WHERE id = @id
       `);
@@ -81,8 +116,9 @@ router.post('/', async (req, res) => {
   const payload = getTokenPayload(req);
   if (!payload) return res.status(401).json({ error: 'No autorizado' });
 
-  const { nombre, codigo, leadconnector_location_id = null, activo = true } = req.body || {};
+  const { nombre, codigo, leadconnector_location_id = null, activo = true, tema_acento = '#6366f1' } = req.body || {};
   if (!nombre || !codigo) return res.status(400).json({ error: 'Faltan campos' });
+  if (tema_acento && !isHexColor(tema_acento)) return res.status(400).json({ error: 'Color inválido' });
 
   try {
     const pool = await getPool();
@@ -95,10 +131,11 @@ router.post('/', async (req, res) => {
     request.input('codigo', sql.NVarChar, codigo);
     request.input('activo', sql.Bit, !!activo);
     request.input('leadconnector_location_id', sql.NVarChar, leadconnector_location_id);
+    request.input('tema_acento', sql.NVarChar, tema_acento);
     const result = await request.query(`
-      INSERT INTO empresas (id, nombre, codigo, activo, leadconnector_location_id, creado_en, actualizado_en)
-      OUTPUT inserted.id, inserted.nombre, inserted.codigo, inserted.activo, inserted.leadconnector_location_id, inserted.creado_en, inserted.actualizado_en
-      VALUES (NEWID(), @nombre, @codigo, @activo, @leadconnector_location_id, SYSDATETIMEOFFSET(), SYSDATETIMEOFFSET())
+      INSERT INTO empresas (id, nombre, codigo, activo, leadconnector_location_id, tema_acento, creado_en, actualizado_en)
+      OUTPUT inserted.id, inserted.nombre, inserted.codigo, inserted.activo, inserted.leadconnector_location_id, inserted.tema_acento, inserted.creado_en, inserted.actualizado_en
+      VALUES (NEWID(), @nombre, @codigo, @activo, @leadconnector_location_id, @tema_acento, SYSDATETIMEOFFSET(), SYSDATETIMEOFFSET())
     `);
     res.status(201).json(result.recordset[0]);
   } catch (err) {
@@ -111,8 +148,9 @@ router.put('/:id', async (req, res) => {
   if (!payload) return res.status(401).json({ error: 'No autorizado' });
 
   const { id } = req.params;
-  const { nombre, codigo, leadconnector_location_id = null, activo = true } = req.body || {};
+  const { nombre, codigo, leadconnector_location_id = null, activo = true, tema_acento } = req.body || {};
   if (!nombre || !codigo) return res.status(400).json({ error: 'Faltan campos' });
+  if (tema_acento !== undefined && tema_acento !== null && !isHexColor(tema_acento)) return res.status(400).json({ error: 'Color inválido' });
 
   try {
     const pool = await getPool();
@@ -132,16 +170,18 @@ router.put('/:id', async (req, res) => {
     request.input('codigo', sql.NVarChar, codigo);
     request.input('activo', sql.Bit, !!activo);
     request.input('leadconnector_location_id', sql.NVarChar, leadconnector_location_id);
+    request.input('tema_acento', sql.NVarChar, tema_acento ?? null);
     const result = await request.query(`
       UPDATE empresas
       SET nombre = @nombre,
           codigo = @codigo,
           activo = @activo,
           leadconnector_location_id = @leadconnector_location_id,
+          tema_acento = COALESCE(@tema_acento, tema_acento),
           actualizado_en = SYSDATETIMEOFFSET()
       WHERE id = @id;
 
-      SELECT id, nombre, codigo, activo, leadconnector_location_id, creado_en, actualizado_en
+      SELECT id, nombre, codigo, activo, leadconnector_location_id, tema_acento, creado_en, actualizado_en
       FROM empresas
       WHERE id = @id;
     `);

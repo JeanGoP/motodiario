@@ -125,9 +125,10 @@ type PaymentWithDistribution = Payment & {
 
 export const api = {
   // Empresas (admin)
-  getEmpresas: () => request<Array<{ id: string; nombre: string; codigo: string; activo: boolean; leadconnector_location_id: string | null; creado_en: string; actualizado_en: string }>>('/api/empresas'),
-  crearEmpresa: (data: Record<string, unknown>) => request<{ id: string; nombre: string; codigo: string; activo: boolean; leadconnector_location_id: string | null; creado_en: string; actualizado_en: string }>('/api/empresas', { method: 'POST', body: JSON.stringify(data) }),
-  actualizarEmpresa: (id: string, data: Record<string, unknown>) => request<{ id: string; nombre: string; codigo: string; activo: boolean; leadconnector_location_id: string | null; creado_en: string; actualizado_en: string }>(`/api/empresas/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  getEmpresas: () => request<Array<{ id: string; nombre: string; codigo: string; activo: boolean; leadconnector_location_id: string | null; tema_acento: string | null; creado_en: string; actualizado_en: string }>>('/api/empresas'),
+  getMiEmpresa: () => request<{ id: string; nombre: string; codigo: string; activo: boolean; leadconnector_location_id: string | null; tema_acento: string | null; creado_en: string; actualizado_en: string } | null>('/api/empresas/mi'),
+  crearEmpresa: (data: Record<string, unknown>) => request<{ id: string; nombre: string; codigo: string; activo: boolean; leadconnector_location_id: string | null; tema_acento: string | null; creado_en: string; actualizado_en: string }>('/api/empresas', { method: 'POST', body: JSON.stringify(data) }),
+  actualizarEmpresa: (id: string, data: Record<string, unknown>) => request<{ id: string; nombre: string; codigo: string; activo: boolean; leadconnector_location_id: string | null; tema_acento: string | null; creado_en: string; actualizado_en: string }>(`/api/empresas/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 
   // Usuarios (admin)
   getUsuarios: (empresaId?: string) => request<Array<{ id: string; nombre: string; correo: string; rol: string; activo: boolean; creado_en: string }>>(`/api/auth/usuarios${empresaId ? `?empresa_id=${encodeURIComponent(empresaId)}` : ''}`),
