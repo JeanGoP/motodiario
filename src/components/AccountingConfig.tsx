@@ -152,7 +152,7 @@ export function AccountingConfig() {
       };
       await api.createContableRegla(payload);
       await loadAll();
-      alert('Regla guardada como nueva versión');
+      alert('Configuración contable guardada (nueva versión)');
     } catch (error: unknown) {
       alert('Error: ' + (error instanceof Error ? error.message : 'Ha ocurrido un error'));
     }
@@ -390,7 +390,7 @@ export function AccountingConfig() {
 
                 <button onClick={saveRegla} className="btn btn-primary w-full justify-center">
                   <Save className="w-4 h-4 mr-2" />
-                  Guardar nueva versión
+                  Guardar configuración contable
                 </button>
               </div>
             </div>
