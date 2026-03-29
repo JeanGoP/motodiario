@@ -363,7 +363,7 @@ router.post('/reglas', async (req, res) => {
         .input('empresa_id', sql.UniqueIdentifier, empresaId)
         .input('regla_version_id', sql.UniqueIdentifier, reglaId)
         .input('cuenta_id', sql.UniqueIdentifier, l.cuenta_id)
-        .input('movimiento', sql.NVarChar(6), l.movimiento)
+        .input('movimiento', sql.NVarChar(7), l.movimiento)
         .input('porcentaje', sql.Decimal(9, 4), l.porcentaje)
         .query(`
           INSERT INTO contable_regla_lineas (id, empresa_id, regla_version_id, cuenta_id, movimiento, porcentaje)
@@ -441,4 +441,3 @@ router.get('/asientos/:id/lineas', async (req, res) => {
 });
 
 export default router;
-

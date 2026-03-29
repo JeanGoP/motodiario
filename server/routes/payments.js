@@ -381,7 +381,7 @@ router.post('/', async (req, res) => {
             lineaRequest.input('linea_id', sql.UniqueIdentifier, randomUUID());
             lineaRequest.input('asiento_id', sql.UniqueIdentifier, asientoId);
             lineaRequest.input('cuenta_id', sql.UniqueIdentifier, l.cuenta_id);
-            lineaRequest.input('movimiento', sql.NVarChar(6), l.movimiento);
+            lineaRequest.input('movimiento', sql.NVarChar(7), l.movimiento);
             lineaRequest.input('porcentaje', sql.Decimal(9, 4), l.porcentaje);
             lineaRequest.input('valor', sql.Decimal(18, 2), l.valor);
             await lineaRequest.query(`

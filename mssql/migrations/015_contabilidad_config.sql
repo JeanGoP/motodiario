@@ -55,11 +55,17 @@ BEGIN
     [empresa_id] uniqueidentifier NOT NULL,
     [regla_version_id] uniqueidentifier NOT NULL,
     [cuenta_id] uniqueidentifier NOT NULL,
-    [movimiento] nvarchar(6) NOT NULL,
+    [movimiento] nvarchar(7) NOT NULL,
     [porcentaje] decimal(9,4) NOT NULL,
     [creado_en] datetimeoffset NOT NULL DEFAULT SYSDATETIMEOFFSET(),
     CONSTRAINT [PK_contable_regla_lineas] PRIMARY KEY ([id])
   );
+END
+
+IF OBJECT_ID(N'[dbo].[contable_regla_lineas]', N'U') IS NOT NULL
+BEGIN
+  IF COL_LENGTH('dbo.contable_regla_lineas', 'movimiento') = 12
+    EXEC sp_executesql N'ALTER TABLE dbo.contable_regla_lineas ALTER COLUMN movimiento nvarchar(7) NOT NULL;';
 END
 
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_contable_regla_lineas_empresa')
@@ -118,12 +124,18 @@ BEGIN
     [empresa_id] uniqueidentifier NOT NULL,
     [asiento_id] uniqueidentifier NOT NULL,
     [cuenta_id] uniqueidentifier NOT NULL,
-    [movimiento] nvarchar(6) NOT NULL,
+    [movimiento] nvarchar(7) NOT NULL,
     [porcentaje] decimal(9,4) NOT NULL,
     [valor] decimal(18,2) NOT NULL,
     [creado_en] datetimeoffset NOT NULL DEFAULT SYSDATETIMEOFFSET(),
     CONSTRAINT [PK_contable_asiento_lineas] PRIMARY KEY ([id])
   );
+END
+
+IF OBJECT_ID(N'[dbo].[contable_asiento_lineas]', N'U') IS NOT NULL
+BEGIN
+  IF COL_LENGTH('dbo.contable_asiento_lineas', 'movimiento') = 12
+    EXEC sp_executesql N'ALTER TABLE dbo.contable_asiento_lineas ALTER COLUMN movimiento nvarchar(7) NOT NULL;';
 END
 
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_contable_asiento_lineas_empresa')
@@ -144,4 +156,3 @@ IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_contable_asi
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_contable_asiento_lineas_asiento' AND object_id = OBJECT_ID(N'dbo.contable_asiento_lineas'))
   CREATE INDEX idx_contable_asiento_lineas_asiento ON dbo.contable_asiento_lineas(empresa_id, asiento_id);
-
