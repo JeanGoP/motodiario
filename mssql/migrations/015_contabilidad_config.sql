@@ -129,6 +129,10 @@ IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_contable_asientos
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_contable_asientos_origen' AND object_id = OBJECT_ID(N'dbo.contable_asientos'))
   CREATE INDEX idx_contable_asientos_origen ON dbo.contable_asientos(empresa_id, origen, origen_id);
 
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_contable_asientos_fecha' AND object_id = OBJECT_ID(N'dbo.contable_asientos'))
+  CREATE INDEX idx_contable_asientos_fecha ON dbo.contable_asientos(empresa_id, fecha DESC, id)
+  INCLUDE (origen, origen_id, regla_version_id, descripcion, creado_en);
+
 IF OBJECT_ID(N'[dbo].[contable_asiento_lineas]', N'U') IS NULL
 BEGIN
   CREATE TABLE [dbo].[contable_asiento_lineas] (

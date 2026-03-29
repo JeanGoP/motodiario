@@ -409,7 +409,7 @@ router.get('/asientos', async (req, res) => {
       request.input('origen_id', sql.UniqueIdentifier, origenId);
       q += ` AND origen_id = @origen_id`;
     }
-    q += ` ORDER BY creado_en DESC`;
+    q += ` ORDER BY fecha DESC, id DESC`;
     const r = await request.query(q);
     res.json(r.recordset);
   } catch (err) {
