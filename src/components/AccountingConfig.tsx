@@ -11,6 +11,12 @@ type LineaDraft = {
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const round4 = (n: number) => Math.round(n * 10_000) / 10_000;
 
+const TIPO_CUOTA_OPTIONS = [
+  { value: 'CUOTA', label: 'CUOTA (Pago de motos)' },
+  { value: 'ANTICIPO', label: 'ANTICIPO (Recibo de caja)' },
+  { value: 'RECIBO', label: 'RECIBO (Recibo de caja)' }
+] as const;
+
 const computePreview = (monto: number, lineas: LineaDraft[]) => {
   const rows = lineas
     .filter((l) => l.cuenta_id && l.porcentaje > 0)
@@ -271,7 +277,11 @@ export function AccountingConfig() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="input-label">Tipo de cuota</label>
-                    <input className="input-field font-mono" value={tipoCuota} onChange={(e) => setTipoCuota(e.target.value)} />
+                    <select className="input-field font-mono" value={tipoCuota} onChange={(e) => setTipoCuota(e.target.value)}>
+                      {TIPO_CUOTA_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="input-label">Monto de ejemplo</label>
