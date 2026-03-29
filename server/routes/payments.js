@@ -377,12 +377,13 @@ router.post('/', async (req, res) => {
       asientoRequest.input('asiento_id', sql.UniqueIdentifier, asientoId);
       asientoRequest.input('origen', sql.NVarChar(32), 'PAGO');
       asientoRequest.input('origen_id', sql.UniqueIdentifier, paymentId);
+      asientoRequest.input('asociado_id', sql.UniqueIdentifier, asociado_id);
       asientoRequest.input('regla_version_id', sql.UniqueIdentifier, regla.id);
       asientoRequest.input('fecha', sql.NVarChar(10), payment_date);
       asientoRequest.input('descripcion', sql.NVarChar(255), descripcion);
       await asientoRequest.query(`
-          INSERT INTO contable_asientos (id, empresa_id, origen, origen_id, regla_version_id, fecha, descripcion, creado_en)
-          VALUES (@asiento_id, @empresa_id, @origen, @origen_id, @regla_version_id, CONVERT(date, @fecha), @descripcion, SYSDATETIMEOFFSET())
+          INSERT INTO contable_asientos (id, empresa_id, origen, origen_id, asociado_id, regla_version_id, fecha, descripcion, creado_en)
+          VALUES (@asiento_id, @empresa_id, @origen, @origen_id, @asociado_id, @regla_version_id, CONVERT(date, @fecha), @descripcion, SYSDATETIMEOFFSET())
         `);
 
       for (const l of computed.data) {
