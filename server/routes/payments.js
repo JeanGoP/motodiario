@@ -349,47 +349,55 @@ router.post('/', async (req, res) => {
         ORDER BY version DESC
       `);
       const regla = reglaActiva.recordset?.[0] || null;
-      if (regla) {
-        const reglaLineasRequest = new sql.Request(transaction);
-        reglaLineasRequest.input('empresa_id', sql.UniqueIdentifier, empresaId);
-        reglaLineasRequest.input('regla_id', sql.UniqueIdentifier, regla.id);
-        const reglaLineas = await reglaLineasRequest.query(`
-          SELECT cuenta_id, movimiento, porcentaje
-          FROM contable_regla_lineas
-          WHERE empresa_id = @empresa_id AND regla_version_id = @regla_id
-        `);
-        const computed = computeAsiento({ monto: amount, lineas: reglaLineas.recordset || [] });
-        if (computed.ok) {
-          const asientoId = randomUUID();
-          const descripcion = installment_number ? `Pago cuota ${installment_number} (${receipt_number})` : `Pago cuota (${receipt_number})`;
-          const asientoRequest = new sql.Request(transaction);
-          asientoRequest.input('empresa_id', sql.UniqueIdentifier, empresaId);
-          asientoRequest.input('asiento_id', sql.UniqueIdentifier, asientoId);
-          asientoRequest.input('origen', sql.NVarChar(32), 'PAGO');
-          asientoRequest.input('origen_id', sql.UniqueIdentifier, paymentId);
-          asientoRequest.input('regla_version_id', sql.UniqueIdentifier, regla.id);
-          asientoRequest.input('fecha', sql.NVarChar(10), payment_date);
-          asientoRequest.input('descripcion', sql.NVarChar(255), descripcion);
-          await asientoRequest.query(`
-              INSERT INTO contable_asientos (id, empresa_id, origen, origen_id, regla_version_id, fecha, descripcion, creado_en)
-              VALUES (@asiento_id, @empresa_id, @origen, @origen_id, @regla_version_id, CONVERT(date, @fecha), @descripcion, SYSDATETIMEOFFSET())
-            `);
+      if (!regla) {
+        await transaction.rollback();
+        res.status(409).json({ error: 'No existe configuración contable activa para CUOTA' });
+        return;
+      }
 
-          for (const l of computed.data) {
-            const lineaRequest = new sql.Request(transaction);
-            lineaRequest.input('empresa_id', sql.UniqueIdentifier, empresaId);
-            lineaRequest.input('linea_id', sql.UniqueIdentifier, randomUUID());
-            lineaRequest.input('asiento_id', sql.UniqueIdentifier, asientoId);
-            lineaRequest.input('cuenta_id', sql.UniqueIdentifier, l.cuenta_id);
-            lineaRequest.input('movimiento', sql.NVarChar(7), l.movimiento);
-            lineaRequest.input('porcentaje', sql.Decimal(9, 4), l.porcentaje);
-            lineaRequest.input('valor', sql.Decimal(18, 2), l.valor);
-            await lineaRequest.query(`
-                INSERT INTO contable_asiento_lineas (id, empresa_id, asiento_id, cuenta_id, movimiento, porcentaje, valor, creado_en)
-                VALUES (@linea_id, @empresa_id, @asiento_id, @cuenta_id, @movimiento, @porcentaje, @valor, SYSDATETIMEOFFSET())
-              `);
-          }
-        }
+      const reglaLineasRequest = new sql.Request(transaction);
+      reglaLineasRequest.input('empresa_id', sql.UniqueIdentifier, empresaId);
+      reglaLineasRequest.input('regla_id', sql.UniqueIdentifier, regla.id);
+      const reglaLineas = await reglaLineasRequest.query(`
+        SELECT cuenta_id, movimiento, porcentaje
+        FROM contable_regla_lineas
+        WHERE empresa_id = @empresa_id AND regla_version_id = @regla_id
+      `);
+      const computed = computeAsiento({ monto: amount, lineas: reglaLineas.recordset || [] });
+      if (!computed.ok) {
+        await transaction.rollback();
+        res.status(computed.status || 400).json({ error: computed.error || 'Configuración contable inválida' });
+        return;
+      }
+
+      const asientoId = randomUUID();
+      const descripcion = installment_number ? `Pago cuota ${installment_number} (${receipt_number})` : `Pago cuota (${receipt_number})`;
+      const asientoRequest = new sql.Request(transaction);
+      asientoRequest.input('empresa_id', sql.UniqueIdentifier, empresaId);
+      asientoRequest.input('asiento_id', sql.UniqueIdentifier, asientoId);
+      asientoRequest.input('origen', sql.NVarChar(32), 'PAGO');
+      asientoRequest.input('origen_id', sql.UniqueIdentifier, paymentId);
+      asientoRequest.input('regla_version_id', sql.UniqueIdentifier, regla.id);
+      asientoRequest.input('fecha', sql.NVarChar(10), payment_date);
+      asientoRequest.input('descripcion', sql.NVarChar(255), descripcion);
+      await asientoRequest.query(`
+          INSERT INTO contable_asientos (id, empresa_id, origen, origen_id, regla_version_id, fecha, descripcion, creado_en)
+          VALUES (@asiento_id, @empresa_id, @origen, @origen_id, @regla_version_id, CONVERT(date, @fecha), @descripcion, SYSDATETIMEOFFSET())
+        `);
+
+      for (const l of computed.data) {
+        const lineaRequest = new sql.Request(transaction);
+        lineaRequest.input('empresa_id', sql.UniqueIdentifier, empresaId);
+        lineaRequest.input('linea_id', sql.UniqueIdentifier, randomUUID());
+        lineaRequest.input('asiento_id', sql.UniqueIdentifier, asientoId);
+        lineaRequest.input('cuenta_id', sql.UniqueIdentifier, l.cuenta_id);
+        lineaRequest.input('movimiento', sql.NVarChar(7), l.movimiento);
+        lineaRequest.input('porcentaje', sql.Decimal(9, 4), l.porcentaje);
+        lineaRequest.input('valor', sql.Decimal(18, 2), l.valor);
+        await lineaRequest.query(`
+            INSERT INTO contable_asiento_lineas (id, empresa_id, asiento_id, cuenta_id, movimiento, porcentaje, valor, creado_en)
+            VALUES (@linea_id, @empresa_id, @asiento_id, @cuenta_id, @movimiento, @porcentaje, @valor, SYSDATETIMEOFFSET())
+          `);
       }
     }
     
