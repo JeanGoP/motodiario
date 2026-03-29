@@ -149,13 +149,12 @@ router.post('/', async (req, res) => {
       asientoRequest.input('asiento_id', sql.UniqueIdentifier, asientoId);
       asientoRequest.input('origen', sql.NVarChar(32), 'RECIBO_CAJA');
       asientoRequest.input('origen_id', sql.UniqueIdentifier, receiptId);
-      asientoRequest.input('asociado_id', sql.UniqueIdentifier, asociado_id);
       asientoRequest.input('regla_version_id', sql.UniqueIdentifier, regla.id);
       asientoRequest.input('fecha', sql.Date, fecha);
       asientoRequest.input('descripcion', sql.NVarChar(255), descripcion);
       await asientoRequest.query(`
-        INSERT INTO contable_asientos (id, empresa_id, origen, origen_id, asociado_id, regla_version_id, fecha, descripcion, creado_en)
-        VALUES (@asiento_id, @empresa_id, @origen, @origen_id, @asociado_id, @regla_version_id, @fecha, @descripcion, SYSDATETIMEOFFSET())
+        INSERT INTO contable_asientos (id, empresa_id, origen, origen_id, regla_version_id, fecha, descripcion, creado_en)
+        VALUES (@asiento_id, @empresa_id, @origen, @origen_id, @regla_version_id, @fecha, @descripcion, SYSDATETIMEOFFSET())
       `);
 
       for (const l of computed.data) {
@@ -163,13 +162,14 @@ router.post('/', async (req, res) => {
         lineaRequest.input('empresa_id', sql.UniqueIdentifier, empresaId);
         lineaRequest.input('linea_id', sql.UniqueIdentifier, randomUUID());
         lineaRequest.input('asiento_id', sql.UniqueIdentifier, asientoId);
+        lineaRequest.input('asociado_id', sql.UniqueIdentifier, asociado_id);
         lineaRequest.input('cuenta_id', sql.UniqueIdentifier, l.cuenta_id);
         lineaRequest.input('movimiento', sql.NVarChar(7), l.movimiento);
         lineaRequest.input('porcentaje', sql.Decimal(9, 4), l.porcentaje);
         lineaRequest.input('valor', sql.Decimal(18, 2), l.valor);
         await lineaRequest.query(`
-          INSERT INTO contable_asiento_lineas (id, empresa_id, asiento_id, cuenta_id, movimiento, porcentaje, valor, creado_en)
-          VALUES (@linea_id, @empresa_id, @asiento_id, @cuenta_id, @movimiento, @porcentaje, @valor, SYSDATETIMEOFFSET())
+          INSERT INTO contable_asiento_lineas (id, empresa_id, asiento_id, asociado_id, cuenta_id, movimiento, porcentaje, valor, creado_en)
+          VALUES (@linea_id, @empresa_id, @asiento_id, @asociado_id, @cuenta_id, @movimiento, @porcentaje, @valor, SYSDATETIMEOFFSET())
         `);
       }
     }

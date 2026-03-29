@@ -98,7 +98,6 @@ BEGIN
     [empresa_id] uniqueidentifier NOT NULL,
     [origen] nvarchar(32) NOT NULL,
     [origen_id] uniqueidentifier NOT NULL,
-    [asociado_id] uniqueidentifier NULL,
     [regla_version_id] uniqueidentifier NULL,
     [fecha] date NOT NULL,
     [descripcion] nvarchar(255) NULL,
@@ -109,18 +108,19 @@ END
 
 IF OBJECT_ID(N'[dbo].[contable_asientos]', N'U') IS NOT NULL
 BEGIN
-  IF COL_LENGTH('dbo.contable_asientos', 'asociado_id') IS NULL
-    ALTER TABLE dbo.contable_asientos ADD asociado_id uniqueidentifier NULL;
+  IF COL_LENGTH('dbo.contable_asientos', 'asociado_id') IS NOT NULL
+  BEGIN
+    IF EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_contable_asientos_asociado')
+      ALTER TABLE dbo.contable_asientos DROP CONSTRAINT FK_contable_asientos_asociado;
+    IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_contable_asientos_asociado' AND object_id = OBJECT_ID(N'dbo.contable_asientos'))
+      DROP INDEX idx_contable_asientos_asociado ON dbo.contable_asientos;
+    ALTER TABLE dbo.contable_asientos DROP COLUMN asociado_id;
+  END
 END
 
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_contable_asientos_empresa')
   ALTER TABLE dbo.contable_asientos
     ADD CONSTRAINT FK_contable_asientos_empresa FOREIGN KEY (empresa_id) REFERENCES dbo.empresas(id);
-
-IF OBJECT_ID(N'[dbo].[asociados]', N'U') IS NOT NULL
-  AND NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_contable_asientos_asociado')
-  ALTER TABLE dbo.contable_asientos
-    ADD CONSTRAINT FK_contable_asientos_asociado FOREIGN KEY (asociado_id) REFERENCES dbo.asociados(id);
 
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_contable_asientos_regla')
   ALTER TABLE dbo.contable_asientos
@@ -129,15 +129,13 @@ IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_contable_asientos
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_contable_asientos_origen' AND object_id = OBJECT_ID(N'dbo.contable_asientos'))
   CREATE INDEX idx_contable_asientos_origen ON dbo.contable_asientos(empresa_id, origen, origen_id);
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_contable_asientos_asociado' AND object_id = OBJECT_ID(N'dbo.contable_asientos'))
-  CREATE INDEX idx_contable_asientos_asociado ON dbo.contable_asientos(empresa_id, asociado_id);
-
 IF OBJECT_ID(N'[dbo].[contable_asiento_lineas]', N'U') IS NULL
 BEGIN
   CREATE TABLE [dbo].[contable_asiento_lineas] (
     [id] uniqueidentifier NOT NULL DEFAULT NEWID(),
     [empresa_id] uniqueidentifier NOT NULL,
     [asiento_id] uniqueidentifier NOT NULL,
+    [asociado_id] uniqueidentifier NULL,
     [cuenta_id] uniqueidentifier NOT NULL,
     [movimiento] nvarchar(7) NOT NULL,
     [porcentaje] decimal(9,4) NOT NULL,
@@ -149,6 +147,8 @@ END
 
 IF OBJECT_ID(N'[dbo].[contable_asiento_lineas]', N'U') IS NOT NULL
 BEGIN
+  IF COL_LENGTH('dbo.contable_asiento_lineas', 'asociado_id') IS NULL
+    ALTER TABLE dbo.contable_asiento_lineas ADD asociado_id uniqueidentifier NULL;
   IF COL_LENGTH('dbo.contable_asiento_lineas', 'movimiento') = 12
     EXEC sp_executesql N'ALTER TABLE dbo.contable_asiento_lineas ALTER COLUMN movimiento nvarchar(7) NOT NULL;';
 END
@@ -165,9 +165,17 @@ IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_contable_asiento_
   ALTER TABLE dbo.contable_asiento_lineas
     ADD CONSTRAINT FK_contable_asiento_lineas_cuenta FOREIGN KEY (cuenta_id) REFERENCES dbo.contable_cuentas(id);
 
+IF OBJECT_ID(N'[dbo].[asociados]', N'U') IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_contable_asiento_lineas_asociado')
+  ALTER TABLE dbo.contable_asiento_lineas
+    ADD CONSTRAINT FK_contable_asiento_lineas_asociado FOREIGN KEY (asociado_id) REFERENCES dbo.asociados(id);
+
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_contable_asiento_lineas_movimiento' AND parent_object_id = OBJECT_ID(N'dbo.contable_asiento_lineas'))
   ALTER TABLE dbo.contable_asiento_lineas
     ADD CONSTRAINT CK_contable_asiento_lineas_movimiento CHECK (movimiento IN (N'DEBITO', N'CREDITO'));
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_contable_asiento_lineas_asiento' AND object_id = OBJECT_ID(N'dbo.contable_asiento_lineas'))
   CREATE INDEX idx_contable_asiento_lineas_asiento ON dbo.contable_asiento_lineas(empresa_id, asiento_id);
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_contable_asiento_lineas_asociado' AND object_id = OBJECT_ID(N'dbo.contable_asiento_lineas'))
+  CREATE INDEX idx_contable_asiento_lineas_asociado ON dbo.contable_asiento_lineas(empresa_id, asociado_id);
