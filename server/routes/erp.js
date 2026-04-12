@@ -208,7 +208,7 @@ router.post('/contabilizar-recibo/:id', async (req, res) => {
         CentroCosto: centroCostoDocumento,
         Concepto: "",
         Cuenta: String(l.cuenta_codigo || "").trim(),
-        Tercero: String(l.tercero_documento || "").trim(),
+        Tercero: "1082889414", // TEMPORAL: Prueba para verificar si el error es por tercero faltante
         Factura: "",
         Vencimiento: "",
         Valor: l.movimiento === 'CREDITO' ? -Number(l.valor) : Number(l.valor),
