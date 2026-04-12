@@ -47,7 +47,7 @@ const resolveEmpresaForRequest = async (pool, payload, reqEmpresaId) => {
   const defaultEmpresaId = await getDefaultEmpresaId(pool);
   const superOk = await isSuperAdmin(pool, String(payload.sub), defaultEmpresaId);
   if (superOk) return { ok: true, empresaId: reqEmpresaId, isSuperAdmin: true };
-  if (!tokenEmpresaId || tokenEmpresaId !== reqEmpresaId) return { ok: false, status: 403, error: 'No autorizado' };
+  if (tokenEmpresaId && tokenEmpresaId !== reqEmpresaId) return { ok: false, status: 403, error: 'No autorizado' };
   return { ok: true, empresaId: reqEmpresaId, isSuperAdmin: false };
 };
 
