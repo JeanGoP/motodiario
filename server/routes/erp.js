@@ -198,16 +198,17 @@ router.post('/contabilizar-recibo/:id', async (req, res) => {
     }
 
     // 3. Formar JSON ERP
+    const centroCostoDocumento = "01";
     const payloadERP = {
       TipoDocumento: "NOTA CONTABLE",
-      CentroCosto: "01",
+      CentroCosto: centroCostoDocumento,
       FechaDoc: new Date(asiento.fecha).toISOString().split('T')[0],
       Descripcion: asiento.descripcion || "Contabilización de recibo",
       Detalle: lineas.map(l => ({
-        CentroCosto: "68",
+        CentroCosto: centroCostoDocumento,
         Concepto: "",
-        Cuenta: l.cuenta_codigo || "",
-        Tercero: l.tercero_documento || "",
+        Cuenta: String(l.cuenta_codigo || "").trim(),
+        Tercero: String(l.tercero_documento || "").trim(),
         Factura: "",
         Vencimiento: "",
         Valor: l.movimiento === 'CREDITO' ? -Number(l.valor) : Number(l.valor),
