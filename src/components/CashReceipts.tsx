@@ -95,6 +95,7 @@ export function CashReceipts() {
 
   const handleContabilizarERP = async (id: string) => {
     if (!confirm('¿Seguro que deseas enviar este recibo al ERP?')) return;
+    console.log('[ERP] Click contabilizar (v3)', { id });
     try {
       const result = await api.contabilizarReciboERP(id);
       console.log('[ERP] Payload:', result.payload);
