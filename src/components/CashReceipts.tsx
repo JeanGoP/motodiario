@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api, type CashReceipt } from '../lib/api';
 import { Asociado } from '../types/database';
-import { Plus, Printer, FileText, Search, Calendar, X } from 'lucide-react';
+import { Plus, Printer, FileText, Search, Calendar, X, Send } from 'lucide-react';
 import { printCashReceipt } from '../utils/printCashReceipt';
 
 const getBogotaDateOnly = (date: Date = new Date()) =>
@@ -93,6 +93,16 @@ export function CashReceipts() {
     }
   };
 
+  const handleContabilizarERP = async (id: string) => {
+    if (!confirm('¿Seguro que deseas enviar este recibo al ERP?')) return;
+    try {
+      const result = await api.contabilizarReciboERP(id);
+      alert('Recibo contabilizado en el ERP con éxito!\n' + JSON.stringify(result.erpResponse, null, 2));
+    } catch (error: unknown) {
+      alert('Error al contabilizar en ERP: ' + (error instanceof Error ? error.message : 'Ha ocurrido un error'));
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       asociado_id: '',
@@ -181,6 +191,13 @@ export function CashReceipts() {
                     {receipt.observaciones || '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <button
+                      onClick={() => handleContabilizarERP(receipt.id)}
+                      className="text-slate-400 hover:text-blue-600 transition-colors p-2 hover:bg-blue-50 rounded-lg mr-1"
+                      title="Contabilizar en ERP"
+                    >
+                      <Send className="w-4 h-4" />
+                    </button>
                     <button
                       onClick={() => printCashReceipt({
                         receipt_number: 'N/A',

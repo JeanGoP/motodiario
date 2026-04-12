@@ -215,6 +215,7 @@ export const api = {
     return request<CashReceipt[]>(`/api/recibos_caja?${params.toString()}`, { useCache: true });
   },
   createCashReceipt: (data: Record<string, unknown>) => request<CashReceipt>('/api/recibos_caja', { method: 'POST', body: JSON.stringify(data) }),
+  contabilizarReciboERP: (id: string) => request<{ success: boolean; erpResponse: unknown }>(`/api/erp/contabilizar-recibo/${id}`, { method: 'POST' }),
 
   // Notifications
   getNotifications: () => request<Notification[]>('/api/notifications', { useCache: true }),
