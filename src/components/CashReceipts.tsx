@@ -97,7 +97,7 @@ export function CashReceipts() {
     if (!confirm('¿Seguro que deseas enviar este recibo al ERP?')) return;
     try {
       const result = await api.contabilizarReciboERP(id);
-      alert('Recibo contabilizado en el ERP con éxito!\n' + JSON.stringify(result.erpResponse, null, 2));
+      alert(JSON.stringify(result.payload ?? result, null, 2));
     } catch (error: unknown) {
       alert('Error al contabilizar en ERP: ' + (error instanceof Error ? error.message : 'Ha ocurrido un error'));
     }

@@ -178,16 +178,24 @@ router.post('/contabilizar-recibo/:id', async (req, res) => {
 
     // 2. Obtener lineas del asiento
     const lineasResult = await pool.request()
+      .input('empresa_id', sql.UniqueIdentifier, empresaId)
       .input('asiento_id', sql.UniqueIdentifier, asiento.id)
       .query(`
-        SELECT l.movimiento, l.valor, c.codigo as cuenta_codigo, asoc.documento as tercero_documento
+        SELECT l.cuenta_id, l.movimiento, l.valor, c.codigo as cuenta_codigo, asoc.documento as tercero_documento
         FROM contable_asiento_lineas l
-        JOIN contable_cuentas c ON l.cuenta_id = c.id
-        LEFT JOIN asociados asoc ON l.asociado_id = asoc.id
-        WHERE l.asiento_id = @asiento_id
+        JOIN contable_cuentas c ON l.cuenta_id = c.id AND c.empresa_id = l.empresa_id
+        LEFT JOIN asociados asoc ON l.asociado_id = asoc.id AND asoc.empresa_id = l.empresa_id
+        WHERE l.empresa_id = @empresa_id AND l.asiento_id = @asiento_id
       `);
     const lineas = lineasResult.recordset || [];
     if (!lineas.length) return res.status(400).json({ error: 'El asiento no tiene líneas configuradas' });
+    const missingCuenta = lineas.find((l) => !String(l.cuenta_codigo || '').trim());
+    if (missingCuenta) {
+      return res.status(409).json({
+        error: 'Falta el código contable de una cuenta usada en el asiento',
+        details: { cuenta_id: String(missingCuenta.cuenta_id || '') }
+      });
+    }
 
     // 3. Formar JSON ERP
     const payloadERP = {
@@ -206,6 +214,11 @@ router.post('/contabilizar-recibo/:id', async (req, res) => {
         Detalle: l.movimiento === 'DEBITO' ? 'Ingreso' : 'Salida'
       }))
     };
+
+    const preview = String(req.query?.preview || '').trim().toLowerCase();
+    if (preview === '1' || preview === 'true') {
+      return res.status(200).json({ success: true, preview: true, payload: payloadERP });
+    }
 
     // 4. Enviar a ERP
     const controller = new AbortController();
@@ -230,10 +243,10 @@ router.post('/contabilizar-recibo/:id', async (req, res) => {
     }
 
     if (!upstream.ok) {
-      return res.status(upstream.status).json({ error: 'Error del ERP', details: responseData });
+      return res.status(upstream.status).json({ error: 'Error del ERP', payload: payloadERP, details: responseData });
     }
 
-    return res.status(200).json({ success: true, erpResponse: responseData });
+    return res.status(200).json({ success: true, payload: payloadERP, erpResponse: responseData });
 
   } catch (err) {
     if (String(err?.name) === 'AbortError') return res.status(504).json({ error: 'Tiempo de espera agotado al contactar ERP' });
