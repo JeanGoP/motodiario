@@ -181,11 +181,19 @@ router.post('/contabilizar-recibo/:id', async (req, res) => {
       .input('empresa_id', sql.UniqueIdentifier, empresaId)
       .input('asiento_id', sql.UniqueIdentifier, asiento.id)
       .query(`
-        SELECT l.cuenta_id, l.movimiento, l.valor, c.codigo as cuenta_codigo, asoc.documento as tercero_documento
+        SELECT
+          l.cuenta_id,
+          l.movimiento,
+          l.valor,
+          c.codigo as cuenta_codigo,
+          asoc.documento as tercero_documento,
+          cc.codigo as centro_costo_codigo
         FROM contable_asiento_lineas l
         JOIN contable_cuentas c ON l.cuenta_id = c.id AND c.empresa_id = l.empresa_id
         LEFT JOIN asociados asoc ON l.asociado_id = asoc.id AND asoc.empresa_id = l.empresa_id
+        LEFT JOIN centros_costo cc ON asoc.centro_costo_id = cc.id
         WHERE l.empresa_id = @empresa_id AND l.asiento_id = @asiento_id
+        ORDER BY CASE WHEN l.movimiento = 'DEBITO' THEN 0 ELSE 1 END, l.creado_en ASC
       `);
     const lineas = lineasResult.recordset || [];
     if (!lineas.length) return res.status(400).json({ error: 'El asiento no tiene líneas configuradas' });
@@ -205,13 +213,13 @@ router.post('/contabilizar-recibo/:id', async (req, res) => {
       FechaDoc: new Date(asiento.fecha).toISOString().split('T')[0],
       Descripcion: asiento.descripcion || "Contabilización de recibo",
       Detalle: lineas.map(l => ({
-        CentroCosto: centroCostoDocumento,
+        CentroCosto: String(l.centro_costo_codigo || centroCostoDocumento || '').trim(),
         Concepto: "",
         Cuenta: String(l.cuenta_codigo || "").trim(),
-        Tercero: "1082889414", // TEMPORAL: Prueba para verificar si el error es por tercero faltante
+        Tercero: String(l.tercero_documento || "").trim(),
         Factura: "",
         Vencimiento: "",
-        Valor: l.movimiento === 'CREDITO' ? -Number(l.valor) : Number(l.valor),
+        Valor: Math.abs(Number(l.valor)),
         Detalle: l.movimiento === 'DEBITO' ? 'Ingreso' : 'Salida'
       }))
     };
