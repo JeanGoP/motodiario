@@ -242,8 +242,22 @@ router.post('/contabilizar-recibo/:id', async (req, res) => {
       try { responseData = JSON.parse(text || 'null'); } catch {}
     }
 
+    const isErpBusinessError = (() => {
+      if (!responseData || typeof responseData !== 'object') return false;
+      const r = responseData;
+      if (typeof r?.Error === 'boolean') return r.Error;
+      if (typeof r?.error === 'boolean') return r.error;
+      if (typeof r?.Error === 'string') return r.Error.trim().toLowerCase() === 'true';
+      if (typeof r?.error === 'string') return r.error.trim().toLowerCase() === 'true';
+      return false;
+    })();
+
     if (!upstream.ok) {
       return res.status(upstream.status).json({ error: 'Error del ERP', payload: payloadERP, details: responseData });
+    }
+
+    if (isErpBusinessError) {
+      return res.status(502).json({ error: 'Error del ERP', payload: payloadERP, details: responseData });
     }
 
     return res.status(200).json({ success: true, payload: payloadERP, erpResponse: responseData });
