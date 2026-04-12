@@ -13,6 +13,7 @@ import deactivationsRouter from './routes/deactivations.js';
 import authRouter from './routes/auth.js';
 import empresasRouter from './routes/empresas.js';
 import accountingRouter from './routes/accounting.js';
+import erpRouter from './routes/erp.js';
 import { getPool } from './db.js';
 
 const app = express();
@@ -104,6 +105,7 @@ apiRouter.use('/recibos_caja', cashReceiptsRouter);
 apiRouter.use('/notifications', notificationsRouter);
 apiRouter.use('/deactivations', deactivationsRouter);
 apiRouter.use('/contabilidad', accountingRouter);
+apiRouter.use('/erp', erpRouter);
 
 // Montar el router en /api (para desarrollo local)
 app.use('/api', apiRouter);
