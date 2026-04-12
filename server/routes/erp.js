@@ -117,7 +117,26 @@ router.post('/crear-comprobante', async (req, res) => {
     const contentType = upstream.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
       try {
-        return res.status(upstream.status).json(JSON.parse(text || 'null'));
+        const responseData = JSON.parse(text || 'null');
+        const isErpBusinessError = (() => {
+          if (!responseData || typeof responseData !== 'object') return false;
+          const r = responseData;
+          if (typeof r?.Error === 'boolean') return r.Error;
+          if (typeof r?.error === 'boolean') return r.error;
+          if (typeof r?.Error === 'string') return r.Error.trim().toLowerCase() === 'true';
+          if (typeof r?.error === 'string') return r.error.trim().toLowerCase() === 'true';
+          return false;
+        })();
+
+        if (!upstream.ok) {
+          return res.status(upstream.status).json({ error: 'Error del ERP', payload: req.body ?? {}, details: responseData });
+        }
+
+        if (isErpBusinessError) {
+          return res.status(502).json({ error: 'Error del ERP', payload: req.body ?? {}, details: responseData });
+        }
+
+        return res.status(upstream.status).json(responseData);
       } catch {
         return res.status(upstream.status).send(text);
       }
@@ -147,6 +166,8 @@ router.post('/contabilizar-recibo/:id', async (req, res) => {
       const userOk = await ensureUserActiveInEmpresa(pool, String(payload.sub), empresaId);
       if (!userOk) return res.status(403).json({ error: 'Usuario no pertenece a la empresa seleccionada o está inactivo' });
     }
+
+    const terceroOverride = String(req.query?.tercero || '').trim();
 
     const cfg = await pool.request()
       .input('id', sql.UniqueIdentifier, empresaId)
@@ -182,6 +203,8 @@ router.post('/contabilizar-recibo/:id', async (req, res) => {
       .input('asiento_id', sql.UniqueIdentifier, asiento.id)
       .query(`
         SELECT
+          l.id as linea_id,
+          l.asociado_id,
           l.cuenta_id,
           l.movimiento,
           l.valor,
@@ -191,7 +214,7 @@ router.post('/contabilizar-recibo/:id', async (req, res) => {
         FROM contable_asiento_lineas l
         JOIN contable_cuentas c ON l.cuenta_id = c.id AND c.empresa_id = l.empresa_id
         LEFT JOIN asociados asoc ON l.asociado_id = asoc.id AND asoc.empresa_id = l.empresa_id
-        LEFT JOIN centros_costo cc ON asoc.centro_costo_id = cc.id
+        LEFT JOIN centros_costo cc ON asoc.centro_costo_id = cc.id AND cc.empresa_id = l.empresa_id
         WHERE l.empresa_id = @empresa_id AND l.asiento_id = @asiento_id
         ORDER BY CASE WHEN l.movimiento = 'DEBITO' THEN 0 ELSE 1 END, l.creado_en ASC
       `);
@@ -205,6 +228,19 @@ router.post('/contabilizar-recibo/:id', async (req, res) => {
       });
     }
 
+    if (!terceroOverride) {
+      const missingTercero = lineas.find((l) => !String(l.tercero_documento || '').trim());
+      if (missingTercero) {
+        return res.status(409).json({
+          error: 'Falta el tercero (documento) en una línea del asiento',
+          details: {
+            linea_id: String(missingTercero.linea_id || ''),
+            asociado_id: missingTercero.asociado_id ? String(missingTercero.asociado_id) : null
+          }
+        });
+      }
+    }
+
     // 3. Formar JSON ERP
     const centroCostoDocumento = "01";
     const payloadERP = {
@@ -216,11 +252,11 @@ router.post('/contabilizar-recibo/:id', async (req, res) => {
         CentroCosto: String(l.centro_costo_codigo || centroCostoDocumento || '').trim(),
         Concepto: "",
         Cuenta: String(l.cuenta_codigo || "").trim(),
-        Tercero: String(l.tercero_documento || "").trim(),
+        Tercero: terceroOverride || String(l.tercero_documento || "").trim(),
         Factura: "",
         Vencimiento: "",
         Valor: Math.abs(Number(l.valor)),
-        Detalle: l.movimiento === 'DEBITO' ? 'Ingreso' : 'Salida'
+        Detalle: l.movimiento === 'DEBITO' ? 'Pago capital' : 'Salida banco'
       }))
     };
 

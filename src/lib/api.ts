@@ -77,9 +77,27 @@ async function request<T = unknown>(path: string, options?: RequestInit & { useC
         try {
           errorBody = await res.json();
           if (isDev) console.error('[API] Error response body:', errorBody);
-          const bodyObj = errorBody as { error?: unknown; message?: unknown } | null;
-          if (typeof bodyObj?.error === 'string' && bodyObj.error) errorMessage = bodyObj.error;
-          if (typeof bodyObj?.message === 'string' && bodyObj.message) errorMessage += `: ${bodyObj.message}`;
+          const bodyObj = errorBody as {
+            error?: unknown;
+            message?: unknown;
+            details?: unknown;
+            Mensaje?: unknown;
+          } | null;
+          const detailsObj = (bodyObj && typeof bodyObj.details === 'object' && bodyObj.details) ? (bodyObj.details as { Mensaje?: unknown; mensaje?: unknown }) : null;
+
+          const base =
+            (typeof bodyObj?.error === 'string' && bodyObj.error) ? bodyObj.error :
+              (typeof bodyObj?.message === 'string' && bodyObj.message) ? bodyObj.message :
+                (typeof bodyObj?.Mensaje === 'string' && bodyObj.Mensaje) ? bodyObj.Mensaje :
+                  '';
+          if (base) errorMessage = base;
+
+          const detailMsg =
+            (typeof detailsObj?.Mensaje === 'string' && detailsObj.Mensaje) ? detailsObj.Mensaje :
+              (typeof detailsObj?.mensaje === 'string' && detailsObj.mensaje) ? detailsObj.mensaje :
+                (typeof bodyObj?.details === 'string' && bodyObj.details) ? bodyObj.details :
+                  '';
+          if (detailMsg) errorMessage = `${errorMessage}: ${detailMsg}`;
         } catch (e) {
           if (isDev) console.error('[API] Could not parse error body:', e);
         }
@@ -222,11 +240,16 @@ export const api = {
     return request<CashReceipt[]>(`/api/recibos_caja?${params.toString()}`, { useCache: true });
   },
   createCashReceipt: (data: Record<string, unknown>) => request<CashReceipt>('/api/recibos_caja', { method: 'POST', body: JSON.stringify(data) }),
-  contabilizarReciboERP: (id: string, opts?: { preview?: boolean }) =>
-    request<{ success: boolean; preview?: boolean; payload?: unknown; erpResponse?: unknown }>(
-      `/api/erp/contabilizar-recibo/${id}${opts?.preview ? '?preview=1' : ''}`,
+  contabilizarReciboERP: (id: string, opts?: { preview?: boolean; tercero?: string }) => {
+    const params = new URLSearchParams();
+    if (opts?.preview) params.set('preview', '1');
+    if (opts?.tercero) params.set('tercero', opts.tercero);
+    const qs = params.toString();
+    return request<{ success: boolean; preview?: boolean; payload?: unknown; erpResponse?: unknown }>(
+      `/api/erp/contabilizar-recibo/${id}${qs ? `?${qs}` : ''}`,
       { method: 'POST' }
-    ),
+    );
+  },
 
   // Notifications
   getNotifications: () => request<Notification[]>('/api/notifications', { useCache: true }),

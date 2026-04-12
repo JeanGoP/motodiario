@@ -105,7 +105,14 @@ export function CashReceipts() {
       const e = error as Error & { status?: number; body?: unknown; url?: string; method?: string };
       console.error('[ERP] Error al contabilizar', e);
       if (e.body) console.error('[ERP] Detalle backend/ERP', e.body);
-      alert('Error al contabilizar en ERP: ' + (e?.message || 'Ha ocurrido un error'));
+      const body = e.body as { details?: unknown } | undefined;
+      const details = (body && typeof body.details === 'object' && body.details) ? (body.details as { Mensaje?: unknown; mensaje?: unknown }) : null;
+      const detailMsg =
+        (typeof details?.Mensaje === 'string' && details.Mensaje) ? details.Mensaje :
+          (typeof details?.mensaje === 'string' && details.mensaje) ? details.mensaje :
+            '';
+      const msg = detailMsg || e?.message || 'Ha ocurrido un error';
+      alert('Error al contabilizar en ERP: ' + msg);
     }
   };
 
