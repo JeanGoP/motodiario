@@ -79,8 +79,10 @@ router.post('/crear-comprobante', async (req, res) => {
     const scope = await resolveEmpresaForRequest(pool, payload, empresaId);
     if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
 
-    const userOk = await ensureUserActiveInEmpresa(pool, String(payload.sub), empresaId);
-    if (!userOk) return res.status(403).json({ error: 'Usuario no pertenece a la empresa seleccionada o está inactivo' });
+    if (!scope.isSuperAdmin) {
+      const userOk = await ensureUserActiveInEmpresa(pool, String(payload.sub), empresaId);
+      if (!userOk) return res.status(403).json({ error: 'Usuario no pertenece a la empresa seleccionada o está inactivo' });
+    }
 
     const cfg = await pool.request()
       .input('id', sql.UniqueIdentifier, empresaId)
@@ -141,8 +143,10 @@ router.post('/contabilizar-recibo/:id', async (req, res) => {
     const scope = await resolveEmpresaForRequest(pool, payload, empresaId);
     if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
 
-    const userOk = await ensureUserActiveInEmpresa(pool, String(payload.sub), empresaId);
-    if (!userOk) return res.status(403).json({ error: 'Usuario no pertenece a la empresa seleccionada o está inactivo' });
+    if (!scope.isSuperAdmin) {
+      const userOk = await ensureUserActiveInEmpresa(pool, String(payload.sub), empresaId);
+      if (!userOk) return res.status(403).json({ error: 'Usuario no pertenece a la empresa seleccionada o está inactivo' });
+    }
 
     const cfg = await pool.request()
       .input('id', sql.UniqueIdentifier, empresaId)
