@@ -47,7 +47,9 @@ const resolveEmpresaForRequest = async (pool, payload, reqEmpresaId) => {
   const defaultEmpresaId = await getDefaultEmpresaId(pool);
   const superOk = await isSuperAdmin(pool, String(payload.sub), defaultEmpresaId);
   if (superOk) return { ok: true, empresaId: reqEmpresaId, isSuperAdmin: true };
-  if (tokenEmpresaId && tokenEmpresaId !== reqEmpresaId) return { ok: false, status: 403, error: 'No autorizado' };
+  if (tokenEmpresaId && tokenEmpresaId !== reqEmpresaId) {
+    return { ok: false, status: 403, error: 'La empresa seleccionada no coincide con la empresa del usuario. Cierra sesión e inicia sesión en la empresa correcta.' };
+  }
   return { ok: true, empresaId: reqEmpresaId, isSuperAdmin: false };
 };
 
@@ -78,7 +80,7 @@ router.post('/crear-comprobante', async (req, res) => {
     if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
 
     const userOk = await ensureUserActiveInEmpresa(pool, String(payload.sub), empresaId);
-    if (!userOk) return res.status(403).json({ error: 'No autorizado' });
+    if (!userOk) return res.status(403).json({ error: 'Usuario no pertenece a la empresa seleccionada o está inactivo' });
 
     const cfg = await pool.request()
       .input('id', sql.UniqueIdentifier, empresaId)
@@ -140,7 +142,7 @@ router.post('/contabilizar-recibo/:id', async (req, res) => {
     if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
 
     const userOk = await ensureUserActiveInEmpresa(pool, String(payload.sub), empresaId);
-    if (!userOk) return res.status(403).json({ error: 'No autorizado' });
+    if (!userOk) return res.status(403).json({ error: 'Usuario no pertenece a la empresa seleccionada o está inactivo' });
 
     const cfg = await pool.request()
       .input('id', sql.UniqueIdentifier, empresaId)
