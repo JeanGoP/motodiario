@@ -73,15 +73,22 @@ async function request<T = unknown>(path: string, options?: RequestInit & { useC
       
       if (!res.ok) {
         let errorMessage = `HTTP ${res.status}`;
+        let errorBody: unknown = null;
         try {
-          const errorBody = await res.json();
+          errorBody = await res.json();
           if (isDev) console.error('[API] Error response body:', errorBody);
-          if (errorBody?.error) errorMessage = errorBody.error;
-          if (errorBody?.message) errorMessage += `: ${errorBody.message}`;
+          const bodyObj = errorBody as { error?: unknown; message?: unknown } | null;
+          if (typeof bodyObj?.error === 'string' && bodyObj.error) errorMessage = bodyObj.error;
+          if (typeof bodyObj?.message === 'string' && bodyObj.message) errorMessage += `: ${bodyObj.message}`;
         } catch (e) {
           if (isDev) console.error('[API] Could not parse error body:', e);
         }
-        throw new Error(errorMessage);
+        const err = new Error(errorMessage) as Error & { status?: number; body?: unknown; url?: string; method?: string };
+        err.status = res.status;
+        err.body = errorBody;
+        err.url = url;
+        err.method = method;
+        throw err;
       }
       
       if (method !== 'GET') cache.clear();

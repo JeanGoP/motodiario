@@ -97,9 +97,14 @@ export function CashReceipts() {
     if (!confirm('¿Seguro que deseas enviar este recibo al ERP?')) return;
     try {
       const result = await api.contabilizarReciboERP(id);
-      alert(JSON.stringify(result.payload ?? result, null, 2));
+      console.log('[ERP] Payload:', result.payload);
+      console.log('[ERP] Respuesta ERP:', result.erpResponse);
+      alert('Recibo contabilizado en el ERP con éxito');
     } catch (error: unknown) {
-      alert('Error al contabilizar en ERP: ' + (error instanceof Error ? error.message : 'Ha ocurrido un error'));
+      const e = error as Error & { status?: number; body?: unknown; url?: string; method?: string };
+      console.error('[ERP] Error al contabilizar', e);
+      if (e.body) console.error('[ERP] Detalle backend/ERP', e.body);
+      alert('Error al contabilizar en ERP: ' + (e?.message || 'Ha ocurrido un error'));
     }
   };
 
