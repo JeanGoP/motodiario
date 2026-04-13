@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Payment, Motorcycle, Asociado, PaymentDistribution } from '../types/database';
 import { api } from '../lib/api';
 import { Plus, Receipt, DollarSign, TrendingUp, TrendingDown, Printer, Search, Calendar, User, Bike, X, CheckCircle2, Clock } from 'lucide-react';
@@ -6,6 +6,18 @@ import { printReceipt } from '../utils/printReceipt';
 
 const getBogotaDateOnly = (date: Date = new Date()) =>
   date.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+
+const normalizeDateOnly = (value: string | null | undefined) => {
+  if (!value) return '';
+  return value.includes('T') ? value.split('T')[0] : value;
+};
+
+const formatDateOnly = (value: string | null | undefined) => {
+  const s = normalizeDateOnly(value);
+  const [y, m, d] = s.split('-').map((part) => Number(part));
+  if (!y || !m || !d) return s;
+  return new Date(y, m - 1, d).toLocaleDateString();
+};
 
 type PaymentWithDetails = Payment & {
   motorcycle?: Motorcycle;
@@ -45,28 +57,12 @@ export function Payments() {
   });
 
   useEffect(() => {
-    loadData();
-  }, []);
-
-  useEffect(() => {
     if (!submitSuccess) return;
     const t = window.setTimeout(() => setSubmitSuccess(null), 5000);
     return () => window.clearTimeout(t);
   }, [submitSuccess]);
 
-  const normalizeDateOnly = (value: string | null | undefined) => {
-    if (!value) return '';
-    return value.includes('T') ? value.split('T')[0] : value;
-  };
-
-  const formatDateOnly = (value: string | null | undefined) => {
-    const s = normalizeDateOnly(value);
-    const [y, m, d] = s.split('-').map((part) => Number(part));
-    if (!y || !m || !d) return s;
-    return new Date(y, m - 1, d).toLocaleDateString();
-  };
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const [paymentsData, motorcyclesData, asociadosList] = await Promise.all([
         api.getPayments(),
@@ -98,7 +94,11 @@ export function Payments() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const generateReceiptNumber = () => {
     const timestamp = Date.now();
@@ -404,9 +404,15 @@ export function Payments() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center">
                     {payment.erp_enviado ? (
-                      <CheckCircle2 className="w-5 h-5 text-green-600 inline-block" title="Enviado al ERP" />
+                      <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-green-50 text-green-700 border border-green-100 text-xs font-semibold">
+                        <CheckCircle2 className="w-4 h-4" />
+                        Contabilizado
+                      </span>
                     ) : (
-                      <Clock className="w-5 h-5 text-slate-400 inline-block" title="Pendiente de enviar al ERP" />
+                      <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-slate-50 text-slate-600 border border-slate-200 text-xs font-semibold">
+                        <Clock className="w-4 h-4" />
+                        Pendiente
+                      </span>
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">

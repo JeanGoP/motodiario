@@ -207,9 +207,15 @@ export function CashReceipts() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center">
                     {receipt.erp_enviado ? (
-                      <CheckCircle2 className="w-5 h-5 text-green-600 inline-block" title="Enviado al ERP" />
+                      <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-green-50 text-green-700 border border-green-100 text-xs font-semibold">
+                        <CheckCircle2 className="w-4 h-4" />
+                        Contabilizado
+                      </span>
                     ) : (
-                      <Clock className="w-5 h-5 text-slate-400 inline-block" title="Pendiente de enviar al ERP" />
+                      <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-slate-50 text-slate-600 border border-slate-200 text-xs font-semibold">
+                        <Clock className="w-4 h-4" />
+                        Pendiente
+                      </span>
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
