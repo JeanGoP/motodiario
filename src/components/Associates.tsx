@@ -38,6 +38,7 @@ export function Associates() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedCostCenter, setSelectedCostCenter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [creatingErpTerceroId, setCreatingErpTerceroId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     centro_costo_id: '',
     nombre: '',
@@ -96,18 +97,6 @@ export function Associates() {
           centro_costo: centroFromList || (created as unknown as { centro_costo?: CentroCosto }).centro_costo,
         };
         setAssociates((prev) => [createdWithCentro as unknown as Asociado, ...prev]);
-        try {
-          await api.crearTerceroERP(created.id);
-        } catch (e: unknown) {
-          const err = e as { message?: string };
-          const msg = String(err?.message || '');
-          if (!(
-            msg.toLowerCase().includes('erp no está habilitado') ||
-            msg.toLowerCase().includes('configuración erp incompleta')
-          )) {
-            alert('No se pudo crear el tercero en el ERP: ' + (msg || 'Error desconocido'));
-          }
-        }
         api.syncAsociadoContact(created.id)
           .then((sync) => {
             if (!sync?.contact_id) return;
@@ -133,6 +122,19 @@ export function Associates() {
       } catch (error: unknown) {
         alert('Error: ' + (error instanceof Error ? error.message : 'Ha ocurrido un error'));
       }
+    }
+  };
+
+  const handleCrearTerceroERP = async (asociadoId: string) => {
+    if (!confirm('¿Crear este tercero en el ERP ahora?')) return;
+    setCreatingErpTerceroId(asociadoId);
+    try {
+      await api.crearTerceroERP(asociadoId);
+      alert('Tercero creado en el ERP');
+    } catch (error: unknown) {
+      alert('Error: ' + (error instanceof Error ? error.message : 'Ha ocurrido un error'));
+    } finally {
+      setCreatingErpTerceroId(null);
     }
   };
 
@@ -313,6 +315,14 @@ export function Associates() {
                   </td>
                   <td className="table-cell text-right">
                     <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => void handleCrearTerceroERP(associate.id)}
+                        disabled={creatingErpTerceroId === associate.id}
+                        className="btn-ghost px-2 py-1.5 rounded-md transition-colors text-sm"
+                        title="Crear tercero en ERP"
+                      >
+                        {creatingErpTerceroId === associate.id ? 'ERP...' : 'ERP'}
+                      </button>
                       <button
                         onClick={() => handleEdit(associate)}
                         className="btn-ghost p-1.5 rounded-md transition-colors"
