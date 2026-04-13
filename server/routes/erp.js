@@ -100,6 +100,11 @@ const isTerceroNoExiste = (mensaje) => {
   return m.includes('tercero') && m.includes('no existe');
 };
 
+const normalizeErpCode = (value) => String(value ?? '')
+  .trim()
+  .replace(/\s+/g, '')
+  .replace(/[\u200B-\u200D\uFEFF]/g, '');
+
 const escapeXmlAttr = (value) => String(value ?? '')
   .replace(/&/g, '&amp;')
   .replace(/"/g, '&quot;')
@@ -523,10 +528,10 @@ router.post('/contabilizar-recibo/:id', async (req, res) => {
       FechaDoc: new Date(asiento.fecha).toISOString().split('T')[0],
       Descripcion: asiento.descripcion || "Contabilización de recibo",
       Detalle: lineas.map(l => ({
-        CentroCosto: String(l.centro_costo_codigo || centroCostoDocumento || '').trim(),
+        CentroCosto: normalizeErpCode(l.centro_costo_codigo || centroCostoDocumento || ''),
         Concepto: "",
-        Cuenta: String(l.cuenta_codigo || "").trim(),
-        Tercero: terceroOverride || String(l.tercero_documento || "").trim(),
+        Cuenta: normalizeErpCode(l.cuenta_codigo || ""),
+        Tercero: normalizeErpCode(terceroOverride || String(l.tercero_documento || "")),
         Factura: "",
         Vencimiento: "",
         Valor: (String(l.movimiento || '').toUpperCase() === 'DEBITO'
@@ -625,11 +630,21 @@ router.post('/contabilizar-recibo/:id', async (req, res) => {
     }
 
     if (!firstAttempt.upstream.ok) {
-      return res.status(firstAttempt.upstream.status).json({ error: 'Error del ERP', payload: payloadERP, details: firstAttempt.parsed.responseData });
+      return res.status(firstAttempt.upstream.status).json({
+        error: 'Error del ERP',
+        payload: payloadERP,
+        details: firstAttempt.parsed.responseData,
+        cuentasEnviadas: Array.from(new Set((payloadERP.Detalle || []).map((d) => String(d?.Cuenta || '').trim()).filter(Boolean)))
+      });
     }
 
     if (firstAttempt.parsed.isErpBusinessError) {
-      return res.status(502).json({ error: 'Error del ERP', payload: payloadERP, details: firstAttempt.parsed.responseData });
+      return res.status(502).json({
+        error: 'Error del ERP',
+        payload: payloadERP,
+        details: firstAttempt.parsed.responseData,
+        cuentasEnviadas: Array.from(new Set((payloadERP.Detalle || []).map((d) => String(d?.Cuenta || '').trim()).filter(Boolean)))
+      });
     }
 
     return res.status(200).json({ success: true, payload: payloadERP, erpResponse: firstAttempt.parsed.responseData });
