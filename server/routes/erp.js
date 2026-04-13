@@ -53,18 +53,135 @@ const resolveEmpresaForRequest = async (pool, payload, reqEmpresaId) => {
   return { ok: true, empresaId: reqEmpresaId, isSuperAdmin: false };
 };
 
-const buildCrearComprobanteUrl = ({ baseUrl, token }) => {
+const buildErpUrl = ({ baseUrl, token, endpoint }) => {
   const trimmed = String(baseUrl || '').trim();
   if (!trimmed) return null;
   const base = trimmed.endsWith('/') ? trimmed : `${trimmed}/`;
   let u;
   try {
-    u = new URL('CrearComprobante', base);
+    u = new URL(String(endpoint || '').trim(), base);
   } catch {
     return null;
   }
   u.searchParams.set('token', String(token || '').trim());
   return u.toString();
+};
+
+const parseUpstreamResponse = async (upstream) => {
+  const text = await upstream.text();
+  const contentType = upstream.headers.get('content-type') || '';
+  let responseData = text;
+  if (contentType.includes('application/json')) {
+    try { responseData = JSON.parse(text || 'null'); } catch {}
+  }
+  const isErpBusinessError = (() => {
+    if (!responseData || typeof responseData !== 'object') return false;
+    const r = responseData;
+    if (typeof r?.Error === 'boolean') return r.Error;
+    if (typeof r?.error === 'boolean') return r.error;
+    if (typeof r?.Error === 'string') return r.Error.trim().toLowerCase() === 'true';
+    if (typeof r?.error === 'string') return r.error.trim().toLowerCase() === 'true';
+    return false;
+  })();
+
+  const mensaje = (() => {
+    if (!responseData || typeof responseData !== 'object') return '';
+    const r = responseData;
+    if (typeof r?.Mensaje === 'string') return r.Mensaje;
+    if (typeof r?.mensaje === 'string') return r.mensaje;
+    return '';
+  })();
+
+  return { text, contentType, responseData, isErpBusinessError, mensaje };
+};
+
+const isTerceroNoExiste = (mensaje) => {
+  const m = String(mensaje || '').toLowerCase();
+  return m.includes('tercero') && m.includes('no existe');
+};
+
+const escapeXmlAttr = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/"/g, '&quot;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/'/g, '&apos;');
+
+const formatXmlDate = (v) => {
+  if (!v) return '';
+  const d = v instanceof Date ? v : new Date(String(v));
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toISOString().slice(0, 10);
+};
+
+const buildTerceroXmlFromAsociado = ({
+  nombre,
+  documento,
+  telefono,
+  correo,
+  direccion,
+  digverificacion: digverificacionFromDb,
+  fechaexpedicion,
+  fechanacimiento,
+  municipio_dane,
+  nombrecontacto,
+  telefonocontacto,
+  emailcontacto
+}, overrides = {}) => {
+  const fullName = String(nombre || '').trim();
+  const parts = fullName ? fullName.split(/\s+/).filter(Boolean) : [];
+  const primernombre = parts[0] || 'N/A';
+  const segundonombre = parts.length >= 4 ? (parts[1] || '') : (parts.length === 3 ? (parts[1] || '') : '');
+  const primerapellido = parts.length >= 2 ? (parts.length >= 4 ? (parts[2] || 'N/A') : (parts[1] || 'N/A')) : 'N/A';
+  const segundoapellido = parts.length >= 4 ? (parts.slice(3).join(' ') || '') : (parts.length > 4 ? parts.slice(2).join(' ') : '');
+
+  const docRaw = String(documento || '').trim();
+  const [identificacion, digverificacionParsed] = docRaw.includes('-')
+    ? docRaw.split('-', 2).map((s) => String(s || '').trim())
+    : [docRaw, ''];
+  const digverificacion = String(digverificacionFromDb || '').trim() || digverificacionParsed;
+  const fechaexpedicionXml = formatXmlDate(fechaexpedicion);
+  const fechanacimientoXml = formatXmlDate(fechanacimiento);
+
+  const overridesObj = (overrides && typeof overrides === 'object') ? { ...overrides } : {};
+  delete overridesObj.tipocliente;
+  delete overridesObj.tipopersoneria;
+  delete overridesObj.categoriafiscal;
+  delete overridesObj.esReponsableiva;
+  delete overridesObj.tipoidentificacion;
+
+  const attrs = {
+    identificacion,
+    ...(digverificacion ? { digverificacion } : {}),
+    ...(fechaexpedicionXml ? { fechaexpedicion: fechaexpedicionXml } : {}),
+    primernombre,
+    ...(segundonombre ? { segundonombre } : {}),
+    primerapellido,
+    ...(segundoapellido ? { segundoapellido } : {}),
+    ...(fechanacimientoXml ? { fechanacimiento: fechanacimientoXml } : {}),
+    municipio_dane: String(municipio_dane || '').trim() || '05002',
+    telefono: String(telefono || '').trim(),
+    celular: String(telefono || '').trim(),
+    direccion: String(direccion || '').trim(),
+    email: String(correo || '').trim(),
+    ...(String(nombrecontacto || '').trim() ? { nombrecontacto: String(nombrecontacto).trim() } : {}),
+    ...(String(telefonocontacto || '').trim() ? { telefonocontacto: String(telefonocontacto).trim() } : {}),
+    ...(String(emailcontacto || '').trim() ? { emailcontacto: String(emailcontacto).trim() } : {}),
+    id_user: '1',
+    ...overridesObj,
+    tipocliente: '45',
+    tipopersoneria: '33',
+    categoriafiscal: '1',
+    esReponsableiva: '7',
+    tipoidentificacion: '9',
+  };
+
+  const xmlAttrs = Object.entries(attrs)
+    .filter(([, v]) => String(v ?? '').trim() !== '')
+    .map(([k, v]) => `${k}="${escapeXmlAttr(String(v))}"`)
+    .join(' ');
+
+  return `<SintesisCloud>\n<Tercero ${xmlAttrs}>\n</Tercero>\n</SintesisCloud>`;
 };
 
 router.post('/crear-comprobante', async (req, res) => {
@@ -96,7 +213,7 @@ router.post('/crear-comprobante', async (req, res) => {
     if (!row.erp_sync) return res.status(400).json({ error: 'ERP no está habilitado para esta empresa' });
     if (!row.erp_api_url || !row.erp_api_token) return res.status(400).json({ error: 'Configuración ERP incompleta (URL/Token)' });
 
-    const url = buildCrearComprobanteUrl({ baseUrl: row.erp_api_url, token: row.erp_api_token });
+    const url = buildErpUrl({ baseUrl: row.erp_api_url, token: row.erp_api_token, endpoint: 'CrearComprobante' });
     if (!url) return res.status(400).json({ error: 'URL ERP inválida' });
 
     const controller = new AbortController();
@@ -113,35 +230,92 @@ router.post('/crear-comprobante', async (req, res) => {
       clearTimeout(timeout);
     }
 
-    const text = await upstream.text();
-    const contentType = upstream.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
-      try {
-        const responseData = JSON.parse(text || 'null');
-        const isErpBusinessError = (() => {
-          if (!responseData || typeof responseData !== 'object') return false;
-          const r = responseData;
-          if (typeof r?.Error === 'boolean') return r.Error;
-          if (typeof r?.error === 'boolean') return r.error;
-          if (typeof r?.Error === 'string') return r.Error.trim().toLowerCase() === 'true';
-          if (typeof r?.error === 'string') return r.error.trim().toLowerCase() === 'true';
-          return false;
-        })();
-
-        if (!upstream.ok) {
-          return res.status(upstream.status).json({ error: 'Error del ERP', payload: req.body ?? {}, details: responseData });
-        }
-
-        if (isErpBusinessError) {
-          return res.status(502).json({ error: 'Error del ERP', payload: req.body ?? {}, details: responseData });
-        }
-
-        return res.status(upstream.status).json(responseData);
-      } catch {
-        return res.status(upstream.status).send(text);
-      }
+    const parsed = await parseUpstreamResponse(upstream);
+    if (parsed.contentType.includes('application/json')) {
+      if (!upstream.ok) return res.status(upstream.status).json({ error: 'Error del ERP', payload: req.body ?? {}, details: parsed.responseData });
+      if (parsed.isErpBusinessError) return res.status(502).json({ error: 'Error del ERP', payload: req.body ?? {}, details: parsed.responseData });
+      return res.status(upstream.status).json(parsed.responseData);
     }
-    return res.status(upstream.status).send(text);
+    return res.status(upstream.status).send(parsed.text);
+  } catch (err) {
+    if (String(err?.name) === 'AbortError') return res.status(504).json({ error: 'Tiempo de espera agotado al contactar ERP' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/crear-tercero/:asociadoId', async (req, res) => {
+  const { asociadoId } = req.params;
+  const payload = getTokenPayload(req);
+  if (!payload?.sub) return res.status(401).json({ error: 'No autorizado' });
+
+  const empresaId = req.empresaId ? String(req.empresaId) : '';
+  if (!isUuid(empresaId)) return res.status(400).json({ error: 'Falta empresa_id' });
+  if (!isUuid(asociadoId)) return res.status(400).json({ error: 'ID de asociado inválido' });
+
+  try {
+    const pool = await getPool();
+    const scope = await resolveEmpresaForRequest(pool, payload, empresaId);
+    if (!scope.ok) return res.status(scope.status).json({ error: scope.error });
+
+    if (!scope.isSuperAdmin) {
+      const userOk = await ensureUserActiveInEmpresa(pool, String(payload.sub), empresaId);
+      if (!userOk) return res.status(403).json({ error: 'Usuario no pertenece a la empresa seleccionada o está inactivo' });
+    }
+
+    const cfg = await pool.request()
+      .input('id', sql.UniqueIdentifier, empresaId)
+      .query(`
+        SELECT TOP 1 erp_sync, erp_api_url, erp_api_token
+        FROM empresas
+        WHERE id = @id
+      `);
+    const row = cfg.recordset?.[0] || null;
+    if (!row) return res.status(404).json({ error: 'Empresa no existe' });
+    if (!row.erp_sync) return res.status(400).json({ error: 'ERP no está habilitado para esta empresa' });
+    if (!row.erp_api_url || !row.erp_api_token) return res.status(400).json({ error: 'Configuración ERP incompleta (URL/Token)' });
+
+    const asociadoResult = await pool.request()
+      .input('empresa_id', sql.UniqueIdentifier, empresaId)
+      .input('id', sql.UniqueIdentifier, asociadoId)
+      .query(`
+        SELECT TOP 1 nombre, documento, telefono, correo, direccion,
+               digverificacion, fechaexpedicion, fechanacimiento, municipio_dane,
+               nombrecontacto, telefonocontacto, emailcontacto
+        FROM asociados
+        WHERE empresa_id = @empresa_id AND id = @id
+      `);
+    const asociado = asociadoResult.recordset?.[0] || null;
+    if (!asociado) return res.status(404).json({ error: 'Asociado no encontrado' });
+
+    const xml = buildTerceroXmlFromAsociado(asociado, req.body && typeof req.body === 'object' ? req.body : {});
+    const preview = String(req.query?.preview || '').trim().toLowerCase();
+    if (preview === '1' || preview === 'true') {
+      return res.status(200).json({ success: true, preview: true, payload: xml });
+    }
+
+    const url = buildErpUrl({ baseUrl: row.erp_api_url, token: row.erp_api_token, endpoint: 'AsignarTerceros' });
+    if (!url) return res.status(400).json({ error: 'URL ERP inválida' });
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20_000);
+    let upstream;
+    try {
+      upstream = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/xml' },
+        body: xml,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    const parsed = await parseUpstreamResponse(upstream);
+    if (!upstream.ok || parsed.isErpBusinessError) {
+      return res.status(!upstream.ok ? upstream.status : 502).json({ error: 'Error del ERP', payload: xml, details: parsed.responseData });
+    }
+
+    return res.status(200).json({ success: true, payload: xml, erpResponse: parsed.responseData });
   } catch (err) {
     if (String(err?.name) === 'AbortError') return res.status(504).json({ error: 'Tiempo de espera agotado al contactar ERP' });
     res.status(500).json({ error: err.message });
@@ -181,7 +355,7 @@ router.post('/contabilizar-recibo/:id', async (req, res) => {
     if (!row.erp_sync) return res.status(400).json({ error: 'ERP no está habilitado para esta empresa' });
     if (!row.erp_api_url || !row.erp_api_token) return res.status(400).json({ error: 'Configuración ERP incompleta (URL/Token)' });
 
-    const url = buildCrearComprobanteUrl({ baseUrl: row.erp_api_url, token: row.erp_api_token });
+    const url = buildErpUrl({ baseUrl: row.erp_api_url, token: row.erp_api_token, endpoint: 'CrearComprobante' });
     if (!url) return res.status(400).json({ error: 'URL ERP inválida' });
 
     // 1. Obtener asiento del recibo
@@ -266,46 +440,97 @@ router.post('/contabilizar-recibo/:id', async (req, res) => {
     }
 
     // 4. Enviar a ERP
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20_000);
-    let upstream;
-    try {
-      upstream = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payloadERP),
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeout);
+    const sendComprobante = async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20_000);
+      let upstream;
+      try {
+        upstream = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payloadERP),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
+      const parsed = await parseUpstreamResponse(upstream);
+      return { upstream, parsed };
+    };
+
+    const firstAttempt = await sendComprobante();
+    const firstFailed = !firstAttempt.upstream.ok || firstAttempt.parsed.isErpBusinessError;
+    if (firstFailed && isTerceroNoExiste(firstAttempt.parsed.mensaje)) {
+      const asociadoIdToCreate = lineas.find((l) => l.asociado_id)?.asociado_id ? String(lineas.find((l) => l.asociado_id).asociado_id) : '';
+      if (asociadoIdToCreate && isUuid(asociadoIdToCreate)) {
+        const asociadoResult = await pool.request()
+          .input('empresa_id', sql.UniqueIdentifier, empresaId)
+          .input('id', sql.UniqueIdentifier, asociadoIdToCreate)
+          .query(`
+            SELECT TOP 1 nombre, documento, telefono, correo, direccion,
+                   digverificacion, fechaexpedicion, fechanacimiento, municipio_dane,
+                   nombrecontacto, telefonocontacto, emailcontacto
+            FROM asociados
+            WHERE empresa_id = @empresa_id AND id = @id
+          `);
+        const asociado = asociadoResult.recordset?.[0] || null;
+        if (asociado) {
+          const xml = buildTerceroXmlFromAsociado(asociado);
+          const urlTercero = buildErpUrl({ baseUrl: row.erp_api_url, token: row.erp_api_token, endpoint: 'AsignarTerceros' });
+          if (urlTercero) {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 20_000);
+            let upstreamTercero;
+            try {
+              upstreamTercero = await fetch(urlTercero, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/xml' },
+                body: xml,
+                signal: controller.signal,
+              });
+            } finally {
+              clearTimeout(timeout);
+            }
+            const parsedTercero = await parseUpstreamResponse(upstreamTercero);
+            const terceroFailed = !upstreamTercero.ok || parsedTercero.isErpBusinessError;
+            if (!terceroFailed) {
+              const secondAttempt = await sendComprobante();
+              const secondFailed = !secondAttempt.upstream.ok || secondAttempt.parsed.isErpBusinessError;
+              if (secondFailed) {
+                return res.status(!secondAttempt.upstream.ok ? secondAttempt.upstream.status : 502).json({
+                  error: 'Error del ERP',
+                  payload: payloadERP,
+                  details: secondAttempt.parsed.responseData,
+                  terceroCreado: { payload: xml, erpResponse: parsedTercero.responseData }
+                });
+              }
+              return res.status(200).json({
+                success: true,
+                payload: payloadERP,
+                erpResponse: secondAttempt.parsed.responseData,
+                terceroCreado: { payload: xml, erpResponse: parsedTercero.responseData }
+              });
+            }
+            return res.status(!upstreamTercero.ok ? upstreamTercero.status : 502).json({
+              error: 'Error del ERP',
+              payload: payloadERP,
+              details: firstAttempt.parsed.responseData,
+              terceroCreado: { error: 'Error del ERP', payload: xml, details: parsedTercero.responseData }
+            });
+          }
+        }
+      }
     }
 
-    const text = await upstream.text();
-    const contentType = upstream.headers.get('content-type') || '';
-    let responseData = text;
-    if (contentType.includes('application/json')) {
-      try { responseData = JSON.parse(text || 'null'); } catch {}
+    if (!firstAttempt.upstream.ok) {
+      return res.status(firstAttempt.upstream.status).json({ error: 'Error del ERP', payload: payloadERP, details: firstAttempt.parsed.responseData });
     }
 
-    const isErpBusinessError = (() => {
-      if (!responseData || typeof responseData !== 'object') return false;
-      const r = responseData;
-      if (typeof r?.Error === 'boolean') return r.Error;
-      if (typeof r?.error === 'boolean') return r.error;
-      if (typeof r?.Error === 'string') return r.Error.trim().toLowerCase() === 'true';
-      if (typeof r?.error === 'string') return r.error.trim().toLowerCase() === 'true';
-      return false;
-    })();
-
-    if (!upstream.ok) {
-      return res.status(upstream.status).json({ error: 'Error del ERP', payload: payloadERP, details: responseData });
+    if (firstAttempt.parsed.isErpBusinessError) {
+      return res.status(502).json({ error: 'Error del ERP', payload: payloadERP, details: firstAttempt.parsed.responseData });
     }
 
-    if (isErpBusinessError) {
-      return res.status(502).json({ error: 'Error del ERP', payload: payloadERP, details: responseData });
-    }
-
-    return res.status(200).json({ success: true, payload: payloadERP, erpResponse: responseData });
+    return res.status(200).json({ success: true, payload: payloadERP, erpResponse: firstAttempt.parsed.responseData });
 
   } catch (err) {
     if (String(err?.name) === 'AbortError') return res.status(504).json({ error: 'Tiempo de espera agotado al contactar ERP' });

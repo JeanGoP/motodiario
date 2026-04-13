@@ -137,6 +137,13 @@ const LEADCONNECTOR_MESSAGES_URL = 'https://services.leadconnectorhq.com/convers
 let asociadosColumnsCache = {
   checkedAt: 0,
   hasContactId: false,
+  hasDigVerificacion: false,
+  hasFechaExpedicion: false,
+  hasFechaNacimiento: false,
+  hasMunicipioDane: false,
+  hasNombreContacto: false,
+  hasTelefonoContacto: false,
+  hasEmailContacto: false,
 };
 
 const getAsociadosColumnsSupport = async (request) => {
@@ -147,13 +154,20 @@ const getAsociadosColumnsSupport = async (request) => {
     SELECT COLUMN_NAME
     FROM INFORMATION_SCHEMA.COLUMNS
     WHERE TABLE_NAME = 'asociados'
-      AND COLUMN_NAME IN ('contact_id')
+      AND COLUMN_NAME IN ('contact_id', 'digverificacion', 'fechaexpedicion', 'fechanacimiento', 'municipio_dane', 'nombrecontacto', 'telefonocontacto', 'emailcontacto')
   `);
 
   const names = new Set((cols.recordset || []).map((r) => r.COLUMN_NAME));
   asociadosColumnsCache = {
     checkedAt: now,
     hasContactId: names.has('contact_id'),
+    hasDigVerificacion: names.has('digverificacion'),
+    hasFechaExpedicion: names.has('fechaexpedicion'),
+    hasFechaNacimiento: names.has('fechanacimiento'),
+    hasMunicipioDane: names.has('municipio_dane'),
+    hasNombreContacto: names.has('nombrecontacto'),
+    hasTelefonoContacto: names.has('telefonocontacto'),
+    hasEmailContacto: names.has('emailcontacto'),
   };
   return asociadosColumnsCache;
 };
@@ -418,11 +432,21 @@ router.get('/', async (req, res) => {
     const auth = await getAuthContext(req, { intent: 'read' });
     if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
     const { empresaId, pool } = auth;
-    const { hasContactId } = await getAsociadosColumnsSupport(pool.request());
+    const columnsSupport = await getAsociadosColumnsSupport(pool.request());
+    const { hasContactId } = columnsSupport;
     const contactIdSelect = hasContactId ? 'a.contact_id,' : '';
+    const erpExtraSelect = [
+      columnsSupport.hasDigVerificacion ? 'a.digverificacion,' : '',
+      columnsSupport.hasFechaExpedicion ? 'a.fechaexpedicion,' : '',
+      columnsSupport.hasFechaNacimiento ? 'a.fechanacimiento,' : '',
+      columnsSupport.hasMunicipioDane ? 'a.municipio_dane,' : '',
+      columnsSupport.hasNombreContacto ? 'a.nombrecontacto,' : '',
+      columnsSupport.hasTelefonoContacto ? 'a.telefonocontacto,' : '',
+      columnsSupport.hasEmailContacto ? 'a.emailcontacto,' : '',
+    ].filter(Boolean).join(' ');
     const request = pool.request().input('empresa_id', sql.UniqueIdentifier, empresaId);
     let query = `
-      SELECT a.id, a.centro_costo_id, ${contactIdSelect} a.nombre, a.documento, a.telefono, a.correo, a.direccion,
+      SELECT a.id, a.centro_costo_id, ${contactIdSelect} ${erpExtraSelect} a.nombre, a.documento, a.telefono, a.correo, a.direccion,
              a.dias_gracia, a.activo, a.creado_en, a.actualizado_en,
              cc.id AS cc_id, cc.nombre AS cc_nombre, cc.codigo AS cc_codigo
       FROM asociados a
@@ -448,6 +472,13 @@ router.get('/', async (req, res) => {
       telefono: row.telefono,
       correo: row.correo,
       direccion: row.direccion,
+      digverificacion: columnsSupport.hasDigVerificacion ? (row.digverificacion ?? null) : null,
+      fechaexpedicion: columnsSupport.hasFechaExpedicion ? (row.fechaexpedicion ?? null) : null,
+      fechanacimiento: columnsSupport.hasFechaNacimiento ? (row.fechanacimiento ?? null) : null,
+      municipio_dane: columnsSupport.hasMunicipioDane ? (row.municipio_dane ?? null) : null,
+      nombrecontacto: columnsSupport.hasNombreContacto ? (row.nombrecontacto ?? null) : null,
+      telefonocontacto: columnsSupport.hasTelefonoContacto ? (row.telefonocontacto ?? null) : null,
+      emailcontacto: columnsSupport.hasEmailContacto ? (row.emailcontacto ?? null) : null,
       dias_gracia: row.dias_gracia,
       activo: row.activo,
       creado_en: row.creado_en,
@@ -466,7 +497,23 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { centro_costo_id, nombre, documento, telefono, correo = '', direccion = '', dias_gracia = 2, activo = true } = req.body;
+  const {
+    centro_costo_id,
+    nombre,
+    documento,
+    telefono,
+    correo = '',
+    direccion = '',
+    digverificacion = null,
+    fechaexpedicion = null,
+    fechanacimiento = null,
+    municipio_dane = null,
+    nombrecontacto = null,
+    telefonocontacto = null,
+    emailcontacto = null,
+    dias_gracia = 2,
+    activo = true
+  } = req.body;
   try {
     const auth = await getAuthContext(req, { intent: 'write' });
     if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
@@ -475,6 +522,7 @@ router.post('/', async (req, res) => {
     if (!empresaBodyCheck.ok) return res.status(empresaBodyCheck.status).json({ error: empresaBodyCheck.error });
 
     const { empresaId, pool } = auth;
+    const columnsSupport = await getAsociadosColumnsSupport(pool.request());
     const request = pool.request();
     request.input('empresa_id', sql.UniqueIdentifier, empresaId);
     request.input('centro_costo_id', sql.UniqueIdentifier, centro_costo_id);
@@ -485,6 +533,13 @@ router.post('/', async (req, res) => {
     request.input('direccion', sql.NVarChar, direccion);
     request.input('dias_gracia', sql.Int, dias_gracia);
     request.input('activo', sql.Bit, activo);
+    if (columnsSupport.hasDigVerificacion) request.input('digverificacion', sql.NVarChar, digverificacion ? String(digverificacion) : null);
+    if (columnsSupport.hasFechaExpedicion) request.input('fechaexpedicion', sql.Date, fechaexpedicion ? new Date(String(fechaexpedicion)) : null);
+    if (columnsSupport.hasFechaNacimiento) request.input('fechanacimiento', sql.Date, fechanacimiento ? new Date(String(fechanacimiento)) : null);
+    if (columnsSupport.hasMunicipioDane) request.input('municipio_dane', sql.NVarChar, municipio_dane ? String(municipio_dane) : null);
+    if (columnsSupport.hasNombreContacto) request.input('nombrecontacto', sql.NVarChar, nombrecontacto ? String(nombrecontacto) : null);
+    if (columnsSupport.hasTelefonoContacto) request.input('telefonocontacto', sql.NVarChar, telefonocontacto ? String(telefonocontacto) : null);
+    if (columnsSupport.hasEmailContacto) request.input('emailcontacto', sql.NVarChar, emailcontacto ? String(emailcontacto) : null);
 
     const ccCheck = await request.query(`
       SELECT TOP 1 1 AS ok
@@ -493,19 +548,69 @@ router.post('/', async (req, res) => {
     `);
     if (!ccCheck.recordset?.length) return res.status(400).json({ error: 'Centro de costo inválido' });
 
+    const insertColumns = [
+      'empresa_id',
+      'centro_costo_id',
+      'nombre',
+      'documento',
+      'telefono',
+      'correo',
+      'direccion',
+      ...(columnsSupport.hasDigVerificacion ? ['digverificacion'] : []),
+      ...(columnsSupport.hasFechaExpedicion ? ['fechaexpedicion'] : []),
+      ...(columnsSupport.hasFechaNacimiento ? ['fechanacimiento'] : []),
+      ...(columnsSupport.hasMunicipioDane ? ['municipio_dane'] : []),
+      ...(columnsSupport.hasNombreContacto ? ['nombrecontacto'] : []),
+      ...(columnsSupport.hasTelefonoContacto ? ['telefonocontacto'] : []),
+      ...(columnsSupport.hasEmailContacto ? ['emailcontacto'] : []),
+      'dias_gracia',
+      'activo',
+      'creado_en',
+      'actualizado_en'
+    ];
+    const insertValues = [
+      '@empresa_id',
+      '@centro_costo_id',
+      '@nombre',
+      '@documento',
+      '@telefono',
+      '@correo',
+      '@direccion',
+      ...(columnsSupport.hasDigVerificacion ? ['@digverificacion'] : []),
+      ...(columnsSupport.hasFechaExpedicion ? ['@fechaexpedicion'] : []),
+      ...(columnsSupport.hasFechaNacimiento ? ['@fechanacimiento'] : []),
+      ...(columnsSupport.hasMunicipioDane ? ['@municipio_dane'] : []),
+      ...(columnsSupport.hasNombreContacto ? ['@nombrecontacto'] : []),
+      ...(columnsSupport.hasTelefonoContacto ? ['@telefonocontacto'] : []),
+      ...(columnsSupport.hasEmailContacto ? ['@emailcontacto'] : []),
+      '@dias_gracia',
+      '@activo',
+      'SYSDATETIMEOFFSET()',
+      'SYSDATETIMEOFFSET()'
+    ];
+
     const insertResult = await request.query(`
-      INSERT INTO asociados (empresa_id, centro_costo_id, nombre, documento, telefono, correo, direccion, dias_gracia, activo, creado_en, actualizado_en)
+      INSERT INTO asociados (${insertColumns.join(', ')})
       OUTPUT inserted.id
-      VALUES (@empresa_id, @centro_costo_id, @nombre, @documento, @telefono, @correo, @direccion, @dias_gracia, @activo, SYSDATETIMEOFFSET(), SYSDATETIMEOFFSET())
+      VALUES (${insertValues.join(', ')})
     `);
     const id = insertResult.recordset[0].id;
     const getRequest = pool.request();
     getRequest.input('id', sql.UniqueIdentifier, id);
     getRequest.input('empresa_id', sql.UniqueIdentifier, empresaId);
-    const { hasContactId } = await getAsociadosColumnsSupport(pool.request());
+    const { hasContactId } = columnsSupport;
     const contactIdSelect = hasContactId ? 'a.contact_id,' : '';
+    const erpExtraSelect = [
+      columnsSupport.hasDigVerificacion ? 'a.digverificacion,' : '',
+      columnsSupport.hasFechaExpedicion ? 'a.fechaexpedicion,' : '',
+      columnsSupport.hasFechaNacimiento ? 'a.fechanacimiento,' : '',
+      columnsSupport.hasMunicipioDane ? 'a.municipio_dane,' : '',
+      columnsSupport.hasNombreContacto ? 'a.nombrecontacto,' : '',
+      columnsSupport.hasTelefonoContacto ? 'a.telefonocontacto,' : '',
+      columnsSupport.hasEmailContacto ? 'a.emailcontacto,' : '',
+    ].filter(Boolean).join(' ');
     const result = await getRequest.query(`
-      SELECT a.id, a.centro_costo_id, ${contactIdSelect} a.nombre, a.documento, a.telefono, a.correo, a.direccion,
+      SELECT a.id, a.centro_costo_id, ${contactIdSelect} ${erpExtraSelect} a.nombre, a.documento, a.telefono, a.correo, a.direccion,
              a.dias_gracia, a.activo, a.creado_en, a.actualizado_en,
              cc.id AS cc_id, cc.nombre AS cc_nombre, cc.codigo AS cc_codigo
       FROM asociados a INNER JOIN centros_costo cc ON cc.id = a.centro_costo_id
@@ -519,7 +624,7 @@ router.post('/', async (req, res) => {
         userId: auth.userId,
         resource: 'asociados',
         resourceId: id,
-        payload: { centro_costo_id, nombre, documento, telefono, correo, direccion, dias_gracia, activo },
+        payload: { centro_costo_id, nombre, documento, telefono, correo, direccion, digverificacion, fechaexpedicion, fechanacimiento, municipio_dane, nombrecontacto, telefonocontacto, emailcontacto, dias_gracia, activo },
       });
     }
 
@@ -532,6 +637,13 @@ router.post('/', async (req, res) => {
       telefono: r.telefono,
       correo: r.correo,
       direccion: r.direccion,
+      digverificacion: columnsSupport.hasDigVerificacion ? (r.digverificacion ?? null) : null,
+      fechaexpedicion: columnsSupport.hasFechaExpedicion ? (r.fechaexpedicion ?? null) : null,
+      fechanacimiento: columnsSupport.hasFechaNacimiento ? (r.fechanacimiento ?? null) : null,
+      municipio_dane: columnsSupport.hasMunicipioDane ? (r.municipio_dane ?? null) : null,
+      nombrecontacto: columnsSupport.hasNombreContacto ? (r.nombrecontacto ?? null) : null,
+      telefonocontacto: columnsSupport.hasTelefonoContacto ? (r.telefonocontacto ?? null) : null,
+      emailcontacto: columnsSupport.hasEmailContacto ? (r.emailcontacto ?? null) : null,
       dias_gracia: r.dias_gracia,
       activo: r.activo,
       creado_en: r.creado_en,
@@ -724,12 +836,29 @@ router.post('/send_whatsapp_template', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   const { id } = req.params;
-  const { centro_costo_id, nombre, documento, telefono, correo = '', direccion = '', dias_gracia = 2, activo = true } = req.body;
+  const {
+    centro_costo_id,
+    nombre,
+    documento,
+    telefono,
+    correo = '',
+    direccion = '',
+    digverificacion = null,
+    fechaexpedicion = null,
+    fechanacimiento = null,
+    municipio_dane = null,
+    nombrecontacto = null,
+    telefonocontacto = null,
+    emailcontacto = null,
+    dias_gracia = 2,
+    activo = true
+  } = req.body;
   try {
     const auth = await getAuthContext(req, { intent: 'write' });
     if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
     if (!canWrite(auth)) return res.status(403).json({ error: 'Forbidden' });
     const { empresaId, pool } = auth;
+    const columnsSupport = await getAsociadosColumnsSupport(pool.request());
     const request = pool.request();
     request.input('id', sql.UniqueIdentifier, id);
     request.input('empresa_id', sql.UniqueIdentifier, empresaId);
@@ -741,6 +870,13 @@ router.put('/:id', async (req, res) => {
     request.input('direccion', sql.NVarChar, direccion);
     request.input('dias_gracia', sql.Int, dias_gracia);
     request.input('activo', sql.Bit, activo);
+    if (columnsSupport.hasDigVerificacion) request.input('digverificacion', sql.NVarChar, digverificacion ? String(digverificacion) : null);
+    if (columnsSupport.hasFechaExpedicion) request.input('fechaexpedicion', sql.Date, fechaexpedicion ? new Date(String(fechaexpedicion)) : null);
+    if (columnsSupport.hasFechaNacimiento) request.input('fechanacimiento', sql.Date, fechanacimiento ? new Date(String(fechanacimiento)) : null);
+    if (columnsSupport.hasMunicipioDane) request.input('municipio_dane', sql.NVarChar, municipio_dane ? String(municipio_dane) : null);
+    if (columnsSupport.hasNombreContacto) request.input('nombrecontacto', sql.NVarChar, nombrecontacto ? String(nombrecontacto) : null);
+    if (columnsSupport.hasTelefonoContacto) request.input('telefonocontacto', sql.NVarChar, telefonocontacto ? String(telefonocontacto) : null);
+    if (columnsSupport.hasEmailContacto) request.input('emailcontacto', sql.NVarChar, emailcontacto ? String(emailcontacto) : null);
 
     const ccCheck = await request.query(`
       SELECT TOP 1 1 AS ok
@@ -749,19 +885,38 @@ router.put('/:id', async (req, res) => {
     `);
     if (!ccCheck.recordset?.length) return res.status(400).json({ error: 'Centro de costo inválido' });
 
+    const erpUpdateSet = [
+      columnsSupport.hasDigVerificacion ? 'digverificacion = @digverificacion' : null,
+      columnsSupport.hasFechaExpedicion ? 'fechaexpedicion = @fechaexpedicion' : null,
+      columnsSupport.hasFechaNacimiento ? 'fechanacimiento = @fechanacimiento' : null,
+      columnsSupport.hasMunicipioDane ? 'municipio_dane = @municipio_dane' : null,
+      columnsSupport.hasNombreContacto ? 'nombrecontacto = @nombrecontacto' : null,
+      columnsSupport.hasTelefonoContacto ? 'telefonocontacto = @telefonocontacto' : null,
+      columnsSupport.hasEmailContacto ? 'emailcontacto = @emailcontacto' : null,
+    ].filter(Boolean).join(', ');
+
     await request.query(`
       UPDATE asociados
       SET centro_costo_id = @centro_costo_id, nombre = @nombre, documento = @documento, telefono = @telefono, correo = @correo,
-          direccion = @direccion, dias_gracia = @dias_gracia, activo = @activo, actualizado_en = SYSDATETIMEOFFSET()
+          direccion = @direccion, ${erpUpdateSet ? `${erpUpdateSet},` : ''} dias_gracia = @dias_gracia, activo = @activo, actualizado_en = SYSDATETIMEOFFSET()
       WHERE id = @id AND empresa_id = @empresa_id
     `);
     const getRequest = pool.request();
     getRequest.input('id', sql.UniqueIdentifier, id);
     getRequest.input('empresa_id', sql.UniqueIdentifier, empresaId);
-    const { hasContactId } = await getAsociadosColumnsSupport(pool.request());
+    const { hasContactId } = columnsSupport;
     const contactIdSelect = hasContactId ? 'a.contact_id,' : '';
+    const erpExtraSelect = [
+      columnsSupport.hasDigVerificacion ? 'a.digverificacion,' : '',
+      columnsSupport.hasFechaExpedicion ? 'a.fechaexpedicion,' : '',
+      columnsSupport.hasFechaNacimiento ? 'a.fechanacimiento,' : '',
+      columnsSupport.hasMunicipioDane ? 'a.municipio_dane,' : '',
+      columnsSupport.hasNombreContacto ? 'a.nombrecontacto,' : '',
+      columnsSupport.hasTelefonoContacto ? 'a.telefonocontacto,' : '',
+      columnsSupport.hasEmailContacto ? 'a.emailcontacto,' : '',
+    ].filter(Boolean).join(' ');
     const result = await getRequest.query(`
-      SELECT a.id, a.centro_costo_id, ${contactIdSelect} a.nombre, a.documento, a.telefono, a.correo, a.direccion,
+      SELECT a.id, a.centro_costo_id, ${contactIdSelect} ${erpExtraSelect} a.nombre, a.documento, a.telefono, a.correo, a.direccion,
              a.dias_gracia, a.activo, a.creado_en, a.actualizado_en,
              cc.id AS cc_id, cc.nombre AS cc_nombre, cc.codigo AS cc_codigo
       FROM asociados a INNER JOIN centros_costo cc ON cc.id = a.centro_costo_id
@@ -801,6 +956,13 @@ router.put('/:id', async (req, res) => {
       telefono: r.telefono,
       correo: r.correo,
       direccion: r.direccion,
+      digverificacion: columnsSupport.hasDigVerificacion ? (r.digverificacion ?? null) : null,
+      fechaexpedicion: columnsSupport.hasFechaExpedicion ? (r.fechaexpedicion ?? null) : null,
+      fechanacimiento: columnsSupport.hasFechaNacimiento ? (r.fechanacimiento ?? null) : null,
+      municipio_dane: columnsSupport.hasMunicipioDane ? (r.municipio_dane ?? null) : null,
+      nombrecontacto: columnsSupport.hasNombreContacto ? (r.nombrecontacto ?? null) : null,
+      telefonocontacto: columnsSupport.hasTelefonoContacto ? (r.telefonocontacto ?? null) : null,
+      emailcontacto: columnsSupport.hasEmailContacto ? (r.emailcontacto ?? null) : null,
       dias_gracia: r.dias_gracia,
       activo: r.activo,
       creado_en: r.creado_en,

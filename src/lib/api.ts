@@ -250,6 +250,15 @@ export const api = {
       { method: 'POST' }
     );
   },
+  crearTerceroERP: (asociadoId: string, opts?: { preview?: boolean; overrides?: Record<string, unknown> }) => {
+    const params = new URLSearchParams();
+    if (opts?.preview) params.set('preview', '1');
+    const qs = params.toString();
+    return request<{ success: boolean; preview?: boolean; payload?: unknown; erpResponse?: unknown }>(
+      `/api/erp/crear-tercero/${asociadoId}${qs ? `?${qs}` : ''}`,
+      { method: 'POST', body: JSON.stringify(opts?.overrides ?? {}) }
+    );
+  },
 
   // Notifications
   getNotifications: () => request<Notification[]>('/api/notifications', { useCache: true }),

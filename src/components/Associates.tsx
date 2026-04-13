@@ -12,6 +12,13 @@ export function Associates() {
     telefono: string;
     correo: string;
     direccion: string;
+    digverificacion?: string | null;
+    fechaexpedicion?: string | null;
+    fechanacimiento?: string | null;
+    municipio_dane?: string | null;
+    nombrecontacto?: string | null;
+    telefonocontacto?: string | null;
+    emailcontacto?: string | null;
     dias_gracia: number;
     activo: boolean;
     creado_en: string;
@@ -38,6 +45,13 @@ export function Associates() {
     telefono: '',
     correo: '',
     direccion: '',
+    digverificacion: '',
+    fechaexpedicion: '',
+    fechanacimiento: '',
+    municipio_dane: '05002',
+    nombrecontacto: '',
+    telefonocontacto: '',
+    emailcontacto: '',
     dias_gracia: 2,
     activo: true,
   });
@@ -82,6 +96,18 @@ export function Associates() {
           centro_costo: centroFromList || (created as unknown as { centro_costo?: CentroCosto }).centro_costo,
         };
         setAssociates((prev) => [createdWithCentro as unknown as Asociado, ...prev]);
+        try {
+          await api.crearTerceroERP(created.id);
+        } catch (e: unknown) {
+          const err = e as { message?: string };
+          const msg = String(err?.message || '');
+          if (!(
+            msg.toLowerCase().includes('erp no está habilitado') ||
+            msg.toLowerCase().includes('configuración erp incompleta')
+          )) {
+            alert('No se pudo crear el tercero en el ERP: ' + (msg || 'Error desconocido'));
+          }
+        }
         api.syncAsociadoContact(created.id)
           .then((sync) => {
             if (!sync?.contact_id) return;
@@ -119,6 +145,13 @@ export function Associates() {
       telefono: associate.telefono,
       correo: associate.correo,
       direccion: associate.direccion,
+      digverificacion: associate.digverificacion ? String(associate.digverificacion) : '',
+      fechaexpedicion: associate.fechaexpedicion ? String(associate.fechaexpedicion).slice(0, 10) : '',
+      fechanacimiento: associate.fechanacimiento ? String(associate.fechanacimiento).slice(0, 10) : '',
+      municipio_dane: associate.municipio_dane ? String(associate.municipio_dane) : '05002',
+      nombrecontacto: associate.nombrecontacto ? String(associate.nombrecontacto) : '',
+      telefonocontacto: associate.telefonocontacto ? String(associate.telefonocontacto) : '',
+      emailcontacto: associate.emailcontacto ? String(associate.emailcontacto) : '',
       dias_gracia: associate.dias_gracia,
       activo: associate.activo,
     });
@@ -133,6 +166,13 @@ export function Associates() {
       telefono: '',
       correo: '',
       direccion: '',
+      digverificacion: '',
+      fechaexpedicion: '',
+      fechanacimiento: '',
+      municipio_dane: '05002',
+      nombrecontacto: '',
+      telefonocontacto: '',
+      emailcontacto: '',
       dias_gracia: 2,
       activo: true,
     });
@@ -388,6 +428,94 @@ export function Associates() {
                       className="input-field-prominent resize-none"
                       autoComplete="street-address"
                       rows={2}
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2 pt-2">
+                    <div className="text-sm font-semibold text-slate-700">Datos para ERP (Tercero)</div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="asociado_municipio_dane" className="input-label">Municipio DANE</label>
+                    <input
+                      id="asociado_municipio_dane"
+                      type="text"
+                      value={formData.municipio_dane}
+                      onChange={(e) => setFormData({ ...formData, municipio_dane: e.target.value })}
+                      className="input-field-prominent"
+                      autoComplete="off"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="asociado_digverificacion" className="input-label">Dígito Verificación</label>
+                    <input
+                      id="asociado_digverificacion"
+                      type="text"
+                      value={formData.digverificacion}
+                      onChange={(e) => setFormData({ ...formData, digverificacion: e.target.value })}
+                      className="input-field-prominent"
+                      autoComplete="off"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="asociado_fechaexpedicion" className="input-label">Fecha Expedición</label>
+                    <input
+                      id="asociado_fechaexpedicion"
+                      type="date"
+                      value={formData.fechaexpedicion}
+                      onChange={(e) => setFormData({ ...formData, fechaexpedicion: e.target.value })}
+                      className="input-field-prominent"
+                      autoComplete="off"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="asociado_fechanacimiento" className="input-label">Fecha Nacimiento</label>
+                    <input
+                      id="asociado_fechanacimiento"
+                      type="date"
+                      value={formData.fechanacimiento}
+                      onChange={(e) => setFormData({ ...formData, fechanacimiento: e.target.value })}
+                      className="input-field-prominent"
+                      autoComplete="off"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label htmlFor="asociado_nombrecontacto" className="input-label">Nombre Contacto</label>
+                    <input
+                      id="asociado_nombrecontacto"
+                      type="text"
+                      value={formData.nombrecontacto}
+                      onChange={(e) => setFormData({ ...formData, nombrecontacto: e.target.value })}
+                      className="input-field-prominent"
+                      autoComplete="name"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="asociado_telefonocontacto" className="input-label">Teléfono Contacto</label>
+                    <input
+                      id="asociado_telefonocontacto"
+                      type="tel"
+                      value={formData.telefonocontacto}
+                      onChange={(e) => setFormData({ ...formData, telefonocontacto: e.target.value })}
+                      className="input-field-prominent"
+                      autoComplete="tel"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="asociado_emailcontacto" className="input-label">Email Contacto</label>
+                    <input
+                      id="asociado_emailcontacto"
+                      type="email"
+                      value={formData.emailcontacto}
+                      onChange={(e) => setFormData({ ...formData, emailcontacto: e.target.value })}
+                      className="input-field-prominent"
+                      autoComplete="email"
                     />
                   </div>
 
