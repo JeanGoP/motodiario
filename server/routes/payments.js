@@ -129,11 +129,14 @@ router.get('/', async (req, res) => {
       SELECT p.*, 
              d.id as dist_id, d.associate_amount, d.company_amount, d.created_at as dist_created_at,
              a.nombre as asociado_nombre, a.documento as asociado_documento,
-             m.plate as motorcycle_plate
+             m.plate as motorcycle_plate,
+             ca.erp_enviado as erp_enviado, ca.erp_enviado_en as erp_enviado_en
       FROM pagos p
       LEFT JOIN distribuciones_pagos d ON p.id = d.payment_id AND d.empresa_id = p.empresa_id
       LEFT JOIN asociados a ON p.asociado_id = a.id AND a.empresa_id = p.empresa_id
       LEFT JOIN motos m ON p.motorcycle_id = m.id AND m.empresa_id = p.empresa_id
+      LEFT JOIN contable_asientos ca
+        ON ca.empresa_id = p.empresa_id AND ca.origen = N'PAGO' AND ca.origen_id = p.id
       WHERE p.empresa_id = @empresa_id
     `;
 
@@ -154,10 +157,12 @@ router.get('/', async (req, res) => {
     
     // So if I return payments with nested distribution, I can simplify frontend logic.
     const payments = result.recordset.map(row => {
-      const { dist_id, associate_amount, company_amount, dist_created_at, asociado_nombre, asociado_documento, motorcycle_plate, ...payment } = row;
+      const { dist_id, associate_amount, company_amount, dist_created_at, asociado_nombre, asociado_documento, motorcycle_plate, erp_enviado, erp_enviado_en, ...payment } = row;
       return {
         ...payment,
         payment_date: normalizeDateOnly(payment.payment_date),
+        erp_enviado: erp_enviado === true || erp_enviado === 1,
+        erp_enviado_en: erp_enviado_en ?? null,
         asociado: payment.asociado_id ? {
           id: payment.asociado_id,
           nombre: asociado_nombre,

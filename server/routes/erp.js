@@ -631,6 +631,19 @@ router.post('/contabilizar-recibo/:id', async (req, res) => {
     }
 
     if (!firstAttempt.upstream.ok) {
+      try {
+        await pool.request()
+          .input('empresa_id', sql.UniqueIdentifier, empresaId)
+          .input('id', sql.UniqueIdentifier, asiento.id)
+          .input('erp_ultimo_error', sql.NVarChar(255), String(firstAttempt.parsed?.mensaje || 'Error del ERP').slice(0, 255))
+          .query(`
+            UPDATE contable_asientos
+            SET erp_ultimo_error = @erp_ultimo_error
+            WHERE empresa_id = @empresa_id AND id = @id
+          `);
+      } catch {
+        void 0;
+      }
       return res.status(firstAttempt.upstream.status).json({
         error: 'Error del ERP',
         payload: payloadERP,
@@ -640,6 +653,19 @@ router.post('/contabilizar-recibo/:id', async (req, res) => {
     }
 
     if (firstAttempt.parsed.isErpBusinessError) {
+      try {
+        await pool.request()
+          .input('empresa_id', sql.UniqueIdentifier, empresaId)
+          .input('id', sql.UniqueIdentifier, asiento.id)
+          .input('erp_ultimo_error', sql.NVarChar(255), String(firstAttempt.parsed?.mensaje || 'Error del ERP').slice(0, 255))
+          .query(`
+            UPDATE contable_asientos
+            SET erp_ultimo_error = @erp_ultimo_error
+            WHERE empresa_id = @empresa_id AND id = @id
+          `);
+      } catch {
+        void 0;
+      }
       return res.status(502).json({
         error: 'Error del ERP',
         payload: payloadERP,
@@ -648,6 +674,18 @@ router.post('/contabilizar-recibo/:id', async (req, res) => {
       });
     }
 
+    try {
+      await pool.request()
+        .input('empresa_id', sql.UniqueIdentifier, empresaId)
+        .input('id', sql.UniqueIdentifier, asiento.id)
+        .query(`
+          UPDATE contable_asientos
+          SET erp_enviado = 1, erp_enviado_en = SYSDATETIMEOFFSET(), erp_ultimo_error = NULL
+          WHERE empresa_id = @empresa_id AND id = @id
+        `);
+    } catch {
+      void 0;
+    }
     return res.status(200).json({ success: true, payload: payloadERP, erpResponse: firstAttempt.parsed.responseData });
 
   } catch (err) {

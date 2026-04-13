@@ -22,9 +22,12 @@ router.get('/', async (req, res) => {
     const pool = await getPool();
     const request = pool.request().input('empresa_id', sql.UniqueIdentifier, empresaId);
     let query = `
-      SELECT r.*, a.nombre as asociado_nombre, a.documento as asociado_documento
+      SELECT r.*, a.nombre as asociado_nombre, a.documento as asociado_documento,
+             ca.erp_enviado as erp_enviado, ca.erp_enviado_en as erp_enviado_en
       FROM recibos_caja r
       JOIN asociados a ON r.asociado_id = a.id AND a.empresa_id = r.empresa_id
+      LEFT JOIN contable_asientos ca
+        ON ca.empresa_id = r.empresa_id AND ca.origen = N'RECIBO_CAJA' AND ca.origen_id = r.id
       WHERE r.empresa_id = @empresa_id
     `;
 
@@ -52,6 +55,8 @@ router.get('/', async (req, res) => {
       observaciones: row.observaciones,
       created_by: row.created_by,
       created_at: row.created_at,
+      erp_enviado: row.erp_enviado === true || row.erp_enviado === 1,
+      erp_enviado_en: row.erp_enviado_en ?? null,
       asociado: {
         id: row.asociado_id,
         nombre: row.asociado_nombre,

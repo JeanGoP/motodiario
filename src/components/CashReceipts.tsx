@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api, type CashReceipt } from '../lib/api';
 import { Asociado } from '../types/database';
-import { Plus, Printer, FileText, Search, Calendar, X, Send } from 'lucide-react';
+import { Plus, Printer, FileText, Search, Calendar, X, Send, CheckCircle2, Clock } from 'lucide-react';
 import { printCashReceipt } from '../utils/printCashReceipt';
 
 const getBogotaDateOnly = (date: Date = new Date()) =>
@@ -101,6 +101,7 @@ export function CashReceipts() {
       console.log('[ERP] Payload:', result.payload);
       console.log('[ERP] Respuesta ERP:', result.erpResponse);
       alert('Recibo contabilizado en el ERP con éxito');
+      await loadData();
     } catch (error: unknown) {
       const e = error as Error & { status?: number; body?: unknown; url?: string; method?: string };
       console.error('[ERP] Error al contabilizar', e);
@@ -177,6 +178,7 @@ export function CashReceipts() {
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Concepto</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Monto</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Observaciones</th>
+                <th className="px-6 py-4 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">ERP</th>
                 <th className="px-6 py-4 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
@@ -203,11 +205,19 @@ export function CashReceipts() {
                   <td className="px-6 py-4 text-sm text-slate-500 max-w-xs truncate">
                     {receipt.observaciones || '-'}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-center">
+                    {receipt.erp_enviado ? (
+                      <CheckCircle2 className="w-5 h-5 text-green-600 inline-block" title="Enviado al ERP" />
+                    ) : (
+                      <Clock className="w-5 h-5 text-slate-400 inline-block" title="Pendiente de enviar al ERP" />
+                    )}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <button
                       onClick={() => handleContabilizarERP(receipt.id)}
-                      className="text-slate-400 hover:text-blue-600 transition-colors p-2 hover:bg-blue-50 rounded-lg mr-1"
-                      title="Contabilizar en ERP"
+                      className={`transition-colors p-2 rounded-lg mr-1 ${receipt.erp_enviado ? 'text-slate-300 cursor-not-allowed' : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'}`}
+                      title={receipt.erp_enviado ? 'Ya fue enviado al ERP' : 'Contabilizar en ERP'}
+                      disabled={!!receipt.erp_enviado}
                     >
                       <Send className="w-4 h-4" />
                     </button>
@@ -233,7 +243,7 @@ export function CashReceipts() {
               ))}
               {filteredReceipts.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
+                  <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center">
                       <div className="bg-slate-100 p-4 rounded-full mb-4">
                         <FileText className="w-8 h-8 text-slate-400" />

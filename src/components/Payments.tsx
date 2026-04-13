@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Payment, Motorcycle, Asociado, PaymentDistribution } from '../types/database';
 import { api } from '../lib/api';
-import { Plus, Receipt, DollarSign, TrendingUp, TrendingDown, Printer, Search, Calendar, User, Bike, X } from 'lucide-react';
+import { Plus, Receipt, DollarSign, TrendingUp, TrendingDown, Printer, Search, Calendar, User, Bike, X, CheckCircle2, Clock } from 'lucide-react';
 import { printReceipt } from '../utils/printReceipt';
 
 const getBogotaDateOnly = (date: Date = new Date()) =>
@@ -15,6 +15,8 @@ type PaymentWithDetails = Payment & {
 
 type PaymentFromApi = Payment & {
   distribution?: PaymentDistribution;
+  erp_enviado?: boolean;
+  erp_enviado_en?: string | null;
 };
 
 type MotorcycleWithDetails = Motorcycle & {
@@ -346,6 +348,9 @@ export function Payments() {
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Distribución
                 </th>
+                <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  ERP
+                </th>
                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Acciones
                 </th>
@@ -396,6 +401,13 @@ export function Payments() {
                         <span className="font-medium text-slate-700">${Number(payment.distribution?.company_amount || 0).toLocaleString()}</span>
                       </div>
                     </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-center">
+                    {payment.erp_enviado ? (
+                      <CheckCircle2 className="w-5 h-5 text-green-600 inline-block" title="Enviado al ERP" />
+                    ) : (
+                      <Clock className="w-5 h-5 text-slate-400 inline-block" title="Pendiente de enviar al ERP" />
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <button

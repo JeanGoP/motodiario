@@ -141,6 +141,8 @@ export type CashReceipt = {
   concepto: string;
   fecha: string;
   observaciones?: string | null;
+  erp_enviado?: boolean;
+  erp_enviado_en?: string | null;
   asociado?: Pick<Asociado, 'nombre' | 'documento'>;
 };
 
