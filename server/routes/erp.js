@@ -529,7 +529,9 @@ router.post('/contabilizar-recibo/:id', async (req, res) => {
         Tercero: terceroOverride || String(l.tercero_documento || "").trim(),
         Factura: "",
         Vencimiento: "",
-        Valor: Math.abs(Number(l.valor)),
+        Valor: (String(l.movimiento || '').toUpperCase() === 'DEBITO'
+          ? 1
+          : -1) * Math.abs(Number.isFinite(Number(l.valor)) ? Number(l.valor) : 0),
         Detalle: l.movimiento === 'DEBITO' ? 'Pago capital' : 'Salida banco'
       }))
     };
