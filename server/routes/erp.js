@@ -114,6 +114,31 @@ const formatXmlDate = (v) => {
   return d.toISOString().slice(0, 10);
 };
 
+const validateAsociadoForTerceroERP = (asociado) => {
+  const missing = [];
+  const s = (v) => String(v ?? '').trim();
+  const fechaExp = formatXmlDate(asociado?.fechaexpedicion);
+  const fechaNac = formatXmlDate(asociado?.fechanacimiento);
+  const docRaw = s(asociado?.documento);
+  const digFromDoc = docRaw.includes('-') ? s(docRaw.split('-', 2)[1]) : '';
+  const dv = s(asociado?.digverificacion) || digFromDoc;
+
+  if (!s(asociado?.nombre)) missing.push('nombre');
+  if (!docRaw) missing.push('documento');
+  if (!s(asociado?.telefono)) missing.push('telefono');
+  if (!s(asociado?.correo)) missing.push('correo');
+  if (!s(asociado?.direccion)) missing.push('direccion');
+  if (!s(asociado?.municipio_dane)) missing.push('municipio_dane');
+  if (!dv) missing.push('digverificacion');
+  if (!fechaExp) missing.push('fechaexpedicion');
+  if (!fechaNac) missing.push('fechanacimiento');
+  if (!s(asociado?.nombrecontacto)) missing.push('nombrecontacto');
+  if (!s(asociado?.telefonocontacto)) missing.push('telefonocontacto');
+  if (!s(asociado?.emailcontacto)) missing.push('emailcontacto');
+
+  return { ok: missing.length === 0, missing };
+};
+
 const buildTerceroXmlFromAsociado = ({
   nombre,
   documento,
@@ -150,23 +175,28 @@ const buildTerceroXmlFromAsociado = ({
   delete overridesObj.esReponsableiva;
   delete overridesObj.tipoidentificacion;
 
-  const attrs = {
+  const merged = {
+    tipocliente: '45',
+    tipopersoneria: '33',
+    categoriafiscal: '1',
+    esReponsableiva: '7',
+    tipoidentificacion: '9',
     identificacion,
-    ...(digverificacion ? { digverificacion } : {}),
-    ...(fechaexpedicionXml ? { fechaexpedicion: fechaexpedicionXml } : {}),
+    digverificacion,
+    fechaexpedicion: fechaexpedicionXml,
     primernombre,
-    ...(segundonombre ? { segundonombre } : {}),
+    segundonombre,
     primerapellido,
-    ...(segundoapellido ? { segundoapellido } : {}),
-    ...(fechanacimientoXml ? { fechanacimiento: fechanacimientoXml } : {}),
+    segundoapellido,
     municipio_dane: String(municipio_dane || '').trim() || '05002',
     telefono: String(telefono || '').trim(),
     celular: String(telefono || '').trim(),
+    fechanacimiento: fechanacimientoXml,
     direccion: String(direccion || '').trim(),
     email: String(correo || '').trim(),
-    ...(String(nombrecontacto || '').trim() ? { nombrecontacto: String(nombrecontacto).trim() } : {}),
-    ...(String(telefonocontacto || '').trim() ? { telefonocontacto: String(telefonocontacto).trim() } : {}),
-    ...(String(emailcontacto || '').trim() ? { emailcontacto: String(emailcontacto).trim() } : {}),
+    nombrecontacto: String(nombrecontacto || '').trim(),
+    telefonocontacto: String(telefonocontacto || '').trim(),
+    emailcontacto: String(emailcontacto || '').trim(),
     id_user: '1',
     ...overridesObj,
     tipocliente: '45',
@@ -176,8 +206,70 @@ const buildTerceroXmlFromAsociado = ({
     tipoidentificacion: '9',
   };
 
-  const xmlAttrs = Object.entries(attrs)
-    .filter(([, v]) => String(v ?? '').trim() !== '')
+  const orderedKeys = [
+    'tipocliente',
+    'tipopersoneria',
+    'categoriafiscal',
+    'esReponsableiva',
+    'tipoidentificacion',
+    'identificacion',
+    'digverificacion',
+    'fechaexpedicion',
+    'primernombre',
+    'segundonombre',
+    'primerapellido',
+    'segundoapellido',
+    'municipio_dane',
+    'telefono',
+    'celular',
+    'fechanacimiento',
+    'direccion',
+    'email',
+    'nombrecontacto',
+    'telefonocontacto',
+    'emailcontacto',
+    'id_user',
+  ];
+
+  const requiredPresenceKeys = new Set([
+    'tipocliente',
+    'tipopersoneria',
+    'categoriafiscal',
+    'esReponsableiva',
+    'tipoidentificacion',
+    'identificacion',
+    'digverificacion',
+    'fechaexpedicion',
+    'primernombre',
+    'segundonombre',
+    'primerapellido',
+    'segundoapellido',
+    'municipio_dane',
+    'telefono',
+    'celular',
+    'fechanacimiento',
+    'direccion',
+    'email',
+    'nombrecontacto',
+    'telefonocontacto',
+    'emailcontacto',
+    'id_user',
+  ]);
+
+  const xmlEntries = [];
+  for (const k of orderedKeys) {
+    const v = merged[k];
+    if (String(v ?? '').trim() !== '' || requiredPresenceKeys.has(k)) {
+      xmlEntries.push([k, v ?? '']);
+    }
+  }
+  for (const [k, v] of Object.entries(merged)) {
+    if (requiredPresenceKeys.has(k)) continue;
+    if (String(v ?? '').trim() === '') continue;
+    xmlEntries.push([k, v]);
+  }
+
+  const xmlAttrs = xmlEntries
     .map(([k, v]) => `${k}="${escapeXmlAttr(String(v))}"`)
     .join(' ');
 
@@ -286,6 +378,14 @@ router.post('/crear-tercero/:asociadoId', async (req, res) => {
       `);
     const asociado = asociadoResult.recordset?.[0] || null;
     if (!asociado) return res.status(404).json({ error: 'Asociado no encontrado' });
+
+    const check = validateAsociadoForTerceroERP(asociado);
+    if (!check.ok) {
+      return res.status(400).json({
+        error: `Faltan datos del asociado para crear el tercero en el ERP: ${check.missing.join(', ')}`,
+        missing: check.missing
+      });
+    }
 
     const xml = buildTerceroXmlFromAsociado(asociado, req.body && typeof req.body === 'object' ? req.body : {});
     const preview = String(req.query?.preview || '').trim().toLowerCase();
