@@ -1,0 +1,574 @@
+{
+  "info": {
+    "_postman_id": "b57d370f-1d0a-4ef6-a905-759ce1d768e2",
+    "name": "JEAN - ENDPOINT CARTERA FINANCIERA",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "25530012"
+  },
+  "item": [
+    {
+      "name": "CrearComprobante - local",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"TipoDocumento\": \"NOTA CONTABLE\",\r\n    \"CentroCosto\": \"01\",\r\n    \"FechaDoc\": \"2026-03-13\",\r\n    \"Descripcion\": \"ESTO ES UNA PRUEBA DE HACER COMPROBANTES CONTABLES MEDIANTES ENDPOINT.\",\r\n    \"Detalle\": [\r\n        {\r\n            \"CentroCosto\": \"68\",\r\n            \"Concepto\": \"\",\r\n            \"Cuenta\": \"11050523\",\r\n            \"Tercero\": \"1143225774\",\r\n            \"Factura\": \"\",\r\n            \"Vencimiento\": \"\", \r\n            \"Valor\": 50000.00,\r\n            \"Detalle\": \"Pago capital\"\r\n        },\r\n        {\r\n            \"CentroCosto\": \"68\",\r\n            \"Concepto\": \"\",\r\n            \"Cuenta\": \"11050523\",\r\n            \"Tercero\": \"1143225774\",\r\n            \"Factura\": \"\",\r\n            \"Vencimiento\": \"\", \r\n            \"Valor\": 50000.00,\r\n            \"Detalle\": \"Salida banco\"\r\n        }\r\n    ]\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:44383/api/CrearComprobante?token=1111111111",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "44383",
+          "path": [
+            "api",
+            "CrearComprobante"
+          ],
+          "query": [
+            {
+              "key": "token",
+              "value": "1111111111"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "ObtenerCarteraFianncieraIden - PRODUCCION",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"Identificacion\": \"1006915012\",\r\n    \"Fecha\": \"2026-03-16\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://www.sintesiserp.com/ApiGestionCarteERP/api/ObtenerCarteraFianncieraIden?token=1111111111",
+          "protocol": "https",
+          "host": [
+            "www",
+            "sintesiserp",
+            "com"
+          ],
+          "path": [
+            "ApiGestionCarteERP",
+            "api",
+            "ObtenerCarteraFianncieraIden"
+          ],
+          "query": [
+            {
+              "key": "token",
+              "value": "1111111111"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "CrearComprobante - PRODUCTION",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"TipoDocumento\": \"NOTA CONTABLE\",\r\n    \"CentroCosto\": \"01\",\r\n    \"FechaDoc\": \"2026-03-13\",\r\n    \"Descripcion\": \"ESTO ES UNA PRUEBA DE HACER COMPROBANTES CONTABLES MEDIANTES ENDPOINT.\",\r\n    \"Detalle\": [\r\n        {\r\n            \"CentroCosto\": \"68\",\r\n            \"Concepto\": \"\",\r\n            \"Cuenta\": \"11050523\",\r\n            \"Tercero\": \"1143225774\",\r\n            \"Factura\": \"\",\r\n            \"Vencimiento\": \"\", \r\n            \"Valor\": 50000.00,\r\n            \"Detalle\": \"Pago capital\"\r\n        },\r\n        {\r\n            \"CentroCosto\": \"68\",\r\n            \"Concepto\": \"\",\r\n            \"Cuenta\": \"11050523\",\r\n            \"Tercero\": \"1143225774\",\r\n            \"Factura\": \"\",\r\n            \"Vencimiento\": \"\", \r\n            \"Valor\": 50000.00,\r\n            \"Detalle\": \"Salida banco\"\r\n        }\r\n    ]\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://www.sintesiserp.com/ApiGestionCarteERP/api/CrearComprobante?token=1111111111",
+          "protocol": "https",
+          "host": [
+            "www",
+            "sintesiserp",
+            "com"
+          ],
+          "path": [
+            "ApiGestionCarteERP",
+            "api",
+            "CrearComprobante"
+          ],
+          "query": [
+            {
+              "key": "token",
+              "value": "1111111111"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "CrearTerceros",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJBMTI4S1ciLCJlbmMiOiJBMTI4Q0JDLUhTMjU2IiwidHlwIjoiSldUIn0.evslgHITui9dRobBMuYiusQ_Pp2km9SCng2OOKQtQTn3Yd5R7N9vSg.XgX3xjp0V5Rg-lcFVWQnDw.13YVZ8yfPpY6tH3KpLq8-Zy30Z4KFaQ5mbHkznse6C5_DGw85ixXwekaWWXnONWelE10g2JpZxxm0WCIyc821oLZuB8S3swlff9xohkXHqTIBD4qb1EfoIeQYWz_xbSjwNA_i2toSYMg2TVILbkW4E9_o2O-j5Z2hP7e7qMUx45nFushfRhn-te6D8Zp8FQcc-0KkqkgYJCk_92vEaYdSm8QDMtA9pcFiIRJmgORTgtiqwcdBHUPrO4Y0DlmNE2wtjHJbYGhk1WNBX_UbX8oS5EVSVymm1fivU6fnY0_kK-Lq9Ek1Uzu2fBvFnOsmHAitMrNuW5QSMUU91cT65jLotiaGlSZsmBV_5SWRUo7-5lrK0MNJdsZ3vWWU2hjGA8Y0m7ilaiguXL3H_ANJ3B4lQ.pgOtReWaDKFtK-cC3jU3Bw",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "<SintesisCloud>\r\n<Tercero tipocliente=\"45\" \r\n        tipopersoneria=\"33\" \r\n        categoriafiscal=\"1\" \r\n        esReponsableiva=\"7\" \r\n        tipoidentificacion=\"9\" \r\n        identificacion=\"100100101154\" \r\n        digverificacion=\"7\" \r\n        fechaexpedicion=\"2022-04-07\" \r\n        primernombre=\"ANDREA\"\r\n        segundonombre=\"STENFANYA\"\r\n        primerapellido=\"BARRIOS\"\r\n        segundoapellido=\"CARO\" \r\n        municipio_dane=\"05002\" \r\n        telefono=\"3013779433\"\r\n        celular=\"3013779897\" \r\n        fechanacimiento=\"1996-02-07\"\r\n        direccion=\"CARTAGENA\"\r\n        email=\"ANDREASTEFANYACARO@gmai1.com\"\r\n        nombrecontacto=\"KEVIN\"\r\n        telefonocontacto=\"3014589652\"\r\n        emailcontacto=\"KMARTINEZT@gmail.com\"\r\n        id_user=\"1\" \r\n         >\r\n    </Tercero>\r\n</SintesisCloud>",
+          "options": {
+            "raw": {
+              "language": "xml"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:44383/api/AsignarTerceros?token=1111111111",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "44383",
+          "path": [
+            "api",
+            "AsignarTerceros"
+          ],
+          "query": [
+            {
+              "key": "token",
+              "value": "1111111111"
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "CrearTerceros",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "<SintesisCloud>\r\n<Tercero tipocliente=\"45\" \r\n        tipopersoneria=\"33\" \r\n        categoriafiscal=\"1\" \r\n        esReponsableiva=\"7\" \r\n        tipoidentificacion=\"9\" \r\n        identificacion=\"100100101154\" \r\n        digverificacion=\"7\" \r\n        fechaexpedicion=\"2022-04-07\" \r\n        primernombre=\"ANDREA\"\r\n        segundonombre=\"STENFANYA\"\r\n        primerapellido=\"BARRIOS\"\r\n        segundoapellido=\"CARO\" \r\n        municipio_dane=\"05002\" \r\n        telefono=\"3013779433\"\r\n        celular=\"3013779897\" \r\n        fechanacimiento=\"1996-02-07\"\r\n        direccion=\"CARTAGENA\"\r\n        email=\"ANDREASTEFANYACARO@gmai1.com\"\r\n        nombrecontacto=\"KEVIN\"\r\n        telefonocontacto=\"3014589652\"\r\n        emailcontacto=\"KMARTINEZT@gmail.com\"\r\n        id_user=\"1\" \r\n         >\r\n    </Tercero>\r\n</SintesisCloud>",
+              "options": {
+                "raw": {
+                  "language": "xml"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://localhost:44383/api/AsignarTerceros?token=1111111111",
+              "protocol": "https",
+              "host": [
+                "localhost"
+              ],
+              "port": "44383",
+              "path": [
+                "api",
+                "AsignarTerceros"
+              ],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "1111111111"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": null,
+          "header": [
+            {
+              "key": "Transfer-Encoding",
+              "value": "chunked"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Server",
+              "value": "Microsoft-IIS/10.0"
+            },
+            {
+              "key": "X-Powered-By",
+              "value": "ASP.NET"
+            },
+            {
+              "key": "Date",
+              "value": "Mon, 13 Apr 2026 14:11:21 GMT"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"Error\": false,\n    \"Mensaje\": \"\",\n    \"Resultado\": [\n        {\n            \"Codigo\": 315143,\n            \"estado\": \"PROCESADO\",\n            \"fecha\": \"2026-04-13T09:11:18.53\",\n            \"Cliente\": \"BARRIOS CARO ANDREA STENFANYA\",\n            \"identificacion\": \"100100101154\"\n        }\n    ]\n}"
+        }
+      ]
+    },
+    {
+      "name": "ConsultasInfoApi",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"parametro\":  \"\",\r\n    \"opcion\":  \"USUARIOS\"\r\n}\r\n",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://localhost:44383/api/ConsultasInfoApi?token=1111111111",
+          "protocol": "https",
+          "host": [
+            "localhost"
+          ],
+          "port": "44383",
+          "path": [
+            "api",
+            "ConsultasInfoApi"
+          ],
+          "query": [
+            {
+              "key": "token",
+              "value": "1111111111"
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "ConsultasInfoApi",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"parametro\":  \"\",\r\n    \"opcion\":  \"CATFISCAL\"\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://localhost:44383/api/ConsultasInfoApi?token=1111111111",
+              "protocol": "https",
+              "host": [
+                "localhost"
+              ],
+              "port": "44383",
+              "path": [
+                "api",
+                "ConsultasInfoApi"
+              ],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "1111111111"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": null,
+          "header": [
+            {
+              "key": "Transfer-Encoding",
+              "value": "chunked"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            },
+            {
+              "key": "Server",
+              "value": "Microsoft-IIS/10.0"
+            },
+            {
+              "key": "X-Powered-By",
+              "value": "ASP.NET"
+            },
+            {
+              "key": "Date",
+              "value": "Mon, 13 Apr 2026 14:08:19 GMT"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"Error\": false,\n    \"Mensaje\": \"\",\n    \"Resultado\": [\n        {\n            \"Parametro\": 1,\n            \"name\": \"RESPONSABLE DE IVA\"\n        },\n        {\n            \"Parametro\": 2,\n            \"name\": \"pruebaa\"\n        }\n    ]\n}"
+        }
+      ]
+    },
+    {
+      "name": "CrearTerceros - PRODUCCION",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJBMTI4S1ciLCJlbmMiOiJBMTI4Q0JDLUhTMjU2IiwidHlwIjoiSldUIn0.evslgHITui9dRobBMuYiusQ_Pp2km9SCng2OOKQtQTn3Yd5R7N9vSg.XgX3xjp0V5Rg-lcFVWQnDw.13YVZ8yfPpY6tH3KpLq8-Zy30Z4KFaQ5mbHkznse6C5_DGw85ixXwekaWWXnONWelE10g2JpZxxm0WCIyc821oLZuB8S3swlff9xohkXHqTIBD4qb1EfoIeQYWz_xbSjwNA_i2toSYMg2TVILbkW4E9_o2O-j5Z2hP7e7qMUx45nFushfRhn-te6D8Zp8FQcc-0KkqkgYJCk_92vEaYdSm8QDMtA9pcFiIRJmgORTgtiqwcdBHUPrO4Y0DlmNE2wtjHJbYGhk1WNBX_UbX8oS5EVSVymm1fivU6fnY0_kK-Lq9Ek1Uzu2fBvFnOsmHAitMrNuW5QSMUU91cT65jLotiaGlSZsmBV_5SWRUo7-5lrK0MNJdsZ3vWWU2hjGA8Y0m7ilaiguXL3H_ANJ3B4lQ.pgOtReWaDKFtK-cC3jU3Bw",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "<SintesisCloud>\r\n<Tercero tipocliente=\"45\" \r\n        tipopersoneria=\"33\" \r\n        categoriafiscal=\"1\" \r\n        esReponsableiva=\"7\" \r\n        tipoidentificacion=\"9\" \r\n        identificacion=\"100100101154\" \r\n        digverificacion=\"7\" \r\n        fechaexpedicion=\"2022-04-07\" \r\n        primernombre=\"ANDREA\"\r\n        segundonombre=\"STENFANYA\"\r\n        primerapellido=\"BARRIOS\"\r\n        segundoapellido=\"CARO\" \r\n        municipio_dane=\"05002\" \r\n        telefono=\"3013779433\"\r\n        celular=\"3013779897\" \r\n        fechanacimiento=\"1996-02-07\"\r\n        direccion=\"CARTAGENA\"\r\n        email=\"ANDREASTEFANYACARO@gmai1.com\"\r\n        nombrecontacto=\"KEVIN\"\r\n        telefonocontacto=\"3014589652\"\r\n        emailcontacto=\"KMARTINEZT@gmail.com\"\r\n        id_user=\"1\" \r\n         >\r\n    </Tercero>\r\n</SintesisCloud>",
+          "options": {
+            "raw": {
+              "language": "xml"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://www.sintesiserp.com/ApiGestionCarteERP/api/AsignarTerceros?token=1111111111",
+          "protocol": "https",
+          "host": [
+            "www",
+            "sintesiserp",
+            "com"
+          ],
+          "path": [
+            "ApiGestionCarteERP",
+            "api",
+            "AsignarTerceros"
+          ],
+          "query": [
+            {
+              "key": "token",
+              "value": "1111111111"
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "CrearTerceros",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "<SintesisCloud>\r\n<Tercero tipocliente=\"45\" \r\n        tipopersoneria=\"33\" \r\n        categoriafiscal=\"1\" \r\n        esReponsableiva=\"7\" \r\n        tipoidentificacion=\"9\" \r\n        identificacion=\"100100101154\" \r\n        digverificacion=\"7\" \r\n        fechaexpedicion=\"2022-04-07\" \r\n        primernombre=\"ANDREA\"\r\n        segundonombre=\"STENFANYA\"\r\n        primerapellido=\"BARRIOS\"\r\n        segundoapellido=\"CARO\" \r\n        municipio_dane=\"05002\" \r\n        telefono=\"3013779433\"\r\n        celular=\"3013779897\" \r\n        fechanacimiento=\"1996-02-07\"\r\n        direccion=\"CARTAGENA\"\r\n        email=\"ANDREASTEFANYACARO@gmai1.com\"\r\n        nombrecontacto=\"KEVIN\"\r\n        telefonocontacto=\"3014589652\"\r\n        emailcontacto=\"KMARTINEZT@gmail.com\"\r\n        id_user=\"1\" \r\n         >\r\n    </Tercero>\r\n</SintesisCloud>",
+              "options": {
+                "raw": {
+                  "language": "xml"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://localhost:44383/api/AsignarTerceros?token=1111111111",
+              "protocol": "https",
+              "host": [
+                "localhost"
+              ],
+              "port": "44383",
+              "path": [
+                "api",
+                "AsignarTerceros"
+              ],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "1111111111"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "",
+          "header": [
+            {
+              "key": "Transfer-Encoding",
+              "value": "chunked",
+              "uuid": "577e7cb0-8249-453a-a249-e313fff38dc4"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8",
+              "uuid": "7cb49720-f795-4b35-835c-68df1603f453"
+            },
+            {
+              "key": "Server",
+              "value": "Microsoft-IIS/10.0",
+              "uuid": "853c6b1e-4362-41fb-9ec1-9c3d25d8b74c"
+            },
+            {
+              "key": "X-Powered-By",
+              "value": "ASP.NET",
+              "uuid": "a03fd444-85ff-4e80-b7dd-7cba544307a0"
+            },
+            {
+              "key": "Date",
+              "value": "Mon, 13 Apr 2026 14:11:21 GMT",
+              "uuid": "da7a86be-743f-4e4c-8426-2fc11696f559"
+            }
+          ],
+          "cookie": [
+            {
+              "expires": "Invalid Date",
+              "domain": "",
+              "path": ""
+            }
+          ],
+          "body": "{\n    \"Error\": false,\n    \"Mensaje\": \"\",\n    \"Resultado\": [\n        {\n            \"Codigo\": 315143,\n            \"estado\": \"PROCESADO\",\n            \"fecha\": \"2026-04-13T09:11:18.53\",\n            \"Cliente\": \"BARRIOS CARO ANDREA STENFANYA\",\n            \"identificacion\": \"100100101154\"\n        }\n    ]\n}"
+        }
+      ]
+    },
+    {
+      "name": "ConsultasInfoApi - PRODUCCION",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"parametro\":  \"\",\r\n    \"opcion\":  \"USUARIOS\"\r\n}\r\n\r\n\r\n///LISTA DE CONSULTAS \r\n\r\n/// *** USUARIOS    -- LISTA DE USUARIOS\r\n/// *** TIIDEN       -- TIPO DE DOCUMENTO\r\n/// *** CITY         -- LISTA DE CIUDADES\r\n/// *** PERSONERIA   -- TIPO DE PERSONERIA\r\n/// *** TIPOSTER     -- TIPO DE TIPOSTER\r\n/// *** CATFISCAL    -- TIPO DE CATFISCAL",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://www.sintesiserp.com/ApiGestionCarteERP/api/ConsultasInfoApi?token=1111111111",
+          "protocol": "https",
+          "host": [
+            "www",
+            "sintesiserp",
+            "com"
+          ],
+          "path": [
+            "ApiGestionCarteERP",
+            "api",
+            "ConsultasInfoApi"
+          ],
+          "query": [
+            {
+              "key": "token",
+              "value": "1111111111"
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "ConsultasInfoApi",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"parametro\":  \"\",\r\n    \"opcion\":  \"CATFISCAL\"\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://localhost:44383/api/ConsultasInfoApi?token=1111111111",
+              "protocol": "https",
+              "host": [
+                "localhost"
+              ],
+              "port": "44383",
+              "path": [
+                "api",
+                "ConsultasInfoApi"
+              ],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "1111111111"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "",
+          "header": [
+            {
+              "key": "Transfer-Encoding",
+              "value": "chunked",
+              "uuid": "0621a3b4-406d-49e9-9cca-1e3bfa4f17df"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8",
+              "uuid": "79934f83-1c62-4236-ba78-ee21d044ba48"
+            },
+            {
+              "key": "Server",
+              "value": "Microsoft-IIS/10.0",
+              "uuid": "2d4439c1-2feb-4e8c-9b95-a012e791f356"
+            },
+            {
+              "key": "X-Powered-By",
+              "value": "ASP.NET",
+              "uuid": "28bc3d2d-ed5a-42bc-956c-78f997996ecf"
+            },
+            {
+              "key": "Date",
+              "value": "Mon, 13 Apr 2026 14:08:19 GMT",
+              "uuid": "4c2df9e2-0431-4efd-b276-6fdb62d1000b"
+            }
+          ],
+          "cookie": [
+            {
+              "expires": "Invalid Date",
+              "domain": "",
+              "path": ""
+            }
+          ],
+          "body": "{\n    \"Error\": false,\n    \"Mensaje\": \"\",\n    \"Resultado\": [\n        {\n            \"Parametro\": 1,\n            \"name\": \"RESPONSABLE DE IVA\"\n        },\n        {\n            \"Parametro\": 2,\n            \"name\": \"pruebaa\"\n        }\n    ]\n}"
+        }
+      ]
+    }
+  ]
+}
