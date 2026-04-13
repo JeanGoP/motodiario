@@ -132,7 +132,7 @@ router.post('/', async (req, res) => {
 
       request.input('regla_id', sql.UniqueIdentifier, regla.id);
       const reglaLineas = await request.query(`
-        SELECT cuenta_id, movimiento, porcentaje
+        SELECT cuenta_id, movimiento, porcentaje, descripcion
         FROM contable_regla_lineas
         WHERE empresa_id = @empresa_id AND regla_version_id = @regla_id
       `);
@@ -167,9 +167,10 @@ router.post('/', async (req, res) => {
         lineaRequest.input('movimiento', sql.NVarChar(7), l.movimiento);
         lineaRequest.input('porcentaje', sql.Decimal(9, 4), l.porcentaje);
         lineaRequest.input('valor', sql.Decimal(18, 2), l.valor);
+        lineaRequest.input('descripcion', sql.NVarChar(255), l.descripcion);
         await lineaRequest.query(`
-          INSERT INTO contable_asiento_lineas (id, empresa_id, asiento_id, asociado_id, cuenta_id, movimiento, porcentaje, valor, creado_en)
-          VALUES (@linea_id, @empresa_id, @asiento_id, @asociado_id, @cuenta_id, @movimiento, @porcentaje, @valor, SYSDATETIMEOFFSET())
+          INSERT INTO contable_asiento_lineas (id, empresa_id, asiento_id, asociado_id, cuenta_id, movimiento, porcentaje, valor, descripcion, creado_en)
+          VALUES (@linea_id, @empresa_id, @asiento_id, @asociado_id, @cuenta_id, @movimiento, @porcentaje, @valor, @descripcion, SYSDATETIMEOFFSET())
         `);
       }
     }

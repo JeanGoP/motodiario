@@ -487,6 +487,7 @@ router.post('/contabilizar-recibo/:id', async (req, res) => {
           l.cuenta_id,
           l.movimiento,
           l.valor,
+          l.descripcion,
           c.codigo as cuenta_codigo,
           asoc.documento as tercero_documento,
           cc.codigo as centro_costo_codigo
@@ -537,7 +538,7 @@ router.post('/contabilizar-recibo/:id', async (req, res) => {
         Valor: (String(l.movimiento || '').toUpperCase() === 'DEBITO'
           ? 1
           : -1) * Math.abs(Number.isFinite(Number(l.valor)) ? Number(l.valor) : 0),
-        Detalle: l.movimiento === 'DEBITO' ? 'Pago capital' : 'Salida banco'
+        Detalle: String(l.descripcion || '').trim() || (l.movimiento === 'DEBITO' ? 'Pago capital' : 'Salida banco')
       }))
     };
 

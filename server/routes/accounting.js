@@ -90,9 +90,11 @@ export function validateReglaLineas(lineas) {
     const cuenta_id = typeof l?.cuenta_id === 'string' ? l.cuenta_id : '';
     const movimiento = typeof l?.movimiento === 'string' ? l.movimiento.trim().toUpperCase() : '';
     const porcentaje = Number(l?.porcentaje);
+    const descripcion = typeof l?.descripcion === 'string' ? l.descripcion.trim() : '';
     if (!isUuid(cuenta_id)) return { ok: false, status: 400, error: `cuenta_id inválido en línea ${i + 1}` };
     if (movimiento !== 'DEBITO' && movimiento !== 'CREDITO') return { ok: false, status: 400, error: `movimiento inválido en línea ${i + 1}` };
     if (!Number.isFinite(porcentaje) || porcentaje <= 0 || porcentaje > 100) return { ok: false, status: 400, error: `porcentaje inválido en línea ${i + 1}` };
+    if (descripcion && descripcion.length > 255) return { ok: false, status: 400, error: `descripcion muy larga en línea ${i + 1} (máx 255)` };
     if (movimiento === 'DEBITO') sumDeb += porcentaje;
     else sumCred += porcentaje;
   }
@@ -101,7 +103,15 @@ export function validateReglaLineas(lineas) {
   if (round(sumDeb) !== 100) return { ok: false, status: 400, error: 'Los porcentajes de DÉBITO deben sumar 100%' };
   if (round(sumCred) !== 100) return { ok: false, status: 400, error: 'Los porcentajes de CRÉDITO deben sumar 100%' };
 
-  return { ok: true, data: rows.map((l) => ({ cuenta_id: String(l.cuenta_id), movimiento: String(l.movimiento).trim().toUpperCase(), porcentaje: Number(l.porcentaje) })) };
+  return {
+    ok: true,
+    data: rows.map((l) => ({
+      cuenta_id: String(l.cuenta_id),
+      movimiento: String(l.movimiento).trim().toUpperCase(),
+      porcentaje: Number(l.porcentaje),
+      descripcion: (typeof l?.descripcion === 'string' && l.descripcion.trim()) ? l.descripcion.trim() : null
+    }))
+  };
 }
 
 export function computeAsiento({ monto, lineas }) {
@@ -276,7 +286,7 @@ router.get('/reglas/activa', async (req, res) => {
       .input('empresa_id', sql.UniqueIdentifier, empresaId)
       .input('regla_version_id', sql.UniqueIdentifier, head.id)
       .query(`
-        SELECT l.id, l.cuenta_id, c.codigo AS cuenta_codigo, c.nombre AS cuenta_nombre, l.movimiento, l.porcentaje
+        SELECT l.id, l.cuenta_id, c.codigo AS cuenta_codigo, c.nombre AS cuenta_nombre, l.movimiento, l.porcentaje, l.descripcion
         FROM contable_regla_lineas l
         INNER JOIN contable_cuentas c ON c.id = l.cuenta_id AND c.empresa_id = l.empresa_id
         WHERE l.empresa_id = @empresa_id AND l.regla_version_id = @regla_version_id
@@ -365,9 +375,10 @@ router.post('/reglas', async (req, res) => {
         .input('cuenta_id', sql.UniqueIdentifier, l.cuenta_id)
         .input('movimiento', sql.NVarChar(7), l.movimiento)
         .input('porcentaje', sql.Decimal(9, 4), l.porcentaje)
+        .input('descripcion', sql.NVarChar(255), l.descripcion)
         .query(`
-          INSERT INTO contable_regla_lineas (id, empresa_id, regla_version_id, cuenta_id, movimiento, porcentaje)
-          VALUES (@id, @empresa_id, @regla_version_id, @cuenta_id, @movimiento, @porcentaje)
+          INSERT INTO contable_regla_lineas (id, empresa_id, regla_version_id, cuenta_id, movimiento, porcentaje, descripcion)
+          VALUES (@id, @empresa_id, @regla_version_id, @cuenta_id, @movimiento, @porcentaje, @descripcion)
         `);
     }
 
@@ -428,7 +439,7 @@ router.get('/asientos/:id/lineas', async (req, res) => {
       .input('empresa_id', sql.UniqueIdentifier, empresaId)
       .input('asiento_id', sql.UniqueIdentifier, id)
       .query(`
-        SELECT l.id, l.cuenta_id, c.codigo AS cuenta_codigo, c.nombre AS cuenta_nombre, l.movimiento, l.porcentaje, l.valor
+        SELECT l.id, l.cuenta_id, c.codigo AS cuenta_codigo, c.nombre AS cuenta_nombre, l.movimiento, l.porcentaje, l.valor, l.descripcion
         FROM contable_asiento_lineas l
         INNER JOIN contable_cuentas c ON c.id = l.cuenta_id AND c.empresa_id = l.empresa_id
         WHERE l.empresa_id = @empresa_id AND l.asiento_id = @asiento_id

@@ -178,6 +178,7 @@ export type ContableReglaActivaLinea = {
   cuenta_nombre: string;
   movimiento: 'DEBITO' | 'CREDITO';
   porcentaje: number;
+  descripcion: string | null;
 };
 
 export type ContableReglaActiva = {

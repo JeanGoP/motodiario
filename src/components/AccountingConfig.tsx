@@ -6,6 +6,7 @@ type LineaDraft = {
   cuenta_id: string;
   movimiento: 'DEBITO' | 'CREDITO';
   porcentaje: number;
+  descripcion: string;
 };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -80,7 +81,7 @@ export function AccountingConfig() {
       setCuentas(cuentasData || []);
       if (regla) {
         setComentario(regla.comentario || '');
-        setLineas((regla.lineas || []).map((l) => ({ cuenta_id: l.cuenta_id, movimiento: l.movimiento, porcentaje: Number(l.porcentaje) })));
+        setLineas((regla.lineas || []).map((l) => ({ cuenta_id: l.cuenta_id, movimiento: l.movimiento, porcentaje: Number(l.porcentaje), descripcion: l.descripcion || '' })));
       } else {
         setComentario('');
         setLineas([]);
@@ -102,7 +103,7 @@ export function AccountingConfig() {
 
   const addLinea = (movimiento: 'DEBITO' | 'CREDITO') => {
     const firstCuenta = cuentas.find((c) => c.activo)?.id || '';
-    setLineas((prev) => [...prev, { cuenta_id: firstCuenta, movimiento, porcentaje: 0 }]);
+    setLineas((prev) => [...prev, { cuenta_id: firstCuenta, movimiento, porcentaje: 0, descripcion: '' }]);
   };
 
   const removeLinea = (idx: number) => setLineas((prev) => prev.filter((_, i) => i !== idx));
@@ -154,7 +155,7 @@ export function AccountingConfig() {
       const payload = {
         tipo_cuota: tipoCuota.trim().toUpperCase(),
         comentario: comentario.trim() ? comentario.trim() : null,
-        lineas: lineas.map((l) => ({ cuenta_id: l.cuenta_id, movimiento: l.movimiento, porcentaje: Number(l.porcentaje) }))
+        lineas: lineas.map((l) => ({ cuenta_id: l.cuenta_id, movimiento: l.movimiento, porcentaje: Number(l.porcentaje), descripcion: l.descripcion.trim() ? l.descripcion.trim() : null }))
       };
       await api.createContableRegla(payload);
       await loadAll();
@@ -311,6 +312,7 @@ export function AccountingConfig() {
                       <tr>
                         <th className="text-left px-4 py-2">Movimiento</th>
                         <th className="text-left px-4 py-2">Cuenta</th>
+                        <th className="text-left px-4 py-2">Descripción</th>
                         <th className="text-right px-4 py-2">%</th>
                         <th className="text-right px-4 py-2">Valor</th>
                         <th className="text-right px-4 py-2">Acción</th>
@@ -345,6 +347,15 @@ export function AccountingConfig() {
                                 ))}
                               </select>
                             </td>
+                            <td className="px-4 py-2">
+                              <input
+                                className="input-field"
+                                value={l.descripcion}
+                                onChange={(e) => updateLinea(idx, { descripcion: e.target.value })}
+                                maxLength={255}
+                                placeholder="Detalle (ERP)"
+                              />
+                            </td>
                             <td className="px-4 py-2 text-right">
                               <input
                                 className="input-field font-mono text-right"
@@ -366,7 +377,7 @@ export function AccountingConfig() {
                       })}
                       {lineas.length === 0 && (
                         <tr>
-                          <td colSpan={5} className="px-4 py-8 text-center text-slate-500">Agrega líneas para definir la regla</td>
+                          <td colSpan={6} className="px-4 py-8 text-center text-slate-500">Agrega líneas para definir la regla</td>
                         </tr>
                       )}
                     </tbody>
