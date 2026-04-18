@@ -3,6 +3,21 @@ import { api } from '../lib/api';
 import { Plus, Edit2, Trash2, Users, Phone, Mail, Search, Building2, CheckCircle, XCircle, X } from 'lucide-react';
 
 export function Associates() {
+  const computeDigitoVerificacion = (documentoRaw: string) => {
+    const base = String(documentoRaw || '').split('-', 1)[0];
+    const digits = base.replace(/\D/g, '');
+    if (!digits) return '';
+    const weights = [71, 67, 59, 53, 47, 43, 41, 37, 29, 23, 19, 17, 13, 7, 3];
+    const offset = weights.length - digits.length;
+    if (offset < 0) return '';
+    let sum = 0;
+    for (let i = 0; i < digits.length; i += 1) {
+      sum += Number(digits[i]) * weights[i + offset];
+    }
+    const mod = sum % 11;
+    return String(mod > 1 ? 11 - mod : mod);
+  };
+
   interface Asociado {
     id: string;
     centro_costo_id: string;
@@ -140,6 +155,7 @@ export function Associates() {
 
   const handleEdit = (associate: Asociado) => {
     setEditingId(associate.id);
+    const computedDv = computeDigitoVerificacion(associate.documento);
     setFormData({
       centro_costo_id: associate.centro_costo_id,
       nombre: associate.nombre,
@@ -147,7 +163,7 @@ export function Associates() {
       telefono: associate.telefono,
       correo: associate.correo,
       direccion: associate.direccion,
-      digverificacion: associate.digverificacion ? String(associate.digverificacion) : '',
+      digverificacion: computedDv || (associate.digverificacion ? String(associate.digverificacion) : ''),
       fechaexpedicion: associate.fechaexpedicion ? String(associate.fechaexpedicion).slice(0, 10) : '',
       fechanacimiento: associate.fechanacimiento ? String(associate.fechanacimiento).slice(0, 10) : '',
       municipio_dane: associate.municipio_dane ? String(associate.municipio_dane) : '05002',
@@ -391,17 +407,36 @@ export function Associates() {
                     />
                   </div>
                   
-                  <div>
-                    <label htmlFor="asociado_documento" className="input-label">Documento</label>
-                    <input
-                      id="asociado_documento"
-                      type="text"
-                      value={formData.documento}
-                      onChange={(e) => setFormData({ ...formData, documento: e.target.value })}
-                      className="input-field-prominent"
-                      autoComplete="off"
-                      required
-                    />
+                  <div className="sm:col-span-2">
+                    <label className="input-label">Documento</label>
+                    <div className="flex gap-3">
+                      <input
+                        id="asociado_documento"
+                        type="text"
+                        value={formData.documento}
+                        onChange={(e) => {
+                          const documento = e.target.value;
+                          const dv = computeDigitoVerificacion(documento);
+                          setFormData((prev) => ({ ...prev, documento, digverificacion: dv }));
+                        }}
+                        className="input-field-prominent flex-1"
+                        autoComplete="off"
+                        required
+                      />
+                      <div className="w-20">
+                        <label htmlFor="asociado_digverificacion" className="input-label">DV</label>
+                        <input
+                          id="asociado_digverificacion"
+                          type="text"
+                          value={formData.digverificacion}
+                          className="input-field-prominent text-center font-mono"
+                          autoComplete="off"
+                          inputMode="numeric"
+                          maxLength={1}
+                          readOnly
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   <div>
@@ -452,18 +487,6 @@ export function Associates() {
                       type="text"
                       value={formData.municipio_dane}
                       onChange={(e) => setFormData({ ...formData, municipio_dane: e.target.value })}
-                      className="input-field-prominent"
-                      autoComplete="off"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="asociado_digverificacion" className="input-label">Dígito Verificación</label>
-                    <input
-                      id="asociado_digverificacion"
-                      type="text"
-                      value={formData.digverificacion}
-                      onChange={(e) => setFormData({ ...formData, digverificacion: e.target.value })}
                       className="input-field-prominent"
                       autoComplete="off"
                     />
