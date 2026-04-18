@@ -409,7 +409,7 @@ export function Associates() {
                   
                   <div className="sm:col-span-2">
                     <label className="input-label">Documento</label>
-                    <div className="flex gap-3">
+                    <div className="flex gap-3 items-end">
                       <input
                         id="asociado_documento"
                         type="text"
