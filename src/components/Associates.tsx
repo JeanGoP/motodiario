@@ -82,6 +82,7 @@ export function Associates() {
   }, []);
 
   const downloadPlanilla = () => {
+    const delimiter = ';';
     const header = [
       'centro_costo_codigo',
       'nombre',
@@ -104,7 +105,8 @@ export function Associates() {
       '2',
       'true',
     ];
-    const csv = `${header.join(';')}\n${example.join(';')}\n`;
+    const csvLines = [`sep=${delimiter}`, header.join(delimiter), example.join(delimiter), ''];
+    const csv = '\uFEFF' + csvLines.join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -118,12 +120,17 @@ export function Associates() {
 
   const parseCsvText = (text: string) => {
     const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    const lines = normalized.split('\n').filter((l) => l.trim().length > 0);
-    if (lines.length === 0) return { delimiter: ';', rows: [] as string[][] };
-    const first = lines[0];
+    const originalLines = normalized.split('\n').filter((l) => l.trim().length > 0);
+    if (originalLines.length === 0) return { delimiter: ';', rows: [] as string[][] };
+
+    const sepMatch = originalLines[0].match(/^sep\s*=\s*(.)\s*$/i);
+    const forcedDelimiter = sepMatch?.[1];
+    const lines = sepMatch ? originalLines.slice(1) : originalLines;
+
+    const first = lines[0] ?? '';
     const commaCount = (first.match(/,/g) || []).length;
     const semiCount = (first.match(/;/g) || []).length;
-    const delimiter = semiCount >= commaCount ? ';' : ',';
+    const delimiter = forcedDelimiter === ';' || forcedDelimiter === ',' ? forcedDelimiter : (semiCount >= commaCount ? ';' : ',');
 
     const parseLine = (line: string) => {
       const out: string[] = [];
