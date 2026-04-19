@@ -194,6 +194,12 @@ export type ContableReglaActiva = {
   lineas: ContableReglaActivaLinea[];
 };
 
+export type MunicipioDane = {
+  departamento: string;
+  municipio: string;
+  codigo: string;
+};
+
 export const api = {
   // Empresas (admin)
   getEmpresas: () => request<Empresa[]>('/api/empresas'),
@@ -214,6 +220,7 @@ export const api = {
 
   // Asociados
   getAsociados: (activo?: boolean) => request<Asociado[]>(`/api/asociados${activo !== undefined ? `?active=${activo}` : ''}`, { useCache: true }),
+  getMunicipiosDane: () => request<MunicipioDane[]>('/api/asociados/municipios_dane', { useCache: true }),
   crearAsociado: (data: Record<string, unknown>) => request<Asociado>('/api/asociados', { method: 'POST', body: JSON.stringify(data) }),
   syncAsociadoContact: (id: string) => request<{ ok: boolean; contact_id: string | null }>(`/api/asociados/${id}/sync_contact`, { method: 'POST' }),
   sendAsociadoWhatsAppTemplate: (id: string, payload: Record<string, unknown>) =>

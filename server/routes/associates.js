@@ -2,10 +2,46 @@ import express from 'express';
 import sql from 'mssql';
 import { getPool } from '../db.js';
 import jwt from 'jsonwebtoken';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const router = express.Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret';
+
+const MUNICIPIOS_DANE_PATH = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../mssql/codigos.dev'
+);
+
+let municipiosDaneCache = {
+  loadedAt: 0,
+  data: null,
+};
+
+const loadMunicipiosDane = async () => {
+  if (municipiosDaneCache.data) return municipiosDaneCache.data;
+  const raw = await readFile(MUNICIPIOS_DANE_PATH, 'utf-8');
+  const parsed = JSON.parse(raw);
+  const items = [];
+  for (const [departamento, municipios] of Object.entries(parsed || {})) {
+    if (!Array.isArray(municipios)) continue;
+    for (const m of municipios) {
+      const municipio = typeof m?.municipio === 'string' ? m.municipio.trim() : '';
+      const codigo = typeof m?.codigo === 'string' ? m.codigo.trim() : '';
+      if (!municipio || !codigo) continue;
+      items.push({ departamento, municipio, codigo });
+    }
+  }
+  items.sort((a, b) => {
+    const dep = a.departamento.localeCompare(b.departamento, 'es');
+    if (dep !== 0) return dep;
+    return a.municipio.localeCompare(b.municipio, 'es');
+  });
+  municipiosDaneCache = { loadedAt: Date.now(), data: items };
+  return items;
+};
 
 export function resolveEmpresaScope({ isSuperAdmin, tokenEmpresaId, requestEmpresaId, intent = 'read' }) {
   const reqEmpresa = requestEmpresaId ? String(requestEmpresaId) : '';
@@ -109,6 +145,17 @@ const getAuthContext = async (req, { intent = 'read' } = {}) => {
     defaultEmpresaId,
   };
 };
+
+router.get('/municipios_dane', async (req, res) => {
+  try {
+    const auth = await getAuthContext(req, { intent: 'read' });
+    if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
+    const data = await loadMunicipiosDane();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 const auditCreate = async (pool, { empresaId, userId, resource, resourceId, payload }) => {
   try {

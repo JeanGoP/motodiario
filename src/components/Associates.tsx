@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from '../lib/api';
+import { api, type MunicipioDane } from '../lib/api';
 import { Plus, Edit2, Trash2, Users, Phone, Mail, Search, Building2, CheckCircle, XCircle, X } from 'lucide-react';
 
 export function Associates() {
@@ -48,6 +48,8 @@ export function Associates() {
   }
   const [associates, setAssociates] = useState<Asociado[]>([]);
   const [costCenters, setCostCenters] = useState<CentroCosto[]>([]);
+  const [municipiosDane, setMunicipiosDane] = useState<MunicipioDane[]>([]);
+  const [departamentoDane, setDepartamentoDane] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -78,18 +80,28 @@ export function Associates() {
 
   const loadData = async () => {
     try {
-      const [associatesData, centersData] = await Promise.all([
+      const [associatesData, centersData, municipiosData] = await Promise.all([
         api.getAsociados(true),
         api.getCentrosCosto(),
+        api.getMunicipiosDane(),
       ]);
       setAssociates((associatesData || []));
       setCostCenters((centersData || []).filter((cc: CentroCosto) => cc.activo));
+      setMunicipiosDane(municipiosData || []);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!municipiosDane.length) return;
+    if (departamentoDane) return;
+    const codigo = String(formData.municipio_dane || '');
+    const dep = municipiosDane.find((m) => m.codigo === codigo)?.departamento || '';
+    if (dep) setDepartamentoDane(dep);
+  }, [municipiosDane, departamentoDane, formData.municipio_dane]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,6 +168,9 @@ export function Associates() {
   const handleEdit = (associate: Asociado) => {
     setEditingId(associate.id);
     const computedDv = computeDigitoVerificacion(associate.documento);
+    const municipioCodigo = associate.municipio_dane ? String(associate.municipio_dane) : '05002';
+    const dep = municipiosDane.find((m) => m.codigo === municipioCodigo)?.departamento || '';
+    setDepartamentoDane(dep);
     setFormData({
       centro_costo_id: associate.centro_costo_id,
       nombre: associate.nombre,
@@ -166,7 +181,7 @@ export function Associates() {
       digverificacion: computedDv || (associate.digverificacion ? String(associate.digverificacion) : ''),
       fechaexpedicion: associate.fechaexpedicion ? String(associate.fechaexpedicion).slice(0, 10) : '',
       fechanacimiento: associate.fechanacimiento ? String(associate.fechanacimiento).slice(0, 10) : '',
-      municipio_dane: associate.municipio_dane ? String(associate.municipio_dane) : '05002',
+      municipio_dane: municipioCodigo,
       nombrecontacto: associate.nombrecontacto ? String(associate.nombrecontacto) : '',
       telefonocontacto: associate.telefonocontacto ? String(associate.telefonocontacto) : '',
       emailcontacto: associate.emailcontacto ? String(associate.emailcontacto) : '',
@@ -177,6 +192,9 @@ export function Associates() {
   };
 
   const resetForm = () => {
+    const defaultMunicipio = '05002';
+    const dep = municipiosDane.find((m) => m.codigo === defaultMunicipio)?.departamento || '';
+    setDepartamentoDane(dep);
     setFormData({
       centro_costo_id: '',
       nombre: '',
@@ -187,7 +205,7 @@ export function Associates() {
       digverificacion: '',
       fechaexpedicion: '',
       fechanacimiento: '',
-      municipio_dane: '05002',
+      municipio_dane: defaultMunicipio,
       nombrecontacto: '',
       telefonocontacto: '',
       emailcontacto: '',
@@ -482,14 +500,47 @@ export function Associates() {
 
                   <div>
                     <label htmlFor="asociado_municipio_dane" className="input-label">Municipio DANE</label>
-                    <input
-                      id="asociado_municipio_dane"
-                      type="text"
-                      value={formData.municipio_dane}
-                      onChange={(e) => setFormData({ ...formData, municipio_dane: e.target.value })}
-                      className="input-field-prominent"
-                      autoComplete="off"
-                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <select
+                        value={departamentoDane}
+                        onChange={(e) => {
+                          const nextDep = e.target.value;
+                          const codigo = String(formData.municipio_dane || '');
+                          const stillValid = municipiosDane.some((m) => m.departamento === nextDep && m.codigo === codigo);
+                          setDepartamentoDane(nextDep);
+                          if (!stillValid) setFormData({ ...formData, municipio_dane: '' });
+                        }}
+                        className="input-field-prominent"
+                        required
+                      >
+                        <option value="">Departamento...</option>
+                        {Array.from(new Set(municipiosDane.map((m) => m.departamento)))
+                          .sort((a, b) => a.localeCompare(b, 'es'))
+                          .map((depName) => (
+                            <option key={depName} value={depName}>
+                              {depName}
+                            </option>
+                          ))}
+                      </select>
+
+                      <select
+                        id="asociado_municipio_dane"
+                        value={formData.municipio_dane}
+                        onChange={(e) => setFormData({ ...formData, municipio_dane: e.target.value })}
+                        className="input-field-prominent"
+                        disabled={!departamentoDane}
+                        required
+                      >
+                        <option value="">{departamentoDane ? 'Municipio...' : 'Seleccione departamento'}</option>
+                        {municipiosDane
+                          .filter((m) => m.departamento === departamentoDane)
+                          .map((m) => (
+                            <option key={m.codigo} value={m.codigo}>
+                              {m.municipio}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
                   </div>
 
                   <div>
