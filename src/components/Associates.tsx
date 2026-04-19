@@ -79,17 +79,32 @@ export function Associates() {
   }, []);
 
   const loadData = async () => {
+    setLoading(true);
     try {
-      const [associatesData, centersData, municipiosData] = await Promise.all([
-        api.getAsociados(true),
+      const [associatesRes, centersRes, municipiosRes] = await Promise.allSettled([
+        api.getAsociados(),
         api.getCentrosCosto(),
         api.getMunicipiosDane(),
       ]);
-      setAssociates((associatesData || []));
-      setCostCenters((centersData || []).filter((cc: CentroCosto) => cc.activo));
-      setMunicipiosDane(municipiosData || []);
-    } catch (error) {
-      console.error('Error loading data:', error);
+
+      if (associatesRes.status === 'fulfilled') {
+        setAssociates(associatesRes.value || []);
+      } else {
+        console.error('Error cargando asociados:', associatesRes.reason);
+      }
+
+      if (centersRes.status === 'fulfilled') {
+        setCostCenters((centersRes.value || []).filter((cc: CentroCosto) => cc.activo));
+      } else {
+        console.error('Error cargando centros de costo:', centersRes.reason);
+      }
+
+      if (municipiosRes.status === 'fulfilled') {
+        setMunicipiosDane(municipiosRes.value || []);
+      } else {
+        console.error('Error cargando municipios DANE:', municipiosRes.reason);
+        setMunicipiosDane([]);
+      }
     } finally {
       setLoading(false);
     }
