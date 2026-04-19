@@ -4,16 +4,15 @@ import { getPool } from '../db.js';
 import jwt from 'jsonwebtoken';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 const router = express.Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret';
 
-const MUNICIPIOS_DANE_PATH = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '../../mssql/codigos.dev'
-);
+const MUNICIPIOS_DANE_PATHS = [
+  path.resolve(process.cwd(), 'mssql', 'codigos.dev'),
+  path.resolve(process.cwd(), '..', 'mssql', 'codigos.dev'),
+];
 
 let municipiosDaneCache = {
   loadedAt: 0,
@@ -22,7 +21,21 @@ let municipiosDaneCache = {
 
 const loadMunicipiosDane = async () => {
   if (municipiosDaneCache.data) return municipiosDaneCache.data;
-  const raw = await readFile(MUNICIPIOS_DANE_PATH, 'utf-8');
+  let raw = '';
+  let lastErr = null;
+  for (const p of MUNICIPIOS_DANE_PATHS) {
+    try {
+      raw = await readFile(p, 'utf-8');
+      lastErr = null;
+      break;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  if (!raw) {
+    const details = lastErr instanceof Error ? lastErr.message : String(lastErr || 'No encontrado');
+    throw new Error(`No se pudo leer codigos.dev (${details})`);
+  }
   const parsed = JSON.parse(raw);
   const items = [];
   for (const [departamento, municipios] of Object.entries(parsed || {})) {
