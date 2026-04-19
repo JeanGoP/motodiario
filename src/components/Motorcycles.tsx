@@ -40,7 +40,7 @@ export function Motorcycles() {
     year: new Date().getFullYear(),
     plate: '',
     daily_rate: 0,
-    plan_months: 0,
+    plan_months: 12,
     status: 'ACTIVE' as 'ACTIVE' | 'DEACTIVATED',
     created_at: getColombiaDate(),
     dias_gracia: 0,
@@ -515,18 +515,23 @@ export function Motorcycles() {
 
                 <div>
                   <label htmlFor="moto_plan_months" className="input-label">Plan (Meses)</label>
-                  <select
+                  <input
                     id="moto_plan_months"
                     required
                     className="input-field"
+                    type="number"
+                    min={0}
+                    step={1}
+                    inputMode="numeric"
                     value={formData.plan_months}
-                    onChange={(e) => setFormData({ ...formData, plan_months: Number(e.target.value) })}
-                  >
-                    <option value="12">12 meses</option>
-                    <option value="15">15 meses</option>
-                    <option value="18">18 meses</option>
-                    <option value="24">24 meses</option>
-                  </select>
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      const n = raw === '' ? 0 : Number(raw);
+                      const next = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+                      setFormData({ ...formData, plan_months: next });
+                    }}
+                    placeholder="Ej: 12"
+                  />
                 </div>
 
                 <div>
