@@ -49,7 +49,8 @@ export function Associates() {
   const [associates, setAssociates] = useState<Asociado[]>([]);
   const [costCenters, setCostCenters] = useState<CentroCosto[]>([]);
   const [municipiosDane, setMunicipiosDane] = useState<MunicipioDane[]>([]);
-  const [departamentoDane, setDepartamentoDane] = useState<string>('');
+  const [municipioQuery, setMunicipioQuery] = useState<string>('');
+  const [municipioOpen, setMunicipioOpen] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -111,12 +112,12 @@ export function Associates() {
   };
 
   useEffect(() => {
-    if (!municipiosDane.length) return;
-    if (departamentoDane) return;
-    const codigo = String(formData.municipio_dane || '');
-    const dep = municipiosDane.find((m) => m.codigo === codigo)?.departamento || '';
-    if (dep) setDepartamentoDane(dep);
-  }, [municipiosDane, departamentoDane, formData.municipio_dane]);
+    const codigo = String(formData.municipio_dane || '').trim();
+    if (!codigo) return;
+    const current = municipiosDane.find((m) => m.codigo === codigo);
+    if (!current) return;
+    if (municipioQuery !== current.municipio) setMunicipioQuery(current.municipio);
+  }, [municipiosDane, formData.municipio_dane, municipioQuery]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -184,8 +185,8 @@ export function Associates() {
     setEditingId(associate.id);
     const computedDv = computeDigitoVerificacion(associate.documento);
     const municipioCodigo = associate.municipio_dane ? String(associate.municipio_dane) : '05002';
-    const dep = municipiosDane.find((m) => m.codigo === municipioCodigo)?.departamento || '';
-    setDepartamentoDane(dep);
+    const muniLabel = municipiosDane.find((m) => m.codigo === municipioCodigo)?.municipio || '';
+    setMunicipioQuery(muniLabel);
     setFormData({
       centro_costo_id: associate.centro_costo_id,
       nombre: associate.nombre,
@@ -208,8 +209,8 @@ export function Associates() {
 
   const resetForm = () => {
     const defaultMunicipio = '05002';
-    const dep = municipiosDane.find((m) => m.codigo === defaultMunicipio)?.departamento || '';
-    setDepartamentoDane(dep);
+    const muniLabel = municipiosDane.find((m) => m.codigo === defaultMunicipio)?.municipio || '';
+    setMunicipioQuery(muniLabel);
     setFormData({
       centro_costo_id: '',
       nombre: '',
@@ -514,47 +515,59 @@ export function Associates() {
                   </div>
 
                   <div>
-                    <label htmlFor="asociado_municipio_dane" className="input-label">Municipio DANE</label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <select
-                        value={departamentoDane}
-                        onChange={(e) => {
-                          const nextDep = e.target.value;
-                          const codigo = String(formData.municipio_dane || '');
-                          const stillValid = municipiosDane.some((m) => m.departamento === nextDep && m.codigo === codigo);
-                          setDepartamentoDane(nextDep);
-                          if (!stillValid) setFormData({ ...formData, municipio_dane: '' });
-                        }}
-                        className="input-field-prominent"
-                        required
-                      >
-                        <option value="">Departamento...</option>
-                        {Array.from(new Set(municipiosDane.map((m) => m.departamento)))
-                          .sort((a, b) => a.localeCompare(b, 'es'))
-                          .map((depName) => (
-                            <option key={depName} value={depName}>
-                              {depName}
-                            </option>
-                          ))}
-                      </select>
-
-                      <select
+                    <label htmlFor="asociado_municipio_dane" className="input-label">Municipio</label>
+                    <div className="relative">
+                      <input
                         id="asociado_municipio_dane"
-                        value={formData.municipio_dane}
-                        onChange={(e) => setFormData({ ...formData, municipio_dane: e.target.value })}
+                        type="text"
+                        value={municipioQuery}
+                        onChange={(e) => {
+                          const next = e.target.value;
+                          setMunicipioQuery(next);
+                          if (formData.municipio_dane) setFormData({ ...formData, municipio_dane: '' });
+                          setMunicipioOpen(true);
+                        }}
+                        onFocus={() => setMunicipioOpen(true)}
+                        onBlur={() => window.setTimeout(() => setMunicipioOpen(false), 150)}
                         className="input-field-prominent"
-                        disabled={!departamentoDane}
+                        autoComplete="off"
+                        placeholder={municipiosDane.length ? 'Buscar municipio...' : 'Cargando municipios...'}
                         required
-                      >
-                        <option value="">{departamentoDane ? 'Municipio...' : 'Seleccione departamento'}</option>
-                        {municipiosDane
-                          .filter((m) => m.departamento === departamentoDane)
-                          .map((m) => (
-                            <option key={m.codigo} value={m.codigo}>
-                              {m.municipio}
-                            </option>
-                          ))}
-                      </select>
+                      />
+
+                      {municipioOpen && (
+                        <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-64 overflow-auto">
+                          {municipiosDane.length === 0 ? (
+                            <div className="px-3 py-2 text-sm text-slate-500">No hay municipios disponibles</div>
+                          ) : (
+                            municipiosDane
+                              .filter((m) => {
+                                const q = municipioQuery.trim().toLowerCase();
+                                if (!q) return true;
+                                return (
+                                  m.municipio.toLowerCase().includes(q) ||
+                                  m.codigo.toLowerCase().includes(q)
+                                );
+                              })
+                              .slice(0, 80)
+                              .map((m) => (
+                                <button
+                                  key={m.codigo}
+                                  type="button"
+                                  className="w-full text-left px-3 py-2 hover:bg-slate-50 focus:bg-slate-50"
+                                  onClick={() => {
+                                    setFormData({ ...formData, municipio_dane: m.codigo });
+                                    setMunicipioQuery(m.municipio);
+                                    setMunicipioOpen(false);
+                                  }}
+                                >
+                                  <div className="text-sm font-medium text-slate-900">{m.municipio}</div>
+                                  <div className="text-xs text-slate-500">{m.departamento} · {m.codigo}</div>
+                                </button>
+                              ))
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
