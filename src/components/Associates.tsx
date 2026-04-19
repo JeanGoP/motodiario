@@ -92,12 +92,6 @@ export function Associates() {
       'municipio_dane',
       'dias_gracia',
       'activo',
-      'digverificacion',
-      'fechaexpedicion',
-      'fechanacimiento',
-      'nombrecontacto',
-      'telefonocontacto',
-      'emailcontacto',
     ];
     const example = [
       'CC001',
@@ -109,12 +103,6 @@ export function Associates() {
       '05002',
       '2',
       'true',
-      '',
-      '',
-      '',
-      '',
-      '',
-      '',
     ];
     const csv = `${header.join(';')}\n${example.join(';')}\n`;
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
