@@ -730,7 +730,8 @@ export function Associates() {
                                   key={m.codigo}
                                   type="button"
                                   className="w-full text-left px-3 py-2 hover:bg-slate-50 focus:bg-slate-50"
-                                  onClick={() => {
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
                                     setFormData({ ...formData, municipio_dane: m.codigo });
                                     setMunicipioQuery(m.municipio);
                                     setMunicipioOpen(false);
