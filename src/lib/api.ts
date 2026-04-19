@@ -200,6 +200,12 @@ export type MunicipioDane = {
   codigo: string;
 };
 
+export type BulkImportResult = {
+  created: number;
+  failed: number;
+  errors: Array<{ index: number; error: string }>;
+};
+
 export const api = {
   // Empresas (admin)
   getEmpresas: () => request<Empresa[]>('/api/empresas'),
@@ -222,6 +228,7 @@ export const api = {
   getAsociados: (activo?: boolean) => request<Asociado[]>(`/api/asociados${activo !== undefined ? `?active=${activo}` : ''}`, { useCache: true }),
   getMunicipiosDane: () => request<MunicipioDane[]>('/api/asociados/municipios_dane', { useCache: true }),
   crearAsociado: (data: Record<string, unknown>) => request<Asociado>('/api/asociados', { method: 'POST', body: JSON.stringify(data) }),
+  bulkCrearAsociados: (items: Array<Record<string, unknown>>) => request<BulkImportResult>('/api/asociados/bulk', { method: 'POST', body: JSON.stringify({ items }) }),
   syncAsociadoContact: (id: string) => request<{ ok: boolean; contact_id: string | null }>(`/api/asociados/${id}/sync_contact`, { method: 'POST' }),
   sendAsociadoWhatsAppTemplate: (id: string, payload: Record<string, unknown>) =>
     request<{ ok: boolean; skipped?: boolean; error?: string; status?: number; data?: unknown }>(`/api/asociados/${id}/send_whatsapp_template`, { method: 'POST', body: JSON.stringify(payload) }),

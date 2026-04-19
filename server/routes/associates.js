@@ -38,6 +38,198 @@ const countMunicipiosDaneInDb = async (pool) => {
   return Number(r.recordset?.[0]?.n || 0);
 };
 
+router.post('/bulk', async (req, res) => {
+  try {
+    const auth = await getAuthContext(req, { intent: 'write' });
+    if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
+    if (!canWrite(auth)) return res.status(403).json({ error: 'Forbidden' });
+
+    const itemsRaw = Array.isArray(req.body) ? req.body : req.body?.items;
+    if (!Array.isArray(itemsRaw)) return res.status(400).json({ error: 'items debe ser un arreglo' });
+    if (itemsRaw.length <= 0) return res.status(400).json({ error: 'items vacío' });
+    if (itemsRaw.length > 1000) return res.status(400).json({ error: 'Máximo 1000 filas por carga' });
+
+    const { empresaId, pool } = auth;
+    const columnsSupport = await getAsociadosColumnsSupport(pool.request());
+
+    const ccRes = await pool.request()
+      .input('empresa_id', sql.UniqueIdentifier, empresaId)
+      .query(`SELECT id, codigo FROM centros_costo WHERE empresa_id = @empresa_id`);
+    const ccByCodigo = new Map(
+      (ccRes.recordset || [])
+        .map((r) => [String(r.codigo || '').trim().toUpperCase(), String(r.id)])
+        .filter(([k, v]) => k && v)
+    );
+    const ccIds = new Set(Array.from(ccByCodigo.values()));
+
+    const parseBool = (v, fallback) => {
+      if (v === null || v === undefined || v === '') return fallback;
+      const s = String(v).trim().toLowerCase();
+      if (['1', 'true', 't', 'si', 'sí', 's', 'y', 'yes'].includes(s)) return true;
+      if (['0', 'false', 'f', 'no', 'n'].includes(s)) return false;
+      return fallback;
+    };
+
+    const parseIntSafe = (v, fallback) => {
+      if (v === null || v === undefined || v === '') return fallback;
+      const n = Number.parseInt(String(v), 10);
+      return Number.isFinite(n) ? n : fallback;
+    };
+
+    const trimOrEmpty = (v) => String(v ?? '').trim();
+    const trimOrNull = (v) => {
+      const s = trimOrEmpty(v);
+      return s ? s : null;
+    };
+
+    const insertColumns = [
+      'empresa_id',
+      'centro_costo_id',
+      'nombre',
+      'documento',
+      'telefono',
+      'correo',
+      'direccion',
+      ...(columnsSupport.hasDigVerificacion ? ['digverificacion'] : []),
+      ...(columnsSupport.hasFechaExpedicion ? ['fechaexpedicion'] : []),
+      ...(columnsSupport.hasFechaNacimiento ? ['fechanacimiento'] : []),
+      ...(columnsSupport.hasMunicipioDane ? ['municipio_dane'] : []),
+      ...(columnsSupport.hasNombreContacto ? ['nombrecontacto'] : []),
+      ...(columnsSupport.hasTelefonoContacto ? ['telefonocontacto'] : []),
+      ...(columnsSupport.hasEmailContacto ? ['emailcontacto'] : []),
+      'dias_gracia',
+      'activo',
+      'creado_en',
+      'actualizado_en'
+    ];
+
+    const insertValues = [
+      '@empresa_id',
+      '@centro_costo_id',
+      '@nombre',
+      '@documento',
+      '@telefono',
+      '@correo',
+      '@direccion',
+      ...(columnsSupport.hasDigVerificacion ? ['@digverificacion'] : []),
+      ...(columnsSupport.hasFechaExpedicion ? ['@fechaexpedicion'] : []),
+      ...(columnsSupport.hasFechaNacimiento ? ['@fechanacimiento'] : []),
+      ...(columnsSupport.hasMunicipioDane ? ['@municipio_dane'] : []),
+      ...(columnsSupport.hasNombreContacto ? ['@nombrecontacto'] : []),
+      ...(columnsSupport.hasTelefonoContacto ? ['@telefonocontacto'] : []),
+      ...(columnsSupport.hasEmailContacto ? ['@emailcontacto'] : []),
+      '@dias_gracia',
+      '@activo',
+      'SYSDATETIMEOFFSET()',
+      'SYSDATETIMEOFFSET()'
+    ];
+
+    const errors = [];
+    let created = 0;
+
+    for (let index = 0; index < itemsRaw.length; index += 1) {
+      const item = (itemsRaw[index] && typeof itemsRaw[index] === 'object') ? itemsRaw[index] : null;
+      if (!item) {
+        errors.push({ index, error: 'Fila inválida' });
+        continue;
+      }
+
+      const centro_costo_id_raw = trimOrEmpty(item.centro_costo_id);
+      const centro_costo_codigo_raw = trimOrEmpty(item.centro_costo_codigo || item.centro_costo_codigo?.codigo || item.cc_codigo);
+      const ccIdFromCodigo = centro_costo_codigo_raw ? ccByCodigo.get(centro_costo_codigo_raw.trim().toUpperCase()) : null;
+      const centro_costo_id = centro_costo_id_raw || ccIdFromCodigo || '';
+
+      if (!centro_costo_id) {
+        errors.push({ index, error: 'Falta centro_costo_codigo o centro_costo_id' });
+        continue;
+      }
+      if (!ccIds.has(centro_costo_id)) {
+        errors.push({ index, error: 'Centro de costo inválido' });
+        continue;
+      }
+
+      const nombre = trimOrEmpty(item.nombre);
+      const documento = trimOrEmpty(item.documento);
+      const telefono = trimOrEmpty(item.telefono);
+      if (!nombre) {
+        errors.push({ index, error: 'Falta nombre' });
+        continue;
+      }
+      if (!documento) {
+        errors.push({ index, error: 'Falta documento' });
+        continue;
+      }
+      if (!telefono) {
+        errors.push({ index, error: 'Falta telefono' });
+        continue;
+      }
+
+      const correo = trimOrEmpty(item.correo);
+      const direccion = trimOrEmpty(item.direccion);
+      const dias_gracia = parseIntSafe(item.dias_gracia, 2);
+      const activo = parseBool(item.activo, true);
+
+      const digverificacion = trimOrNull(item.digverificacion);
+      const fechaexpedicion = trimOrNull(item.fechaexpedicion);
+      const fechanacimiento = trimOrNull(item.fechanacimiento);
+      const municipio_dane = trimOrNull(item.municipio_dane);
+      const nombrecontacto = trimOrNull(item.nombrecontacto);
+      const telefonocontacto = trimOrNull(item.telefonocontacto);
+      const emailcontacto = trimOrNull(item.emailcontacto);
+
+      try {
+        const request = pool.request();
+        request.input('empresa_id', sql.UniqueIdentifier, empresaId);
+        request.input('centro_costo_id', sql.UniqueIdentifier, centro_costo_id);
+        request.input('nombre', sql.NVarChar, nombre);
+        request.input('documento', sql.NVarChar, documento);
+        request.input('telefono', sql.NVarChar, telefono);
+        request.input('correo', sql.NVarChar, correo);
+        request.input('direccion', sql.NVarChar, direccion);
+        request.input('dias_gracia', sql.Int, dias_gracia);
+        request.input('activo', sql.Bit, activo);
+        if (columnsSupport.hasDigVerificacion) request.input('digverificacion', sql.NVarChar, digverificacion);
+        if (columnsSupport.hasFechaExpedicion) request.input('fechaexpedicion', sql.Date, fechaexpedicion ? new Date(String(fechaexpedicion)) : null);
+        if (columnsSupport.hasFechaNacimiento) request.input('fechanacimiento', sql.Date, fechanacimiento ? new Date(String(fechanacimiento)) : null);
+        if (columnsSupport.hasMunicipioDane) request.input('municipio_dane', sql.NVarChar, municipio_dane);
+        if (columnsSupport.hasNombreContacto) request.input('nombrecontacto', sql.NVarChar, nombrecontacto);
+        if (columnsSupport.hasTelefonoContacto) request.input('telefonocontacto', sql.NVarChar, telefonocontacto);
+        if (columnsSupport.hasEmailContacto) request.input('emailcontacto', sql.NVarChar, emailcontacto);
+
+        const insertResult = await request.query(`
+          INSERT INTO asociados (${insertColumns.join(', ')})
+          OUTPUT inserted.id
+          VALUES (${insertValues.join(', ')})
+        `);
+
+        const id = insertResult.recordset?.[0]?.id ? String(insertResult.recordset[0].id) : '';
+        if (id) {
+          await auditCreate(pool, {
+            empresaId,
+            userId: auth.userId,
+            resource: 'asociados',
+            resourceId: id,
+            payload: { centro_costo_id, nombre, documento, telefono, correo, direccion, digverificacion, fechaexpedicion, fechanacimiento, municipio_dane, nombrecontacto, telefonocontacto, emailcontacto, dias_gracia, activo },
+          });
+        }
+
+        created += 1;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        errors.push({ index, error: msg });
+      }
+    }
+
+    return res.status(200).json({
+      created,
+      failed: errors.length,
+      errors,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 export function resolveEmpresaScope({ isSuperAdmin, tokenEmpresaId, requestEmpresaId, intent = 'read' }) {
   const reqEmpresa = requestEmpresaId ? String(requestEmpresaId) : '';
   const tokenEmpresa = tokenEmpresaId ? String(tokenEmpresaId) : '';

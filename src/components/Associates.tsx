@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, type MunicipioDane } from '../lib/api';
-import { Plus, Edit2, Trash2, Users, Phone, Mail, Search, Building2, CheckCircle, XCircle, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, Phone, Mail, Search, Building2, CheckCircle, XCircle, X, Download, Upload } from 'lucide-react';
 
 export function Associates() {
   const computeDigitoVerificacion = (documentoRaw: string) => {
@@ -52,11 +52,13 @@ export function Associates() {
   const [municipioQuery, setMunicipioQuery] = useState<string>('');
   const [municipioOpen, setMunicipioOpen] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
+  const [importing, setImporting] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedCostCenter, setSelectedCostCenter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [creatingErpTerceroId, setCreatingErpTerceroId] = useState<string | null>(null);
+  const importFileRef = useRef<HTMLInputElement | null>(null);
   const [formData, setFormData] = useState({
     centro_costo_id: '',
     nombre: '',
@@ -78,6 +80,159 @@ export function Associates() {
   useEffect(() => {
     loadData();
   }, []);
+
+  const downloadPlanilla = () => {
+    const header = [
+      'centro_costo_codigo',
+      'nombre',
+      'documento',
+      'telefono',
+      'correo',
+      'direccion',
+      'municipio_dane',
+      'dias_gracia',
+      'activo',
+      'digverificacion',
+      'fechaexpedicion',
+      'fechanacimiento',
+      'nombrecontacto',
+      'telefonocontacto',
+      'emailcontacto',
+    ];
+    const example = [
+      'CC001',
+      'Juan Perez',
+      '123456789',
+      '3000000000',
+      '',
+      '',
+      '05002',
+      '2',
+      'true',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+    ];
+    const csv = `${header.join(';')}\n${example.join(';')}\n`;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'asociados_planilla.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const parseCsvText = (text: string) => {
+    const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const lines = normalized.split('\n').filter((l) => l.trim().length > 0);
+    if (lines.length === 0) return { delimiter: ';', rows: [] as string[][] };
+    const first = lines[0];
+    const commaCount = (first.match(/,/g) || []).length;
+    const semiCount = (first.match(/;/g) || []).length;
+    const delimiter = semiCount >= commaCount ? ';' : ',';
+
+    const parseLine = (line: string) => {
+      const out: string[] = [];
+      let cur = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i += 1) {
+        const ch = line[i];
+        if (ch === '"') {
+          const next = line[i + 1];
+          if (inQuotes && next === '"') {
+            cur += '"';
+            i += 1;
+            continue;
+          }
+          inQuotes = !inQuotes;
+          continue;
+        }
+        if (!inQuotes && ch === delimiter) {
+          out.push(cur.trim());
+          cur = '';
+          continue;
+        }
+        cur += ch;
+      }
+      out.push(cur.trim());
+      return out;
+    };
+
+    return { delimiter, rows: lines.map(parseLine) };
+  };
+
+  const handleImportFile = async (file: File) => {
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const parsed = parseCsvText(text);
+      if (parsed.rows.length < 2) {
+        alert('El archivo no tiene filas para importar');
+        return;
+      }
+
+      const normalizeKey = (s: string) => String(s || '').trim().toLowerCase().replace(/\s+/g, '_');
+      const header = parsed.rows[0].map(normalizeKey);
+      const idx = (key: string) => header.indexOf(normalizeKey(key));
+
+      const get = (row: string[], key: string) => {
+        const i = idx(key);
+        return i >= 0 ? (row[i] ?? '') : '';
+      };
+
+      const items = parsed.rows
+        .slice(1)
+        .map((row) => ({
+          centro_costo_codigo: String(get(row, 'centro_costo_codigo') || '').trim(),
+          centro_costo_id: String(get(row, 'centro_costo_id') || '').trim(),
+          nombre: String(get(row, 'nombre') || '').trim(),
+          documento: String(get(row, 'documento') || '').trim(),
+          telefono: String(get(row, 'telefono') || '').trim(),
+          correo: String(get(row, 'correo') || '').trim(),
+          direccion: String(get(row, 'direccion') || '').trim(),
+          municipio_dane: String(get(row, 'municipio_dane') || '').trim(),
+          dias_gracia: String(get(row, 'dias_gracia') || '').trim(),
+          activo: String(get(row, 'activo') || '').trim(),
+          digverificacion: String(get(row, 'digverificacion') || '').trim(),
+          fechaexpedicion: String(get(row, 'fechaexpedicion') || '').trim(),
+          fechanacimiento: String(get(row, 'fechanacimiento') || '').trim(),
+          nombrecontacto: String(get(row, 'nombrecontacto') || '').trim(),
+          telefonocontacto: String(get(row, 'telefonocontacto') || '').trim(),
+          emailcontacto: String(get(row, 'emailcontacto') || '').trim(),
+        }))
+        .filter((r) => Object.values(r).some((v) => String(v).trim().length > 0));
+
+      if (items.length === 0) {
+        alert('No se encontraron filas con datos');
+        return;
+      }
+
+      const result = await api.bulkCrearAsociados(items);
+      const baseMsg = `Importación finalizada.\nCreados: ${result.created}\nFallidos: ${result.failed}`;
+      if (result.failed > 0) {
+        const details = result.errors
+          .slice(0, 15)
+          .map((e) => `Fila ${e.index + 2}: ${e.error}`)
+          .join('\n');
+        alert(`${baseMsg}\n\nErrores (primeros 15):\n${details}`);
+      } else {
+        alert(baseMsg);
+      }
+
+      void loadData();
+    } catch (e: unknown) {
+      alert('Error: ' + (e instanceof Error ? e.message : 'Ha ocurrido un error'));
+    } finally {
+      setImporting(false);
+      if (importFileRef.current) importFileRef.current.value = '';
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -257,16 +412,41 @@ export function Associates() {
           <h2 className="text-2xl font-bold text-slate-900">Asociados</h2>
           <p className="text-slate-600 mt-1">Gestiona los conductores y socios del sistema</p>
         </div>
-        <button
-          onClick={() => {
-            resetForm();
-            setShowModal(true);
-          }}
-          className="btn btn-primary"
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          Nuevo Asociado
-        </button>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <input
+            ref={importFileRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (!f) return;
+              void handleImportFile(f);
+            }}
+          />
+          <button onClick={downloadPlanilla} className="btn btn-secondary">
+            <Download className="w-5 h-5 mr-2" />
+            Descargar planilla
+          </button>
+          <button
+            onClick={() => importFileRef.current?.click()}
+            className="btn btn-secondary"
+            disabled={importing}
+          >
+            <Upload className="w-5 h-5 mr-2" />
+            {importing ? 'Cargando...' : 'Cargar planilla'}
+          </button>
+          <button
+            onClick={() => {
+              resetForm();
+              setShowModal(true);
+            }}
+            className="btn btn-primary"
+          >
+            <Plus className="w-5 h-5 mr-2" />
+            Nuevo Asociado
+          </button>
+        </div>
       </div>
 
       <div className="card p-4">
