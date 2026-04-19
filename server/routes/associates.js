@@ -2,61 +2,12 @@ import express from 'express';
 import sql from 'mssql';
 import { getPool } from '../db.js';
 import jwt from 'jsonwebtoken';
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
 
 const router = express.Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret';
 
-const MUNICIPIOS_DANE_PATHS = [
-  path.resolve(process.cwd(), 'mssql', 'codigos.dev'),
-  path.resolve(process.cwd(), '..', 'mssql', 'codigos.dev'),
-];
-
 const MUNICIPIOS_DANE_TABLE = 'municipios_dane';
-
-let municipiosDaneCache = {
-  loadedAt: 0,
-  data: null,
-};
-
-const loadMunicipiosDane = async () => {
-  if (municipiosDaneCache.data) return municipiosDaneCache.data;
-  let raw = '';
-  let lastErr = null;
-  for (const p of MUNICIPIOS_DANE_PATHS) {
-    try {
-      raw = await readFile(p, 'utf-8');
-      lastErr = null;
-      break;
-    } catch (e) {
-      lastErr = e;
-    }
-  }
-  if (!raw) {
-    const details = lastErr instanceof Error ? lastErr.message : String(lastErr || 'No encontrado');
-    throw new Error(`No se pudo leer codigos.dev (${details})`);
-  }
-  const parsed = JSON.parse(raw);
-  const items = [];
-  for (const [departamento, municipios] of Object.entries(parsed || {})) {
-    if (!Array.isArray(municipios)) continue;
-    for (const m of municipios) {
-      const municipio = typeof m?.municipio === 'string' ? m.municipio.trim() : '';
-      const codigo = typeof m?.codigo === 'string' ? m.codigo.trim() : '';
-      if (!municipio || !codigo) continue;
-      items.push({ departamento, municipio, codigo });
-    }
-  }
-  items.sort((a, b) => {
-    const dep = a.departamento.localeCompare(b.departamento, 'es');
-    if (dep !== 0) return dep;
-    return a.municipio.localeCompare(b.municipio, 'es');
-  });
-  municipiosDaneCache = { loadedAt: Date.now(), data: items };
-  return items;
-};
 
 const municipiosDaneTableExists = async (pool) => {
   const r = await pool.request().query(`
@@ -85,50 +36,6 @@ const getMunicipiosDaneFromDb = async (pool) => {
 const countMunicipiosDaneInDb = async (pool) => {
   const r = await pool.request().query(`SELECT COUNT(1) AS n FROM ${MUNICIPIOS_DANE_TABLE}`);
   return Number(r.recordset?.[0]?.n || 0);
-};
-
-const seedMunicipiosDaneDbIfEmpty = async (pool) => {
-  const exists = await municipiosDaneTableExists(pool);
-  if (!exists) return { ok: false, reason: 'table_missing' };
-
-  const n = await countMunicipiosDaneInDb(pool);
-  if (n > 0) return { ok: true, seeded: false };
-
-  const items = await loadMunicipiosDane();
-  if (!items.length) return { ok: true, seeded: false };
-
-  const tx = new sql.Transaction(pool);
-  await tx.begin();
-  try {
-    const r2 = await tx.request().query(`SELECT COUNT(1) AS n FROM ${MUNICIPIOS_DANE_TABLE}`);
-    const n2 = Number(r2.recordset?.[0]?.n || 0);
-    if (n2 > 0) {
-      await tx.commit();
-      return { ok: true, seeded: false };
-    }
-
-    const batchSize = 250;
-    for (let i = 0; i < items.length; i += batchSize) {
-      const batch = items.slice(i, i + batchSize);
-      const request = tx.request();
-      const values = batch.map((_, idx) => `(@codigo${idx}, @municipio${idx}, @departamento${idx})`).join(', ');
-      batch.forEach((m, idx) => {
-        request.input(`codigo${idx}`, sql.NVarChar(16), String(m.codigo));
-        request.input(`municipio${idx}`, sql.NVarChar(128), String(m.municipio));
-        request.input(`departamento${idx}`, sql.NVarChar(128), String(m.departamento));
-      });
-      await request.query(`
-        INSERT INTO ${MUNICIPIOS_DANE_TABLE} (codigo, municipio, departamento)
-        VALUES ${values}
-      `);
-    }
-
-    await tx.commit();
-    return { ok: true, seeded: true };
-  } catch (e) {
-    try { await tx.rollback(); } catch {}
-    return { ok: false, reason: e instanceof Error ? e.message : String(e) };
-  }
 };
 
 export function resolveEmpresaScope({ isSuperAdmin, tokenEmpresaId, requestEmpresaId, intent = 'read' }) {
@@ -238,13 +145,14 @@ router.get('/municipios_dane', async (req, res) => {
   try {
     const auth = await getAuthContext(req, { intent: 'read' });
     if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
-    const seed = await seedMunicipiosDaneDbIfEmpty(auth.pool);
-    if (seed.ok) {
-      const fromDb = await getMunicipiosDaneFromDb(auth.pool);
-      if (fromDb.length) return res.json(fromDb);
-    }
-    const fromFile = await loadMunicipiosDane();
-    res.json(fromFile);
+    const exists = await municipiosDaneTableExists(auth.pool);
+    if (!exists) return res.status(500).json({ error: `No existe la tabla ${MUNICIPIOS_DANE_TABLE}` });
+
+    const n = await countMunicipiosDaneInDb(auth.pool);
+    if (n <= 0) return res.status(500).json({ error: `La tabla ${MUNICIPIOS_DANE_TABLE} está vacía` });
+
+    const data = await getMunicipiosDaneFromDb(auth.pool);
+    res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
