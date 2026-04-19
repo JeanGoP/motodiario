@@ -14,6 +14,8 @@ const MUNICIPIOS_DANE_PATHS = [
   path.resolve(process.cwd(), '..', 'mssql', 'codigos.dev'),
 ];
 
+const MUNICIPIOS_DANE_TABLE = 'municipios_dane';
+
 let municipiosDaneCache = {
   loadedAt: 0,
   data: null,
@@ -54,6 +56,79 @@ const loadMunicipiosDane = async () => {
   });
   municipiosDaneCache = { loadedAt: Date.now(), data: items };
   return items;
+};
+
+const municipiosDaneTableExists = async (pool) => {
+  const r = await pool.request().query(`
+    SELECT TOP 1 1 AS ok
+    FROM INFORMATION_SCHEMA.TABLES
+    WHERE TABLE_NAME = '${MUNICIPIOS_DANE_TABLE}'
+  `);
+  return Boolean(r.recordset?.length);
+};
+
+const getMunicipiosDaneFromDb = async (pool) => {
+  const r = await pool.request().query(`
+    SELECT departamento, municipio, codigo
+    FROM ${MUNICIPIOS_DANE_TABLE}
+    ORDER BY departamento, municipio
+  `);
+  return (r.recordset || [])
+    .map((row) => ({
+      departamento: String(row.departamento || ''),
+      municipio: String(row.municipio || ''),
+      codigo: String(row.codigo || ''),
+    }))
+    .filter((m) => m.departamento && m.municipio && m.codigo);
+};
+
+const countMunicipiosDaneInDb = async (pool) => {
+  const r = await pool.request().query(`SELECT COUNT(1) AS n FROM ${MUNICIPIOS_DANE_TABLE}`);
+  return Number(r.recordset?.[0]?.n || 0);
+};
+
+const seedMunicipiosDaneDbIfEmpty = async (pool) => {
+  const exists = await municipiosDaneTableExists(pool);
+  if (!exists) return { ok: false, reason: 'table_missing' };
+
+  const n = await countMunicipiosDaneInDb(pool);
+  if (n > 0) return { ok: true, seeded: false };
+
+  const items = await loadMunicipiosDane();
+  if (!items.length) return { ok: true, seeded: false };
+
+  const tx = new sql.Transaction(pool);
+  await tx.begin();
+  try {
+    const r2 = await tx.request().query(`SELECT COUNT(1) AS n FROM ${MUNICIPIOS_DANE_TABLE}`);
+    const n2 = Number(r2.recordset?.[0]?.n || 0);
+    if (n2 > 0) {
+      await tx.commit();
+      return { ok: true, seeded: false };
+    }
+
+    const batchSize = 250;
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize);
+      const request = tx.request();
+      const values = batch.map((_, idx) => `(@codigo${idx}, @municipio${idx}, @departamento${idx})`).join(', ');
+      batch.forEach((m, idx) => {
+        request.input(`codigo${idx}`, sql.NVarChar(16), String(m.codigo));
+        request.input(`municipio${idx}`, sql.NVarChar(128), String(m.municipio));
+        request.input(`departamento${idx}`, sql.NVarChar(128), String(m.departamento));
+      });
+      await request.query(`
+        INSERT INTO ${MUNICIPIOS_DANE_TABLE} (codigo, municipio, departamento)
+        VALUES ${values}
+      `);
+    }
+
+    await tx.commit();
+    return { ok: true, seeded: true };
+  } catch (e) {
+    try { await tx.rollback(); } catch {}
+    return { ok: false, reason: e instanceof Error ? e.message : String(e) };
+  }
 };
 
 export function resolveEmpresaScope({ isSuperAdmin, tokenEmpresaId, requestEmpresaId, intent = 'read' }) {
@@ -163,8 +238,13 @@ router.get('/municipios_dane', async (req, res) => {
   try {
     const auth = await getAuthContext(req, { intent: 'read' });
     if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
-    const data = await loadMunicipiosDane();
-    res.json(data);
+    const seed = await seedMunicipiosDaneDbIfEmpty(auth.pool);
+    if (seed.ok) {
+      const fromDb = await getMunicipiosDaneFromDb(auth.pool);
+      if (fromDb.length) return res.json(fromDb);
+    }
+    const fromFile = await loadMunicipiosDane();
+    res.json(fromFile);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
