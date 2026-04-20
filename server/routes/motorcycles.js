@@ -177,13 +177,12 @@ router.post('/', async (req, res) => {
     const empresaBodyCheck = validateEmpresaIdBody({ bodyEmpresaId: req.body?.empresa_id, empresaId: auth.empresaId });
     if (!empresaBodyCheck.ok) return res.status(empresaBodyCheck.status).json({ error: empresaBodyCheck.error });
     const empresaId = auth.empresaId;
-    const allowedPlans = new Set([12, 15, 18, 24]);
     const planMonthsValue =
       plan_months === undefined || plan_months === null || plan_months === ''
         ? 12
         : Number(plan_months);
-    if (!Number.isFinite(planMonthsValue) || !allowedPlans.has(planMonthsValue)) {
-      res.status(400).json({ error: 'plan_months inválido. Valores permitidos: 12, 15, 18, 24' });
+    if (!Number.isFinite(planMonthsValue) || !Number.isInteger(planMonthsValue) || planMonthsValue < 0) {
+      res.status(400).json({ error: 'plan_months inválido. Debe ser un entero mayor o igual a 0' });
       return;
     }
 
@@ -245,10 +244,9 @@ router.put('/:id', async (req, res) => {
     if (!canWrite(auth)) return res.status(403).json({ error: 'Forbidden' });
     const empresaId = auth.empresaId;
     const shouldUpdatePlan = !(plan_months === undefined || plan_months === null || plan_months === '');
-    const allowedPlans = new Set([12, 15, 18, 24]);
     const planMonthsValue = shouldUpdatePlan ? Number(plan_months) : null;
-    if (shouldUpdatePlan && (!Number.isFinite(planMonthsValue) || !allowedPlans.has(planMonthsValue))) {
-      res.status(400).json({ error: 'plan_months inválido. Valores permitidos: 12, 15, 18, 24' });
+    if (shouldUpdatePlan && (!Number.isFinite(planMonthsValue) || !Number.isInteger(planMonthsValue) || planMonthsValue < 0)) {
+      res.status(400).json({ error: 'plan_months inválido. Debe ser un entero mayor o igual a 0' });
       return;
     }
 
