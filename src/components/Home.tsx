@@ -116,8 +116,8 @@ export function Home({ onNavigate }: HomeProps) {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Panel de Control</h1>
-        <p className="text-slate-500 mt-1">Resumen general y métricas clave del sistema</p>
+        <h1 className="text-2xl font-bold text-slate-950">Panel de Control</h1>
+        <p className="text-sm text-slate-600 mt-1">Resumen general y métricas clave del sistema</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -125,13 +125,13 @@ export function Home({ onNavigate }: HomeProps) {
           const Icon = card.icon;
           
           return (
-            <div key={card.title} className="card group p-6 hover:-translate-y-0.5">
+            <div key={card.title} className="card group p-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <p className="text-sm font-medium text-slate-500">{card.title}</p>
-                  <h3 className="text-3xl font-bold text-slate-900 mt-2 tracking-tight">{card.value}</h3>
+                  <p className="text-xs font-semibold uppercase text-slate-500">{card.title}</p>
+                  <h3 className="text-3xl font-bold text-slate-950 mt-2">{card.value}</h3>
                 </div>
-                <div className={`p-3 rounded-xl ${card.bgHighlight || 'bg-slate-50 group-hover:bg-slate-100'} transition-colors`}>
+                <div className={`p-3 rounded-lg ${card.bgHighlight || 'bg-slate-100 group-hover:bg-slate-200'} transition-colors`}>
                   <Icon className={`w-6 h-6 ${card.highlight || 'text-slate-600'}`} />
                 </div>
               </div>
@@ -145,19 +145,19 @@ export function Home({ onNavigate }: HomeProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card p-6">
-          <h2 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-slate-950 mb-4 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-slate-400" />
             Estado del Sistema
           </h2>
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-100">
+            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
               <div className="flex items-center gap-3">
                 <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
                 <span className="text-sm font-medium text-slate-700">Sistema Operativo</span>
               </div>
               <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">En línea</span>
             </div>
-            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-100">
+            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
               <div className="flex items-center gap-3">
                 <div className="w-2 h-2 rounded-full bg-accent-600"></div>
                 <span className="text-sm font-medium text-slate-700">Última actualización</span>
@@ -172,18 +172,18 @@ export function Home({ onNavigate }: HomeProps) {
         </div>
 
         <div className="card p-6">
-          <h2 className="text-lg font-bold text-slate-900 mb-4">Accesos Rápidos</h2>
+          <h2 className="text-lg font-bold text-slate-950 mb-4">Accesos Rápidos</h2>
           <div className="grid grid-cols-2 gap-4">
             <button
               onClick={() => onNavigate?.('motorcycles')}
-              className="flex flex-col items-center justify-center p-4 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 transition-all text-slate-700 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2"
+              className="flex flex-col items-center justify-center p-4 rounded-lg border border-slate-300 bg-white hover:border-slate-400 hover:bg-slate-50 transition-all text-slate-700 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2"
             >
               <Bike className="w-6 h-6 mb-2" />
               <span className="text-sm font-medium">Nueva Moto</span>
             </button>
             <button
               onClick={() => onNavigate?.('transactions')}
-              className="flex flex-col items-center justify-center p-4 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 transition-all text-slate-700 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2"
+              className="flex flex-col items-center justify-center p-4 rounded-lg border border-slate-300 bg-white hover:border-slate-400 hover:bg-slate-50 transition-all text-slate-700 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2"
             >
               <Users className="w-6 h-6 mb-2" />
               <span className="text-sm font-medium">Registrar Pago</span>

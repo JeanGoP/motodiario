@@ -99,15 +99,15 @@ export function Dashboard() {
           setCurrentView(item.id);
           setMobileMenuOpen(false);
         }}
-        className={`group flex items-center w-full px-3 ${paddingClass} text-sm font-medium rounded-lg transition-colors duration-150 border-l-4 focus:outline-none focus:ring-2 focus:ring-accent-400 focus:ring-offset-2 focus:ring-offset-white ${indentClass} ${
+        className={`group flex items-center w-full px-3 ${paddingClass} text-sm font-medium rounded-md transition-colors duration-150 border-l-4 focus:outline-none focus:ring-2 focus:ring-accent-400 focus:ring-offset-2 focus:ring-offset-slate-950 ${indentClass} ${
           isActive
-            ? 'bg-accent-50 text-accent-800 border-accent-600'
-            : 'border-transparent text-slate-700 hover:bg-slate-50 hover:text-slate-900 hover:border-slate-200'
+            ? 'bg-white/10 text-white border-accent-300'
+            : 'border-transparent text-slate-300 hover:bg-white/5 hover:text-white hover:border-slate-700'
         }`}
       >
-        <Icon className={`${iconClass} mr-3 transition-colors ${isActive ? 'text-accent-700' : 'text-slate-500 group-hover:text-slate-700'}`} />
+        <Icon className={`${iconClass} mr-3 transition-colors ${isActive ? 'text-accent-200' : 'text-slate-500 group-hover:text-slate-300'}`} />
         <span className="flex-1 text-left">{item.label}</span>
-        {isActive && <div className="w-1.5 h-1.5 rounded-full bg-accent-600" />}
+        {isActive && <div className="w-1.5 h-1.5 rounded-full bg-accent-200" />}
       </button>
     );
   };
@@ -118,45 +118,45 @@ export function Dashboard() {
       <button
         type="button"
         onClick={onToggle}
-        className={`group flex items-center w-full px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors duration-150 border-l-4 focus:outline-none focus:ring-2 focus:ring-accent-400 focus:ring-offset-2 focus:ring-offset-white ${
+        className={`group flex items-center w-full px-3 py-2.5 text-sm font-semibold rounded-md transition-colors duration-150 border-l-4 focus:outline-none focus:ring-2 focus:ring-accent-400 focus:ring-offset-2 focus:ring-offset-slate-950 ${
           active
-            ? 'bg-accent-50 text-accent-800 border-accent-600'
-            : 'border-transparent text-slate-800 hover:bg-slate-50 hover:text-slate-900 hover:border-slate-200'
+            ? 'bg-white/10 text-white border-accent-300'
+            : 'border-transparent text-slate-200 hover:bg-white/5 hover:text-white hover:border-slate-700'
         }`}
       >
-        <Icon className={`w-5 h-5 mr-3 transition-colors ${active ? 'text-accent-700' : 'text-slate-500 group-hover:text-slate-700'}`} />
+        <Icon className={`w-5 h-5 mr-3 transition-colors ${active ? 'text-accent-200' : 'text-slate-500 group-hover:text-slate-300'}`} />
         <span className="flex-1 text-left">{label}</span>
-        <ChevronDown className={`w-4 h-4 text-slate-400 group-hover:text-slate-700 transition-transform ${open ? 'rotate-0' : '-rotate-90'}`} />
+        <ChevronDown className={`w-4 h-4 text-slate-500 group-hover:text-slate-300 transition-transform ${open ? 'rotate-0' : '-rotate-90'}`} />
       </button>
     );
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans">
+    <div className="min-h-screen bg-slate-100 font-sans">
       {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-white text-slate-700 transform transition-transform duration-300 ease-in-out ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 border-r border-slate-200`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-950 text-slate-200 transform transition-transform duration-300 ease-in-out ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 border-r border-slate-900 shadow-2xl shadow-slate-950/20`}>
         {/* Logo Section */}
-        <div className="flex items-center justify-between h-16 px-6 bg-white border-b border-slate-200">
+        <div className="flex items-center justify-between h-16 px-6 bg-slate-950 border-b border-white/10">
           <div className="flex items-center gap-3">
-            <div className="bg-accent-600 p-1.5 rounded-lg shadow-sm">
+            <div className="bg-accent-600 p-1.5 rounded-md ring-1 ring-white/10">
               <Bike className="w-6 h-6 text-white" />
             </div>
-            <span className="text-lg font-bold text-slate-900 tracking-tight">MotoDiario</span>
+            <span className="text-lg font-bold text-white">MotoDiario</span>
           </div>
-          <button onClick={() => setMobileMenuOpen(false)} className="lg:hidden text-slate-400 hover:text-slate-700 transition-colors">
+          <button onClick={() => setMobileMenuOpen(false)} className="lg:hidden text-slate-400 hover:text-white transition-colors">
             <X className="w-6 h-6" />
           </button>
         </div>
 
         {/* Navigation */}
-        <div className="flex flex-col h-[calc(100%-4rem)] justify-between bg-white">
+        <div className="flex flex-col h-[calc(100%-4rem)] justify-between bg-slate-950">
           <nav className="px-3 py-4 overflow-y-auto flex-1 flex flex-col">
             <div className="space-y-1">
               {generalItems.map((item) => renderItemButton(item))}
             </div>
 
             <div className="mt-3">
-              <div className="h-px bg-slate-200 my-3 mx-3"></div>
+              <div className="h-px bg-white/10 my-3 mx-3"></div>
               {renderParentButton(
                 'Catálogos',
                 Folder,
@@ -173,7 +173,7 @@ export function Dashboard() {
 
             {seguridadItems.length > 0 && (
               <div className="mt-3">
-                <div className="h-px bg-slate-200 my-3 mx-3"></div>
+                <div className="h-px bg-white/10 my-3 mx-3"></div>
                 {renderParentButton(
                   'Seguridad',
                   Shield,
@@ -191,17 +191,17 @@ export function Dashboard() {
           </nav>
 
           {/* User Profile & Logout */}
-          <div className="p-4 border-t border-slate-200 bg-white">
+          <div className="p-4 border-t border-white/10 bg-slate-950">
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
-                <User className="w-4.5 h-4.5 text-slate-600" />
+              <div className="w-9 h-9 rounded-md bg-white/10 flex items-center justify-center border border-white/10">
+                <User className="w-4.5 h-4.5 text-slate-200" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-900 truncate">{user?.nombre || 'Usuario'}</p>
-                <p className="text-xs text-slate-500 truncate">{user?.rol || 'Administrador'}</p>
+                <p className="text-sm font-semibold text-white truncate">{user?.nombre || 'Usuario'}</p>
+                <p className="text-xs text-slate-400 truncate">{user?.rol || 'Administrador'}</p>
               </div>
             </div>
-            <button onClick={handleSignOut} className="btn btn-secondary w-full justify-center">
+            <button onClick={handleSignOut} className="btn w-full justify-center border-white/10 bg-white/5 text-slate-200 hover:bg-white/10 hover:text-white">
               <LogOut className="w-4 h-4" />
               <span>Cerrar sesión</span>
             </button>
@@ -212,7 +212,7 @@ export function Dashboard() {
       {/* Main Content */}
       <div className="lg:pl-64 flex flex-col min-h-screen transition-all duration-300">
         {/* Header */}
-        <header className="bg-white border-b border-slate-200 sticky top-0 z-40 h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8">
+        <header className="bg-white/95 backdrop-blur border-b border-slate-200 sticky top-0 z-40 h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 shadow-sm shadow-slate-900/5">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setMobileMenuOpen(true)}
@@ -240,7 +240,7 @@ export function Dashboard() {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-x-hidden bg-slate-50">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-x-hidden bg-slate-100">
           <div className="max-w-none mx-auto animate-in fade-in duration-500">
             {renderView()}
           </div>
