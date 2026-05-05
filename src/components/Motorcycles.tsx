@@ -404,27 +404,31 @@ export function Motorcycles() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
           <div
-            className="bg-white rounded-xl w-full max-w-2xl shadow-2xl transform transition-all max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200"
+            className="bg-white rounded-lg w-full max-w-3xl shadow-2xl shadow-slate-950/30 transform transition-all max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-200"
             role="dialog"
             aria-modal="true"
             aria-labelledby="motorcycle-modal-title"
           >
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-              <h3 id="motorcycle-modal-title" className="text-lg font-bold text-slate-900">
-                {editingId ? 'Editar Motocicleta' : 'Nueva Motocicleta'}
-              </h3>
+            <div className="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-950">
+              <div>
+                <h3 id="motorcycle-modal-title" className="text-lg font-bold text-white">
+                  {editingId ? 'Editar Motocicleta' : 'Nueva Motocicleta'}
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">Catálogos</p>
+              </div>
               <button
                 onClick={() => { setShowModal(false); resetForm(); }}
-                className="text-slate-400 hover:text-slate-600 transition-colors rounded-md focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2"
+                className="text-slate-400 hover:text-white transition-colors rounded-md focus:outline-none focus:ring-2 focus:ring-accent-400 focus:ring-offset-2 focus:ring-offset-slate-950"
               >
                 <span className="sr-only">Cerrar</span>
-                <X className="w-6 h-6" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+            <form onSubmit={handleSubmit} className="max-h-[calc(90vh-4.5rem)] overflow-y-auto bg-slate-50/70">
+              <div className="p-6 space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div className="sm:col-span-2">
                   <label htmlFor="moto_asociado_id" className="input-label">Asociado</label>
@@ -580,7 +584,7 @@ export function Motorcycles() {
                 </div>
               </div>
 
-              <div className="mt-6 border-t border-gray-100 pt-6">
+              <div className="mt-6 border-t border-slate-200 pt-6">
                 <button
                   type="button"
                   disabled={Number(formData.dias_gracia || 0) <= 0}
@@ -661,11 +665,11 @@ export function Motorcycles() {
                 )}
               </div>
 
-              <div className="flex gap-3 pt-4 border-t border-slate-100">
+              <div className="flex gap-3 pt-5 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => { setShowModal(false); resetForm(); }}
-                  className="btn bg-white text-slate-700 border-slate-300 hover:bg-slate-50 flex-1 justify-center"
+                  className="btn btn-secondary flex-1 justify-center"
                 >
                   Cancelar
                 </button>
@@ -675,6 +679,7 @@ export function Motorcycles() {
                 >
                   {editingId ? 'Guardar Cambios' : 'Crear Moto'}
                 </button>
+              </div>
               </div>
             </form>
           </div>
