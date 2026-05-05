@@ -33,7 +33,7 @@ export function Home({ onNavigate }: HomeProps) {
         api.getCentrosCosto(),
         api.getAsociados(),
         api.getMotorcycles(),
-        api.getPayments(),
+        api.getPayments(today, today),
       ]);
 
       const motos = motorcycles || [];
@@ -125,7 +125,7 @@ export function Home({ onNavigate }: HomeProps) {
           const Icon = card.icon;
           
           return (
-            <div key={card.title} className="group bg-white rounded-xl p-6 border border-slate-200 shadow-sm hover:shadow-md transition-all duration-200">
+            <div key={card.title} className="card group p-6 hover:-translate-y-0.5">
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <p className="text-sm font-medium text-slate-500">{card.title}</p>
@@ -176,14 +176,14 @@ export function Home({ onNavigate }: HomeProps) {
           <div className="grid grid-cols-2 gap-4">
             <button
               onClick={() => onNavigate?.('motorcycles')}
-              className="flex flex-col items-center justify-center p-4 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all text-slate-600 hover:text-slate-900"
+              className="flex flex-col items-center justify-center p-4 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 transition-all text-slate-700 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2"
             >
               <Bike className="w-6 h-6 mb-2" />
               <span className="text-sm font-medium">Nueva Moto</span>
             </button>
             <button
               onClick={() => onNavigate?.('transactions')}
-              className="flex flex-col items-center justify-center p-4 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all text-slate-600 hover:text-slate-900"
+              className="flex flex-col items-center justify-center p-4 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 transition-all text-slate-700 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2"
             >
               <Users className="w-6 h-6 mb-2" />
               <span className="text-sm font-medium">Registrar Pago</span>

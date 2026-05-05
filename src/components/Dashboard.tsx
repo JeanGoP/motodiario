@@ -102,7 +102,7 @@ export function Dashboard() {
           setCurrentView(item.id);
           setMobileMenuOpen(false);
         }}
-        className={`group flex items-center w-full px-3 ${paddingClass} text-sm font-medium rounded-lg transition-all duration-200 border-l-4 ${indentClass} ${
+        className={`group flex items-center w-full px-3 ${paddingClass} text-sm font-medium rounded-lg transition-all duration-200 border-l-4 focus:outline-none focus:ring-2 focus:ring-accent-500/40 focus:ring-offset-2 focus:ring-offset-slate-950 ${indentClass} ${
           isActive
             ? 'bg-slate-800/50 text-white border-accent-500 shadow-[0_0_20px_rgba(99,102,241,0.18)]'
             : 'border-transparent text-slate-400 hover:bg-slate-800 hover:text-white hover:border-slate-600'
@@ -121,7 +121,7 @@ export function Dashboard() {
       <button
         type="button"
         onClick={onToggle}
-        className={`group flex items-center w-full px-3 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 border-l-4 ${
+        className={`group flex items-center w-full px-3 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 border-l-4 focus:outline-none focus:ring-2 focus:ring-accent-500/40 focus:ring-offset-2 focus:ring-offset-slate-950 ${
           active
             ? 'bg-slate-800/40 text-white border-accent-500'
             : 'border-transparent text-slate-300 hover:bg-slate-800 hover:text-white hover:border-slate-600'
@@ -135,11 +135,11 @@ export function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans">
+    <div className="min-h-screen bg-transparent font-sans">
       {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-slate-300 transform transition-transform duration-300 ease-in-out ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 border-r border-slate-800 shadow-xl`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-300 transform transition-transform duration-300 ease-in-out ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 border-r border-slate-800/70 shadow-2xl shadow-slate-950/40`}>
         {/* Logo Section */}
-        <div className="flex items-center justify-between h-16 px-6 bg-slate-950 border-b border-slate-800">
+        <div className="flex items-center justify-between h-16 px-6 bg-slate-950/60 border-b border-slate-800/60 backdrop-blur">
           <div className="flex items-center gap-3">
             <div className="bg-accent-700 p-1.5 rounded-lg shadow-lg shadow-accent-950/50">
               <Bike className="w-6 h-6 text-white" />
@@ -152,7 +152,7 @@ export function Dashboard() {
         </div>
 
         {/* Navigation */}
-        <div className="flex flex-col h-[calc(100%-4rem)] justify-between bg-slate-900">
+        <div className="flex flex-col h-[calc(100%-4rem)] justify-between bg-transparent">
           <nav className="px-3 py-4 overflow-y-auto flex-1 flex flex-col">
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4 px-3">Principal</div>
 
@@ -219,7 +219,7 @@ export function Dashboard() {
       {/* Main Content */}
       <div className="lg:pl-72 flex flex-col min-h-screen transition-all duration-300">
         {/* Header */}
-        <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40 h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 shadow-sm">
+        <header className="bg-white/75 backdrop-blur-md border-b border-slate-200/70 sticky top-0 z-40 h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 shadow-sm shadow-slate-900/5">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setMobileMenuOpen(true)}
@@ -256,7 +256,7 @@ export function Dashboard() {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-x-hidden bg-slate-50/50">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-x-hidden bg-transparent">
           <div className="max-w-7xl mx-auto animate-in fade-in duration-500">
             {renderView()}
           </div>

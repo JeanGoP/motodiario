@@ -4,6 +4,7 @@ export const printReceipt = (data: {
   amount: number;
   installment_number?: number | null;
   payment_method?: string | null;
+  notes?: string | null;
   asociado: {
     nombre: string;
     documento: string;
@@ -164,6 +165,12 @@ export const printReceipt = (data: {
           <div class="row">
             <span>Método:</span>
             <span>${data.payment_method}</span>
+          </div>
+        ` : ''}
+        ${data.notes ? `
+          <div class="row">
+            <span>Notas:</span>
+            <span style="text-align:right; max-width: 45mm; white-space: pre-wrap;">${String(data.notes)}</span>
           </div>
         ` : ''}
       </div>

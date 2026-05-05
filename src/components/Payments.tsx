@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Payment, Motorcycle, Asociado, PaymentDistribution } from '../types/database';
-import { api } from '../lib/api';
+import { api, type PaymentAllocationPreview } from '../lib/api';
 import { Plus, Receipt, DollarSign, TrendingUp, TrendingDown, Printer, Search, Calendar, User, Bike, X, CheckCircle2, Clock } from 'lucide-react';
 import { printReceipt } from '../utils/printReceipt';
 
@@ -23,6 +23,8 @@ type PaymentWithDetails = Payment & {
   motorcycle?: Motorcycle;
   asociado?: Asociado;
   distribution?: PaymentDistribution;
+  erp_enviado?: boolean;
+  erp_enviado_en?: string | null;
 };
 
 type PaymentFromApi = Payment & {
@@ -43,6 +45,10 @@ export function Payments() {
   const [showModal, setShowModal] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+  const [allocationPreview, setAllocationPreview] = useState<PaymentAllocationPreview | null>(null);
+  const [allocationLoading, setAllocationLoading] = useState(false);
+  const [allocationError, setAllocationError] = useState<string | null>(null);
+  const [cuotaInfo, setCuotaInfo] = useState<PaymentAllocationPreview | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState(getBogotaDateOnly());
   const [formData, setFormData] = useState({
@@ -52,6 +58,7 @@ export function Payments() {
     payment_date: getBogotaDateOnly(),
     receipt_number: '',
     installment_number: 1,
+    allocation_mode: 'ADELANTAR' as 'ADELANTAR' | 'REDUCIR_PLAZO',
     payment_method: 'EFECTIVO',
     notes: '',
   });
@@ -100,19 +107,88 @@ export function Payments() {
     loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    if (!showModal) {
+      setAllocationPreview(null);
+      setAllocationError(null);
+      setAllocationLoading(false);
+      setCuotaInfo(null);
+      return;
+    }
+
+    const motorcycleId = formData.motorcycle_id;
+    const amount = Number(formData.amount);
+    if (!motorcycleId || !Number.isFinite(amount) || amount <= 0) {
+      setAllocationPreview(null);
+      setAllocationError(null);
+      setAllocationLoading(false);
+      return;
+    }
+
+    const mode = formData.allocation_mode;
+    let cancelled = false;
+    setAllocationLoading(true);
+    setAllocationError(null);
+
+    const t = window.setTimeout(async () => {
+      try {
+        const preview = await api.previewPaymentAllocation(motorcycleId, amount, mode);
+        if (cancelled) return;
+        setAllocationPreview(preview);
+        setFormData((prev) => (prev.motorcycle_id === motorcycleId ? { ...prev, installment_number: preview.cuota_actual } : prev));
+      } catch (error: unknown) {
+        if (cancelled) return;
+        setAllocationPreview(null);
+        setAllocationError(error instanceof Error ? error.message : 'No se pudo calcular las cuotas a pagar');
+      } finally {
+        if (!cancelled) setAllocationLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [showModal, formData.motorcycle_id, formData.amount, formData.allocation_mode]);
+
+  useEffect(() => {
+    if (!showModal) return;
+
+    const motorcycleId = formData.motorcycle_id;
+    if (!motorcycleId) {
+      setCuotaInfo(null);
+      return;
+    }
+
+    let cancelled = false;
+    const t = window.setTimeout(async () => {
+      try {
+        const info = await api.previewPaymentAllocation(motorcycleId, 0);
+        if (cancelled) return;
+        setCuotaInfo(info);
+        setFormData((prev) => {
+          if (prev.motorcycle_id !== motorcycleId) return prev;
+          const nextAmount = Number(prev.amount);
+          return {
+            ...prev,
+            installment_number: info.cuota_actual,
+            amount: Number.isFinite(nextAmount) && nextAmount > 0 ? nextAmount : Number(info.saldo_inicial || 0),
+          };
+        });
+      } catch {
+        if (!cancelled) setCuotaInfo(null);
+      }
+    }, 0);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [showModal, formData.motorcycle_id]);
+
   const generateReceiptNumber = () => {
     const timestamp = Date.now();
     return `REC-${timestamp}`;
-  };
-
-  const getNextInstallmentNumber = (motorcycleId: string) => {
-    if (!motorcycleId) return 1;
-    const nums = payments
-      .filter((p) => p.motorcycle_id === motorcycleId)
-      .map((p) => p.installment_number)
-      .filter((n): n is number => typeof n === 'number' && Number.isFinite(n));
-    const max = nums.length ? Math.max(...nums) : 0;
-    return max + 1;
   };
 
   const validateBeforeSubmit = (selectedMoto: MotorcycleWithDetails | undefined) => {
@@ -120,14 +196,18 @@ export function Payments() {
     if (!Number.isFinite(formData.amount) || formData.amount <= 0) return 'El monto debe ser mayor a 0';
     if (!formData.payment_date) return 'La fecha de pago es requerida';
     if (!formData.receipt_number?.trim()) return 'El número de recibo es requerido';
-    if (!Number.isInteger(formData.installment_number) || formData.installment_number <= 0) return 'El número de cuota debe ser un entero mayor a 0';
-    if (Number(selectedMoto.plan_months) > 0 && formData.installment_number > Number(selectedMoto.plan_months)) {
-      return `El número de cuota excede el plan de ${selectedMoto.plan_months} meses`;
+    if (allocationLoading) return 'Calculando cuántas cuotas se pagan con ese valor...';
+    if (allocationError) return allocationError;
+    if (!allocationPreview) return 'No se pudo calcular las cuotas a pagar. Verifique el monto y la moto.';
+    if (allocationPreview && Number(selectedMoto.plan_months) > 0) {
+      const maxTo = Math.max(
+        Number(allocationPreview.en_orden?.to_cuota || 0),
+        Number(allocationPreview.finales?.to_cuota || 0)
+      );
+      if (maxTo > Number(selectedMoto.plan_months)) {
+        return `El pago cubriría hasta la cuota ${maxTo}, que excede el plan de ${selectedMoto.plan_months}`;
+      }
     }
-    const duplicatedInstallment = payments.some(
-      (p) => p.motorcycle_id === selectedMoto.id && p.installment_number === formData.installment_number
-    );
-    if (duplicatedInstallment) return 'Ya existe un pago registrado para esa cuota de la moto';
     return null;
   };
 
@@ -166,6 +246,7 @@ export function Payments() {
           amount: Number(newPayment.amount),
           installment_number: newPayment.installment_number ?? null,
           payment_method: newPayment.payment_method ?? null,
+          notes: newPayment.notes || null,
           asociado: {
             nombre: asociado.nombre,
             documento: asociado.documento,
@@ -197,9 +278,14 @@ export function Payments() {
       payment_date: getBogotaDateOnly(),
       receipt_number: generateReceiptNumber(),
       installment_number: 1,
+      allocation_mode: 'ADELANTAR',
       payment_method: 'EFECTIVO',
       notes: '',
     });
+    setAllocationPreview(null);
+    setAllocationError(null);
+    setAllocationLoading(false);
+    setCuotaInfo(null);
     setSubmitError(null);
   };
 
@@ -222,6 +308,10 @@ export function Payments() {
   // Let's keep the KPIs fixed to "Today" for now as per the original code, but maybe add a label.
   
   const todayBogota = getBogotaDateOnly();
+
+  const selectedMotoForForm = motorcycles.find((m) => m.id === formData.motorcycle_id);
+  const dailyRateForForm = Number(selectedMotoForForm?.daily_rate || 0);
+  const cuotaValueForForm = Number((allocationPreview?.tarifa_diaria ?? cuotaInfo?.tarifa_diaria ?? dailyRateForForm) || 0);
 
   const totalToday = payments
     .filter((p) => normalizeDateOnly(p.payment_date) === todayBogota)
@@ -381,7 +471,7 @@ export function Payments() {
                         {payment.motorcycle?.plate}
                       </span>
                       <span className="text-xs text-slate-500">
-                        Cuota: {payment.installment_number ?? 'N/A'} · Método: {payment.payment_method ?? 'N/A'}
+                        Hasta cuota: {payment.installment_number ?? 'N/A'} · Método: {payment.payment_method ?? 'N/A'}
                       </span>
                     </div>
                   </td>
@@ -488,12 +578,15 @@ export function Payments() {
                     value={formData.motorcycle_id}
                     onChange={(e) => {
                       const selectedId = e.target.value;
-                      const selectedMoto = motorcycles.find(m => m.id === selectedId);
+                      setAllocationPreview(null);
+                      setAllocationError(null);
+                      setCuotaInfo(null);
                       setFormData({ 
                         ...formData, 
                         motorcycle_id: selectedId,
-                        amount: selectedMoto ? Number(selectedMoto.daily_rate) : 0,
-                        installment_number: selectedMoto ? getNextInstallmentNumber(selectedId) : 1,
+                        amount: 0,
+                        installment_number: 1,
+                        allocation_mode: 'ADELANTAR',
                       });
                     }}
                     className="input-field"
@@ -512,16 +605,15 @@ export function Payments() {
                 </div>
 
                 <div>
-                  <label htmlFor="payment_installment_number" className="input-label">Número de Cuota</label>
+                  <label htmlFor="payment_installment_number" className="input-label">Cuota a pagar (en orden)</label>
                   <input
                     id="payment_installment_number"
                     type="number"
                     value={formData.installment_number}
-                    onChange={(e) => setFormData({ ...formData, installment_number: Number(e.target.value) })}
                     className="input-field"
                     min="1"
                     step="1"
-                    required
+                    readOnly
                   />
                 </div>
 
@@ -559,19 +651,123 @@ export function Payments() {
                     />
                   </div>
                   
-                  {formData.amount > 0 && (
-                    <div className="mt-3 p-3 bg-slate-50 rounded-lg text-sm border border-slate-100">
-                      <div className="flex justify-between mb-1">
-                        <span className="text-slate-600">Asociado (70%):</span>
-                        <span className="font-semibold text-accent-700">
-                          ${(formData.amount * 0.7).toFixed(2)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-600">Empresa (30%):</span>
-                        <span className="font-semibold text-slate-700">
-                          ${(formData.amount * 0.3).toFixed(2)}
-                        </span>
+                  {selectedMotoForForm && (
+                    <div className="mt-3 space-y-3">
+                      {Number(selectedMotoForForm.plan_months || 0) > 0 && formData.amount > cuotaValueForForm && (
+                        <div>
+                          <label htmlFor="payment_allocation_mode" className="input-label">Cuando paga de más</label>
+                          <select
+                            id="payment_allocation_mode"
+                            value={formData.allocation_mode}
+                            onChange={(e) => {
+                              setAllocationPreview(null);
+                              setAllocationError(null);
+                              setFormData({ ...formData, allocation_mode: e.target.value as 'ADELANTAR' | 'REDUCIR_PLAZO' });
+                            }}
+                            className="input-field"
+                          >
+                            <option value="ADELANTAR">Adelantar días (no paga hasta cubrir)</option>
+                            <option value="REDUCIR_PLAZO">Bajar tiempo (descuenta cuotas finales)</option>
+                          </select>
+                        </div>
+                      )}
+
+                      <div className="p-3 bg-accent-50 rounded-lg text-sm border border-accent-100">
+                        <div className="flex justify-between mb-1">
+                          <span className="text-slate-700">Valor de la cuota (info):</span>
+                          <span className="font-semibold text-slate-900">
+                            ${Number(cuotaValueForForm || 0).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-slate-700">
+                            Saldo cuota {Number((allocationPreview?.cuota_actual ?? cuotaInfo?.cuota_actual ?? formData.installment_number) || 1)}:
+                          </span>
+                          <span className="font-semibold text-slate-900">
+                            ${Number((allocationPreview?.saldo_inicial ?? cuotaInfo?.saldo_inicial ?? 0) || 0).toLocaleString()}
+                          </span>
+                        </div>
+
+                        {formData.amount > 0 && (
+                          <>
+                            {allocationLoading && (
+                              <div className="flex justify-between mb-1">
+                                <span className="text-slate-700">Cálculo:</span>
+                                <span className="font-semibold text-slate-900">Calculando...</span>
+                              </div>
+                            )}
+
+                            {!allocationLoading && allocationPreview?.modo === 'ADELANTAR' && (
+                              <>
+                                <div className="flex justify-between mb-1">
+                                  <span className="text-slate-700">Cubre cuotas:</span>
+                                  <span className="font-semibold text-slate-900">
+                                    {allocationPreview.en_orden ? `${allocationPreview.en_orden.from_cuota}-${allocationPreview.en_orden.to_cuota}` : '—'}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between mb-1">
+                                  <span className="text-slate-700">Cuotas completas:</span>
+                                  <span className="font-semibold text-slate-900">
+                                    {allocationPreview.en_orden ? `${allocationPreview.en_orden.cuotas_pagadas_completas}` : '—'}
+                                  </span>
+                                </div>
+                                {allocationPreview.en_orden?.parcial && (
+                                  <div className="mt-2 text-xs text-slate-700">
+                                    Abono en cuota {allocationPreview.en_orden.parcial.cuota_num}: paga ${Number(allocationPreview.en_orden.parcial.abono).toLocaleString()} y queda saldo ${Number(allocationPreview.en_orden.parcial.saldo_restante).toLocaleString()}
+                                  </div>
+                                )}
+                              </>
+                            )}
+
+                            {!allocationLoading && allocationPreview?.modo === 'REDUCIR_PLAZO' && (
+                              <>
+                                {allocationPreview.en_orden && (
+                                  <>
+                                    <div className="flex justify-between mb-1">
+                                      <span className="text-slate-700">Pone al día:</span>
+                                      <span className="font-semibold text-slate-900">
+                                        {`${allocationPreview.en_orden.from_cuota}-${allocationPreview.en_orden.to_cuota}`}
+                                      </span>
+                                    </div>
+                                    {allocationPreview.en_orden.parcial && (
+                                      <div className="mt-2 text-xs text-slate-700">
+                                        Abono en cuota {allocationPreview.en_orden.parcial.cuota_num}: paga ${Number(allocationPreview.en_orden.parcial.abono).toLocaleString()} y queda saldo ${Number(allocationPreview.en_orden.parcial.saldo_restante).toLocaleString()}
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+
+                                {allocationPreview.finales && (
+                                  <>
+                                    <div className="flex justify-between mb-1">
+                                      <span className="text-slate-700">Descuenta finales:</span>
+                                      <span className="font-semibold text-slate-900">
+                                        {`${allocationPreview.finales.from_cuota}-${allocationPreview.finales.to_cuota}`}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between mb-1">
+                                      <span className="text-slate-700">Finales completas:</span>
+                                      <span className="font-semibold text-slate-900">
+                                        {`${allocationPreview.finales.cuotas_pagadas_completas}`}
+                                      </span>
+                                    </div>
+                                    {allocationPreview.finales.parcial && (
+                                      <div className="mt-2 text-xs text-slate-700">
+                                        Abono en cuota final {allocationPreview.finales.parcial.cuota_num}: paga ${Number(allocationPreview.finales.parcial.abono).toLocaleString()} y queda saldo ${Number(allocationPreview.finales.parcial.saldo_restante).toLocaleString()}
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                              </>
+                            )}
+                          </>
+                        )}
+
+                        {allocationError && (
+                          <div className="mt-2 text-xs text-red-700">
+                            {allocationError}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

@@ -9,6 +9,7 @@ const config = {
   database: process.env.DB_NAME,
   port: parseInt(process.env.DB_PORT || '1433'),
   connectionTimeout: 8000, // 8 segundos para fallar antes de que Netlify mate el proceso (10s limit)
+  requestTimeout: 60000,
   options: {
     // Encriptación activada por defecto (necesaria para Azure/Cloud), desactivar solo si se especifica 'false'
     encrypt: process.env.DB_ENCRYPT !== 'false', 

@@ -24,13 +24,32 @@ const cache = new Map<string, { data: unknown; timestamp: number }>();
 const CACHE_TTL = 60 * 1000; // 1 minute
 const inFlight = new Map<string, Promise<unknown>>();
 
-const getEmpresaId = () => {
+const parseEmpresaIdFromToken = (token: string): string => {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return '';
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, '=');
+    const json = atob(padded);
+    const payload = JSON.parse(json) as { empresa_id?: unknown };
+    return typeof payload?.empresa_id === 'string' ? payload.empresa_id : '';
+  } catch {
+    return '';
+  }
+};
+
+const getEmpresaId = (token?: string | null) => {
   const envEmpresaId = (import.meta.env.VITE_EMPRESA_ID as string | undefined) || '';
   try {
     const stored = typeof window !== 'undefined' ? window.localStorage.getItem('empresa_id') : null;
-    return stored || envEmpresaId;
+    if (stored) return stored;
+    if (envEmpresaId) return envEmpresaId;
+    if (token) return parseEmpresaIdFromToken(token);
+    return '';
   } catch {
-    return envEmpresaId;
+    if (envEmpresaId) return envEmpresaId;
+    if (token) return parseEmpresaIdFromToken(token);
+    return '';
   }
 };
 
@@ -64,7 +83,7 @@ async function request<T = unknown>(path: string, options?: RequestInit & { useC
       if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
       const token = typeof window !== 'undefined' ? window.localStorage.getItem('token') : null;
       if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
-      const empresaId = getEmpresaId();
+      const empresaId = getEmpresaId(token);
       if (empresaId) headers.set('x-empresa-id', empresaId);
       const res = await fetch(url, {
         ...fetchOptions,
@@ -74,32 +93,47 @@ async function request<T = unknown>(path: string, options?: RequestInit & { useC
       if (!res.ok) {
         let errorMessage = `HTTP ${res.status}`;
         let errorBody: unknown = null;
+        const contentType = res.headers.get('content-type') || '';
         try {
-          errorBody = await res.json();
-          if (isDev) console.error('[API] Error response body:', errorBody);
-          const bodyObj = errorBody as {
-            error?: unknown;
-            message?: unknown;
-            details?: unknown;
-            Mensaje?: unknown;
-          } | null;
-          const detailsObj = (bodyObj && typeof bodyObj.details === 'object' && bodyObj.details) ? (bodyObj.details as { Mensaje?: unknown; mensaje?: unknown }) : null;
+          if (contentType.includes('application/json')) {
+            errorBody = await res.json();
+            if (isDev) console.error('[API] Error response body:', errorBody);
+            const bodyObj = errorBody as {
+              error?: unknown;
+              message?: unknown;
+              details?: unknown;
+              Mensaje?: unknown;
+            } | null;
+            const detailsObj = (bodyObj && typeof bodyObj.details === 'object' && bodyObj.details) ? (bodyObj.details as { Mensaje?: unknown; mensaje?: unknown }) : null;
 
-          const base =
-            (typeof bodyObj?.error === 'string' && bodyObj.error) ? bodyObj.error :
-              (typeof bodyObj?.message === 'string' && bodyObj.message) ? bodyObj.message :
-                (typeof bodyObj?.Mensaje === 'string' && bodyObj.Mensaje) ? bodyObj.Mensaje :
-                  '';
-          if (base) errorMessage = base;
+            const base =
+              (typeof bodyObj?.error === 'string' && bodyObj.error) ? bodyObj.error :
+                (typeof bodyObj?.message === 'string' && bodyObj.message) ? bodyObj.message :
+                  (typeof bodyObj?.Mensaje === 'string' && bodyObj.Mensaje) ? bodyObj.Mensaje :
+                    '';
+            if (base) errorMessage = base;
 
-          const detailMsg =
-            (typeof detailsObj?.Mensaje === 'string' && detailsObj.Mensaje) ? detailsObj.Mensaje :
-              (typeof detailsObj?.mensaje === 'string' && detailsObj.mensaje) ? detailsObj.mensaje :
-                (typeof bodyObj?.details === 'string' && bodyObj.details) ? bodyObj.details :
-                  '';
-          if (detailMsg) errorMessage = `${errorMessage}: ${detailMsg}`;
+            const detailMsg =
+              (typeof detailsObj?.Mensaje === 'string' && detailsObj.Mensaje) ? detailsObj.Mensaje :
+                (typeof detailsObj?.mensaje === 'string' && detailsObj.mensaje) ? detailsObj.mensaje :
+                  (typeof bodyObj?.details === 'string' && bodyObj.details) ? bodyObj.details :
+                    '';
+            if (detailMsg) errorMessage = `${errorMessage}: ${detailMsg}`;
+          } else {
+            errorBody = await res.text();
+          }
         } catch (e) {
           if (isDev) console.error('[API] Could not parse error body:', e);
+        }
+        try {
+          const u = new URL(url);
+          const isSameOrigin = typeof window !== 'undefined' && u.origin === window.location.origin;
+          const isNetlify = typeof window !== 'undefined' && window.location.hostname.endsWith('netlify.app');
+          if (res.status === 404 && isSameOrigin && isNetlify && normalizedPath.startsWith('/api/')) {
+            errorMessage = 'API no disponible en este dominio. Configure VITE_API_BASE_URL apuntando al backend (por ejemplo http://localhost:4000) o un proxy/redirect /api en Netlify.';
+          }
+        } catch {
+          // ignore
         }
         const err = new Error(errorMessage) as Error & { status?: number; body?: unknown; url?: string; method?: string };
         err.status = res.status;
@@ -148,6 +182,25 @@ export type CashReceipt = {
 
 type PaymentWithDistribution = Payment & {
   distribution?: PaymentDistribution;
+};
+
+export type PaymentAllocationPreview = {
+  modo: 'ADELANTAR' | 'REDUCIR_PLAZO';
+  cuota_actual: number;
+  saldo_inicial: number;
+  tarifa_diaria: number;
+  en_orden: null | {
+    from_cuota: number;
+    to_cuota: number;
+    cuotas_pagadas_completas: number;
+    parcial: null | { cuota_num: number; abono: number; saldo_restante: number };
+  };
+  finales: null | {
+    from_cuota: number;
+    to_cuota: number;
+    cuotas_pagadas_completas: number;
+    parcial: null | { cuota_num: number; abono: number; saldo_restante: number };
+  };
 };
 
 export type Empresa = {
@@ -248,6 +301,10 @@ export const api = {
   // Payments
   getPayments: (from?: string, to?: string) => request<PaymentWithDistribution[]>(`/api/payments${from && to ? `?from=${from}&to=${to}` : ''}`, { useCache: true }),
   createPayment: (data: Record<string, unknown>) => request<PaymentWithDistribution>('/api/payments', { method: 'POST', body: JSON.stringify(data) }),
+  previewPaymentAllocation: (motorcycleId: string, amount: number, mode?: 'ADELANTAR' | 'REDUCIR_PLAZO') =>
+    request<PaymentAllocationPreview>(
+      `/api/payments/preview-allocation?motorcycle_id=${encodeURIComponent(motorcycleId)}&amount=${encodeURIComponent(String(amount))}${mode ? `&mode=${encodeURIComponent(mode)}` : ''}`
+    ),
 
   getCashReceipts: (filters?: { from?: string; to?: string; asociado_id?: string }) => {
     const params = new URLSearchParams();

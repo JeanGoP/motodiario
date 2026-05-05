@@ -6,6 +6,37 @@ import { Motorcycle, Asociado, CostCenter, Deactivation, Payment, PaymentDistrib
 const getBogotaDateOnly = (date: Date = new Date()) =>
   date.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
 
+const dateOnlyToUtcMs = (value: string) => {
+  const s = value.includes('T') ? value.split('T')[0] : value;
+  const [y, m, d] = s.split('-').map((part) => Number(part));
+  if (!y || !m || !d) return NaN;
+  return Date.UTC(y, m - 1, d);
+};
+
+const utcMsToDateOnly = (ms: number) => {
+  if (!Number.isFinite(ms)) return '';
+  return new Date(ms).toISOString().slice(0, 10);
+};
+
+const computePaidUntilDateOnly = (dailyRate: number, rows: { payment_date: string; amount: number }[]) => {
+  const rateCents = Math.round(Number(dailyRate) * 100);
+  if (!Number.isFinite(rateCents) || rateCents <= 0) return '';
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const sorted = [...rows].sort((a, b) => dateOnlyToUtcMs(a.payment_date) - dateOnlyToUtcMs(b.payment_date));
+  let paidUntilMs = NaN;
+  for (const r of sorted) {
+    const payMs = dateOnlyToUtcMs(r.payment_date);
+    if (!Number.isFinite(payMs)) continue;
+    const amountCents = Math.round(Number(r.amount) * 100);
+    const daysPaid = Math.floor(amountCents / rateCents);
+    if (daysPaid <= 0) continue;
+    const seed = payMs - msPerDay;
+    const base = Math.max(Number.isFinite(paidUntilMs) ? paidUntilMs : seed, seed);
+    paidUntilMs = base + daysPaid * msPerDay;
+  }
+  return utcMsToDateOnly(paidUntilMs);
+};
+
 type ReportType =
   | 'overdue'
   | 'deactivated'
@@ -91,13 +122,6 @@ export function Reports() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const parseDateOnly = (value: string) => {
-        const s = value.includes('T') ? value.split('T')[0] : value;
-        const [y, m, d] = s.split('-').map((part) => Number(part));
-        if (!y || !m || !d) return new Date(value);
-        return new Date(y, m - 1, d);
-      };
-
       const reportData = [];
 
       const centrosById = Object.fromEntries((costCentersList || []).map((c: CostCenter) => [c.id, c]));
@@ -107,21 +131,21 @@ export function Reports() {
         const asociado = asociadosById[moto.asociado_id];
         const centroCosto = asociado ? centrosById[asociado.centro_costo_id] : null;
 
-        // Find last payment for this moto
         const motoPayments = (allPayments || [])
           .filter((p: Payment) => p.motorcycle_id === moto.id)
-          .sort((a: Payment, b: Payment) => parseDateOnly(b.payment_date).getTime() - parseDateOnly(a.payment_date).getTime());
-        
-        const lastPayment = motoPayments.length > 0 ? motoPayments[0] : null;
+          .map((p: Payment) => ({ payment_date: String(p.payment_date || ''), amount: Number(p.amount) }))
+          .filter((p) => !!p.payment_date && Number.isFinite(p.amount) && p.amount > 0);
+
+        const paidUntilStr = computePaidUntilDateOnly(Number(moto.daily_rate || 0), motoPayments);
 
         let daysOverdue = 0;
         let balance = 0;
 
-        if (lastPayment) {
-          const lastPaymentDate = parseDateOnly(lastPayment.payment_date);
-          lastPaymentDate.setHours(0, 0, 0, 0);
-          const diffTime = today.getTime() - lastPaymentDate.getTime();
-          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        if (paidUntilStr) {
+          const paidUntilMs = dateOnlyToUtcMs(paidUntilStr);
+          const todayMs = dateOnlyToUtcMs(utcMsToDateOnly(today.getTime()));
+          const diffDays =
+            Number.isFinite(todayMs) && Number.isFinite(paidUntilMs) ? Math.floor((todayMs - paidUntilMs) / (1000 * 60 * 60 * 24)) : 0;
           daysOverdue = Math.max(0, diffDays - 1);
           balance = daysOverdue * Number(moto.daily_rate);
         } else {
@@ -145,7 +169,7 @@ export function Reports() {
           'Estado': moto.status,
           'Días Vencidos': daysOverdue,
           'Saldo Pendiente': balance.toFixed(2),
-          'Último Pago': lastPayment?.payment_date || 'Sin pagos',
+          'Último Pago': paidUntilStr || 'Sin pagos',
           'Días de Gracia': asociado?.dias_gracia || 0,
         });
       }
@@ -408,30 +432,26 @@ export function Reports() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const parseDateOnly = (value: string) => {
-        const s = value.includes('T') ? value.split('T')[0] : value;
-        const [y, m, d] = s.split('-').map((part) => Number(part));
-        if (!y || !m || !d) return new Date(value);
-        return new Date(y, m - 1, d);
-      };
-
       const motos = (allMotos || []).filter((m: Motorcycle) => m.status === 'ACTIVE' || m.status === 'DEACTIVATED');
       const centrosById = Object.fromEntries((costCentersList || []).map((c: CostCenter) => [c.id, c]));
       const asociadosById = Object.fromEntries((asociadosList || []).map((a: Asociado) => [a.id, a]));
 
-      const lastPaymentByMotoId = new Map<string, { payment_date: string }>();
+      const paymentsByMotoId = new Map<string, { payment_date: string; amount: number }[]>();
       for (const p of allPayments || []) {
-        const motoId = (p as Payment).motorcycle_id;
-        const dateStr = String((p as Payment).payment_date || '');
-        if (!motoId || !dateStr) continue;
-        const prev = lastPaymentByMotoId.get(motoId);
-        if (!prev) {
-          lastPaymentByMotoId.set(motoId, { payment_date: dateStr });
-          continue;
-        }
-        if (parseDateOnly(dateStr).getTime() > parseDateOnly(prev.payment_date).getTime()) {
-          lastPaymentByMotoId.set(motoId, { payment_date: dateStr });
-        }
+        const motoId = String((p as Payment).motorcycle_id || '');
+        const paymentDate = String((p as Payment).payment_date || '');
+        const amount = Number((p as Payment).amount);
+        if (!motoId || !paymentDate || !Number.isFinite(amount) || amount <= 0) continue;
+        const list = paymentsByMotoId.get(motoId) || [];
+        list.push({ payment_date: paymentDate, amount });
+        paymentsByMotoId.set(motoId, list);
+      }
+
+      const paidUntilByMotoId = new Map<string, string>();
+      for (const [motoId, rows] of paymentsByMotoId.entries()) {
+        const moto = (allMotos || []).find((m: Motorcycle) => m.id === motoId);
+        const paidUntilStr = moto ? computePaidUntilDateOnly(Number(moto.daily_rate || 0), rows) : '';
+        if (paidUntilStr) paidUntilByMotoId.set(motoId, paidUntilStr);
       }
 
       const byAsociado = new Map<
@@ -452,14 +472,14 @@ export function Reports() {
         const asociado = asociadosById[moto.asociado_id] || null;
         const centro = asociado ? centrosById[asociado.centro_costo_id] || null : null;
 
-        const lastPayment = lastPaymentByMotoId.get(moto.id) || null;
+        const paidUntilStr = paidUntilByMotoId.get(moto.id) || '';
 
         let daysOverdue = 0;
-        if (lastPayment?.payment_date) {
-          const lastPaymentDate = parseDateOnly(lastPayment.payment_date);
-          lastPaymentDate.setHours(0, 0, 0, 0);
-          const diffTime = today.getTime() - lastPaymentDate.getTime();
-          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        if (paidUntilStr) {
+          const paidUntilMs = dateOnlyToUtcMs(paidUntilStr);
+          const todayMs = dateOnlyToUtcMs(utcMsToDateOnly(today.getTime()));
+          const diffDays =
+            Number.isFinite(todayMs) && Number.isFinite(paidUntilMs) ? Math.floor((todayMs - paidUntilMs) / (1000 * 60 * 60 * 24)) : 0;
           daysOverdue = Math.max(0, diffDays - 1);
         } else {
           const createdDate = new Date(moto.created_at);

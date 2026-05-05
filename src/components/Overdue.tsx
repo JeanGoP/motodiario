@@ -45,16 +45,41 @@ export function Overdue() {
         return s.includes('T') ? s.split('T')[0] : s;
       };
 
-      const lastPaymentByMotoId = new Map<string, { payment_date: string; ms: number }>();
+      const paymentsByMotoId = new Map<string, { payment_date: string; amount: number }[]>();
       for (const p of allPayments || []) {
-        const dateOnly = normalizeDateOnly(p.payment_date);
-        const ms = dateOnlyToUtcMs(dateOnly);
-        if (!Number.isFinite(ms)) continue;
-        const prev = lastPaymentByMotoId.get(p.motorcycle_id);
-        if (!prev || ms > prev.ms) {
-          lastPaymentByMotoId.set(p.motorcycle_id, { payment_date: dateOnly, ms });
-        }
+        const motoId = String((p as { motorcycle_id?: string }).motorcycle_id || '');
+        if (!motoId) continue;
+        const dateOnly = normalizeDateOnly((p as { payment_date?: string }).payment_date);
+        const amount = Number((p as { amount?: number }).amount);
+        if (!dateOnly || !Number.isFinite(amount) || amount <= 0) continue;
+        const list = paymentsByMotoId.get(motoId) || [];
+        list.push({ payment_date: dateOnly, amount });
+        paymentsByMotoId.set(motoId, list);
       }
+
+      const utcMsToDateOnly = (ms: number) => {
+        if (!Number.isFinite(ms)) return '';
+        return new Date(ms).toISOString().slice(0, 10);
+      };
+
+      const computePaidUntilMs = (dailyRate: number, rows: { payment_date: string; amount: number }[]) => {
+        const rateCents = Math.round(Number(dailyRate) * 100);
+        if (!Number.isFinite(rateCents) || rateCents <= 0) return NaN;
+        const msPerDay = 1000 * 60 * 60 * 24;
+        const sorted = [...rows].sort((a, b) => dateOnlyToUtcMs(a.payment_date) - dateOnlyToUtcMs(b.payment_date));
+        let paidUntilMs = NaN;
+        for (const r of sorted) {
+          const payMs = dateOnlyToUtcMs(r.payment_date);
+          if (!Number.isFinite(payMs)) continue;
+          const amountCents = Math.round(Number(r.amount) * 100);
+          const daysPaid = Math.floor(amountCents / rateCents);
+          if (daysPaid <= 0) continue;
+          const seed = payMs - msPerDay;
+          const base = Math.max(Number.isFinite(paidUntilMs) ? paidUntilMs : seed, seed);
+          paidUntilMs = base + daysPaid * msPerDay;
+        }
+        return paidUntilMs;
+      };
 
       const msPerDay = 1000 * 60 * 60 * 24;
       const todayMs = dateOnlyToUtcMs(getBogotaDateOnly());
@@ -64,14 +89,14 @@ export function Overdue() {
       for (const moto of motorcycles) {
         // Enrich moto with asociado and centro_costo
         const asociadoFull = asociadosById[moto.asociado_id];
-        const lastPayment = lastPaymentByMotoId.get(moto.id) || null;
+        const motoPayments = paymentsByMotoId.get(moto.id) || [];
+        const paidUntilMs = computePaidUntilMs(Number(moto.daily_rate || 0), motoPayments);
 
         let daysOverdue = 0;
 
-        if (lastPayment) {
-          const lastMs = lastPayment.ms;
+        if (Number.isFinite(paidUntilMs)) {
           const diffDays =
-            Number.isFinite(todayMs) && Number.isFinite(lastMs) ? Math.floor((todayMs - lastMs) / msPerDay) : 0;
+            Number.isFinite(todayMs) && Number.isFinite(paidUntilMs) ? Math.floor((todayMs - paidUntilMs) / msPerDay) : 0;
           daysOverdue = Math.max(0, diffDays - 1);
         } else {
           const createdMs = dateOnlyToUtcMs(getBogotaDateOnly(new Date(moto.created_at)));
@@ -88,7 +113,7 @@ export function Overdue() {
               ...asociadoFull,
               centros_costo: asociadoFromApi.centro_costo
             } : undefined,
-            lastPayment: lastPayment?.payment_date,
+            lastPayment: Number.isFinite(paidUntilMs) ? utcMsToDateOnly(paidUntilMs) : undefined,
             daysOverdue,
           });
         }
