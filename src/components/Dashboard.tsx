@@ -89,7 +89,7 @@ export function Dashboard() {
     const Icon = item.icon;
     const isActive = currentView === item.id;
     const isChild = !!opts?.child;
-    const indentClass = isChild ? 'pl-9' : '';
+    const indentClass = isChild ? 'pl-8 pr-3' : 'px-3';
     const paddingClass = isChild ? 'py-2' : 'py-2.5';
     const iconClass = isChild ? 'w-4 h-4' : 'w-5 h-5';
     return (
@@ -99,15 +99,15 @@ export function Dashboard() {
           setCurrentView(item.id);
           setMobileMenuOpen(false);
         }}
-        className={`group flex items-center w-full px-3 ${paddingClass} text-sm font-medium rounded-md transition-colors duration-150 border-l-4 focus:outline-none focus:ring-2 focus:ring-accent-400 focus:ring-offset-2 focus:ring-offset-slate-950 ${indentClass} ${
+        className={`group relative flex items-center w-full ${indentClass} ${paddingClass} text-sm font-medium rounded-lg transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-accent-400 focus:ring-offset-2 focus:ring-offset-slate-950 ${
           isActive
-            ? 'bg-white/10 text-white border-accent-300'
-            : 'border-transparent text-slate-300 hover:bg-white/5 hover:text-white hover:border-slate-700'
+            ? 'bg-white/[0.08] text-white shadow-sm ring-1 ring-white/10'
+            : 'text-slate-400 hover:bg-white/[0.05] hover:text-slate-100'
         }`}
       >
+        {isActive && <span className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-accent-300" />}
         <Icon className={`${iconClass} mr-3 transition-colors ${isActive ? 'text-accent-200' : 'text-slate-500 group-hover:text-slate-300'}`} />
         <span className="flex-1 text-left">{item.label}</span>
-        {isActive && <div className="w-1.5 h-1.5 rounded-full bg-accent-200" />}
       </button>
     );
   };
@@ -118,10 +118,10 @@ export function Dashboard() {
       <button
         type="button"
         onClick={onToggle}
-        className={`group flex items-center w-full px-3 py-2.5 text-sm font-semibold rounded-md transition-colors duration-150 border-l-4 focus:outline-none focus:ring-2 focus:ring-accent-400 focus:ring-offset-2 focus:ring-offset-slate-950 ${
+        className={`group flex items-center w-full px-3 py-2.5 text-sm font-semibold rounded-lg transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-accent-400 focus:ring-offset-2 focus:ring-offset-slate-950 ${
           active
-            ? 'bg-white/10 text-white border-accent-300'
-            : 'border-transparent text-slate-200 hover:bg-white/5 hover:text-white hover:border-slate-700'
+            ? 'bg-white/[0.06] text-white ring-1 ring-white/10'
+            : 'text-slate-300 hover:bg-white/[0.05] hover:text-white'
         }`}
       >
         <Icon className={`w-5 h-5 mr-3 transition-colors ${active ? 'text-accent-200' : 'text-slate-500 group-hover:text-slate-300'}`} />
@@ -134,14 +134,17 @@ export function Dashboard() {
   return (
     <div className="min-h-screen bg-slate-100 font-sans">
       {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-950 text-slate-200 transform transition-transform duration-300 ease-in-out ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 border-r border-slate-900 shadow-2xl shadow-slate-950/20`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#070b16] text-slate-200 transform transition-transform duration-300 ease-in-out ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 border-r border-slate-900 shadow-2xl shadow-slate-950/20`}>
         {/* Logo Section */}
-        <div className="flex items-center justify-between h-16 px-6 bg-slate-950 border-b border-white/10">
+        <div className="flex items-center justify-between h-16 px-5 bg-[#070b16] border-b border-white/10">
           <div className="flex items-center gap-3">
-            <div className="bg-accent-600 p-1.5 rounded-md ring-1 ring-white/10">
-              <Bike className="w-6 h-6 text-white" />
+            <div className="bg-accent-600 p-2 rounded-lg ring-1 ring-white/10 shadow-sm shadow-accent-950/40">
+              <Bike className="w-5 h-5 text-white" />
             </div>
-            <span className="text-lg font-bold text-white">MotoDiario</span>
+            <div>
+              <span className="block text-base font-bold text-white leading-tight">MotoDiario</span>
+              <span className="block text-[11px] font-medium text-slate-500 leading-tight">Operaciones</span>
+            </div>
           </div>
           <button onClick={() => setMobileMenuOpen(false)} className="lg:hidden text-slate-400 hover:text-white transition-colors">
             <X className="w-6 h-6" />
@@ -149,14 +152,15 @@ export function Dashboard() {
         </div>
 
         {/* Navigation */}
-        <div className="flex flex-col h-[calc(100%-4rem)] justify-between bg-slate-950">
-          <nav className="px-3 py-4 overflow-y-auto flex-1 flex flex-col">
+        <div className="flex flex-col h-[calc(100%-4rem)] justify-between bg-[#070b16]">
+          <nav className="px-4 py-5 overflow-y-auto flex-1 flex flex-col">
+            <div className="px-3 pb-2 text-[11px] font-semibold uppercase text-slate-600 tracking-wider">Principal</div>
             <div className="space-y-1">
               {generalItems.map((item) => renderItemButton(item))}
             </div>
 
-            <div className="mt-3">
-              <div className="h-px bg-white/10 my-3 mx-3"></div>
+            <div className="mt-6">
+              <div className="px-3 pb-2 text-[11px] font-semibold uppercase text-slate-600 tracking-wider">Gestión</div>
               {renderParentButton(
                 'Catálogos',
                 Folder,
@@ -165,15 +169,15 @@ export function Dashboard() {
                 () => setCatalogosOpen(v => !v)
               )}
               {catalogosOpen && (
-                <div className="space-y-1 mt-1">
+                <div className="relative ml-3 mt-1 space-y-1 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-px before:bg-white/10">
                   {catalogosItems.map((item) => renderItemButton(item, { child: true }))}
                 </div>
               )}
             </div>
 
             {seguridadItems.length > 0 && (
-              <div className="mt-3">
-                <div className="h-px bg-white/10 my-3 mx-3"></div>
+              <div className="mt-6">
+                <div className="px-3 pb-2 text-[11px] font-semibold uppercase text-slate-600 tracking-wider">Administración</div>
                 {renderParentButton(
                   'Seguridad',
                   Shield,
@@ -182,18 +186,17 @@ export function Dashboard() {
                   () => setSeguridadOpen(v => !v)
                 )}
                 {seguridadOpen && (
-                  <div className="space-y-1 mt-1">
+                  <div className="relative ml-3 mt-1 space-y-1 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-px before:bg-white/10">
                     {seguridadItems.map((item) => renderItemButton(item, { child: true }))}
                   </div>
                 )}
               </div>
             )}
           </nav>
-
           {/* User Profile & Logout */}
-          <div className="p-4 border-t border-white/10 bg-slate-950">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-9 h-9 rounded-md bg-white/10 flex items-center justify-center border border-white/10">
+          <div className="p-4 border-t border-white/10 bg-[#070b16]">
+            <div className="flex items-center gap-3 mb-3 rounded-lg border border-white/10 bg-white/[0.04] p-3">
+              <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center border border-white/10">
                 <User className="w-4.5 h-4.5 text-slate-200" />
               </div>
               <div className="flex-1 min-w-0">
@@ -201,7 +204,7 @@ export function Dashboard() {
                 <p className="text-xs text-slate-400 truncate">{user?.rol || 'Administrador'}</p>
               </div>
             </div>
-            <button onClick={handleSignOut} className="btn w-full justify-center border-white/10 bg-white/5 text-slate-200 hover:bg-white/10 hover:text-white">
+            <button onClick={handleSignOut} className="btn w-full justify-center border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/10 hover:text-white shadow-none">
               <LogOut className="w-4 h-4" />
               <span>Cerrar sesión</span>
             </button>
@@ -210,7 +213,7 @@ export function Dashboard() {
       </aside>
 
       {/* Main Content */}
-      <div className="lg:pl-64 flex flex-col min-h-screen transition-all duration-300">
+      <div className="lg:pl-72 flex flex-col min-h-screen transition-all duration-300">
         {/* Header */}
         <header className="bg-white/95 backdrop-blur border-b border-slate-200 sticky top-0 z-40 h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 shadow-sm shadow-slate-900/5">
           <div className="flex items-center gap-4">
