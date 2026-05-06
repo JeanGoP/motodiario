@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { FileText, Download, Calendar, DollarSign, Filter, ChevronLeft, ChevronRight, Ban } from 'lucide-react';
 import { Motorcycle, Asociado, CostCenter, Deactivation, Payment, PaymentDistribution } from '../types/database';
-import { getSundayGraceDaysInMonth } from '../utils/graceDays';
+import { getSundayGraceDaysInMonth, getSundaysInMonth } from '../utils/graceDays';
 
 const getBogotaDateOnly = (date: Date = new Date()) =>
   date.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
@@ -555,7 +555,7 @@ export function Reports() {
       }
 
       const monthIndex = m - 1;
-      const domingosMes = getSundayGraceDaysInMonth(y, monthIndex, 'TODOS');
+      const domingosMes = getSundaysInMonth(y, monthIndex);
       const fechasDomingosMes = domingosMes.map((d) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
 
       const [motos, asociadosList, costCentersList, graceRules] = await Promise.all([
@@ -567,25 +567,32 @@ export function Reports() {
 
       const centrosById = Object.fromEntries((costCentersList || []).map((c: CostCenter) => [c.id, c]));
       const asociadosById = Object.fromEntries((asociadosList || []).map((a: Asociado) => [a.id, a]));
-      const graceByMotoId = new Map<string, { modo: 'TODOS' | 'NINGUNO' | 'ALTERNADO' }>();
+      const graceByMotoId = new Map<string, { modo: string; dias: number[] }>();
       for (const r of graceRules || []) {
-        graceByMotoId.set(String(r.moto_id), { modo: r.domingos_modo });
+        graceByMotoId.set(String(r.moto_id), { modo: String(r.domingos_modo), dias: Array.isArray(r.dias) ? r.dias.map((n) => Number(n)) : [] });
       }
 
       const rows: PreviewRow[] = (motos || []).map((moto: Motorcycle) => {
         const asociado = asociadosById[moto.asociado_id];
         const centroCosto = asociado ? centrosById[asociado.centro_costo_id] : null;
-        const modo = graceByMotoId.get(moto.id)?.modo || 'NINGUNO';
-        const exentos = getSundayGraceDaysInMonth(y, monthIndex, modo);
+        const rule = graceByMotoId.get(moto.id);
+        const modo = rule?.modo || 'NINGUNO';
+        const dias = rule?.dias || [];
+        const exentos =
+          modo === 'COBRAR_TODOS'
+            ? domingosMes.filter((d) => dias.includes(d))
+            : getSundayGraceDaysInMonth(y, monthIndex, modo as never);
         const fechasExentas = exentos.map((d) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
         const fechasCobradas = fechasDomingosMes.filter((f) => !fechasExentas.includes(f));
+        const modoLabel =
+          modo === 'COBRAR_TODOS' ? 'Manual (calendario)' : modo === 'ALTERNADO' ? 'Alternado' : 'Ningún domingo (no se cobra)';
 
         return {
           'Centro de Costo': centroCosto?.nombre || 'N/A',
           'Asociado': asociado?.nombre || 'N/A',
           'Documento': asociado?.documento || 'N/A',
           'Placa': moto.plate,
-          'Domingos de gracia (modo)': modo,
+          'Domingos de gracia (modo)': modoLabel,
           'Domingos exentos': fechasExentas.length ? fechasExentas.join(' | ') : 'Ninguno',
           'Domingos cobrados': fechasCobradas.length ? fechasCobradas.join(' | ') : 'Ninguno',
         };

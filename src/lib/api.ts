@@ -203,7 +203,7 @@ export type PaymentAllocationPreview = {
   };
 };
 
-export type DomingosGraciaModo = 'TODOS' | 'NINGUNO' | 'ALTERNADO';
+export type DomingosGraciaModo = 'COBRAR_TODOS' | 'NINGUNO' | 'ALTERNADO' | 'TODOS';
 
 export type MotorcycleGraceRules = {
   moto_id: string;

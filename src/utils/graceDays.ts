@@ -47,12 +47,11 @@ export function validateExactSelection(selected: number[], limit: number): { ok:
   return { ok: true, message: null };
 }
 
-export type SundayGraceMode = 'TODOS' | 'NINGUNO' | 'ALTERNADO';
+export type SundayGraceMode = 'COBRAR_TODOS' | 'NINGUNO' | 'ALTERNADO' | 'TODOS';
 
 export const SUNDAY_GRACE_MODES: Array<{ value: SundayGraceMode; label: string }> = [
-  { value: 'NINGUNO', label: 'Ningún domingo' },
-  { value: 'TODOS', label: 'Todos los domingos' },
-  { value: 'ALTERNADO', label: 'Alternado' },
+  { value: 'NINGUNO', label: 'Ningún domingo (no se cobra)' },
+  { value: 'ALTERNADO', label: 'Alternado (se cobra 1 sí / 1 no)' },
 ];
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -79,10 +78,10 @@ export const getSundaysInMonth = (year: number, monthIndex: number) => {
 };
 
 export const getSundayGraceDaysInMonth = (year: number, monthIndex: number, mode: SundayGraceMode) => {
-  if (mode === 'NINGUNO') return [];
   const sundays = getSundaysInMonth(year, monthIndex);
-  if (mode === 'TODOS') return sundays;
-  return sundays.filter((_, idx) => idx % 2 === 0);
+  if (mode === 'COBRAR_TODOS') return [];
+  if (mode === 'ALTERNADO') return sundays.filter((_, idx) => idx % 2 === 1);
+  return sundays;
 };
 
 export const getEffectiveGraceDaysForMonth = (params: {
@@ -100,12 +99,6 @@ export const getEffectiveGraceDaysForMonth = (params: {
   }
 
   const sundayGrace = new Set(getSundayGraceDaysInMonth(year, monthIndex, sundayMode));
-
-  if (sundayMode === 'NINGUNO') {
-    for (const d of Array.from(manual)) {
-      if (isSunday(year, monthIndex, d)) manual.delete(d);
-    }
-  }
 
   const effective = new Set<number>([...manual, ...sundayGrace]);
   return { effective, manual, sundayGrace };

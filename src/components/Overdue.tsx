@@ -2,7 +2,7 @@ import { useEffect, useState, type SVGProps } from 'react';
 import { api } from '../lib/api';
 import { Motorcycle, Asociado, CostCenter } from '../types/database';
 import { AlertTriangle, Calendar, Bell, Ban, CheckCircle } from 'lucide-react';
-import { advanceByChargeableDays, countChargeableDaysBetween } from '../utils/graceDays';
+import { advanceByChargeableDays, countChargeableDaysBetween, type SundayGraceMode } from '../utils/graceDays';
 
 const getBogotaDateOnly = (date: Date = new Date()) =>
   date.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
@@ -43,9 +43,9 @@ export function Overdue() {
 
       const motorcycles = (allMotos || []).filter((m: Motorcycle) => m.status === 'ACTIVE');
       const asociadosById = Object.fromEntries((allAsociados || []).map((a: Asociado) => [a.id, a]));
-      const graceByMotoId = new Map<string, { dias: number[]; modo: 'TODOS' | 'NINGUNO' | 'ALTERNADO' }>();
+      const graceByMotoId = new Map<string, { dias: number[]; modo: SundayGraceMode }>();
       for (const r of graceRules || []) {
-        graceByMotoId.set(String(r.moto_id), { dias: (r.dias || []).map(Number), modo: r.domingos_modo });
+        graceByMotoId.set(String(r.moto_id), { dias: (r.dias || []).map(Number), modo: r.domingos_modo as SundayGraceMode });
       }
 
       const normalizeDateOnly = (value: string | null | undefined) => {
@@ -81,7 +81,7 @@ export function Overdue() {
         dailyRate: number;
         rows: { payment_date: string; amount: number }[];
         recurringGraceDays: number[];
-        sundayMode: 'TODOS' | 'NINGUNO' | 'ALTERNADO';
+        sundayMode: SundayGraceMode;
       }): string | null => {
         const { dailyRate, rows, recurringGraceDays, sundayMode } = params;
         const rateCents = Math.round(Number(dailyRate) * 100);
@@ -113,7 +113,7 @@ export function Overdue() {
         // Enrich moto with asociado and centro_costo
         const asociadoFull = asociadosById[moto.asociado_id];
         const motoPayments = paymentsByMotoId.get(moto.id) || [];
-        const grace = graceByMotoId.get(moto.id) || { dias: [], modo: 'NINGUNO' as const };
+        const grace = graceByMotoId.get(moto.id) || { dias: [], modo: 'NINGUNO' as SundayGraceMode };
         const paidUntilDateOnly = computePaidUntilDateOnly({
           dailyRate: Number(moto.daily_rate || 0),
           rows: motoPayments,

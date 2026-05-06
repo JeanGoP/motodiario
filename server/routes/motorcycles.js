@@ -136,7 +136,7 @@ export function preferRecurringDomingosModo(recurringModo, monthModo) {
   return recurringModo ? String(recurringModo) : (monthModo ? String(monthModo) : 'NINGUNO');
 }
 
-const DOMINGOS_GRACIA_MODOS = new Set(['TODOS', 'NINGUNO', 'ALTERNADO']);
+const DOMINGOS_GRACIA_MODOS = new Set(['TODOS', 'NINGUNO', 'ALTERNADO', 'COBRAR_TODOS']);
 
 let domingosGraciaSupportCache = { checkedAt: 0, hasTable: false };
 const getDomingosGraciaSupport = async (pool) => {
@@ -519,7 +519,8 @@ router.get('/grace_rules', async (req, res) => {
           WHERE empresa_id = @empresa_id AND anio = 0 AND mes = 0
         `);
       for (const r of domingosRecurring.recordset || []) {
-        domingosRecurringByMoto.set(String(r.moto_id), String(r.modo || 'NINGUNO'));
+        const modo = String(r.modo || 'NINGUNO');
+        domingosRecurringByMoto.set(String(r.moto_id), modo === 'TODOS' ? 'NINGUNO' : modo);
       }
 
       if (anioNum !== null && mesNum !== null) {
@@ -533,7 +534,8 @@ router.get('/grace_rules', async (req, res) => {
             WHERE empresa_id = @empresa_id AND anio = @anio AND mes = @mes
           `);
         for (const r of domingosMonth.recordset || []) {
-          domingosMonthByMoto.set(String(r.moto_id), String(r.modo || 'NINGUNO'));
+          const modo = String(r.modo || 'NINGUNO');
+          domingosMonthByMoto.set(String(r.moto_id), modo === 'TODOS' ? 'NINGUNO' : modo);
         }
       }
     }
@@ -545,7 +547,9 @@ router.get('/grace_rules', async (req, res) => {
     const out = (motos.recordset || []).map((m) => {
       const id = String(m.id);
       const dias = preferRecurringDiasGracia(diasRecurringByMoto.get(id), diasMonthByMoto.get(id) || []);
-      const modo = preferRecurringDomingosModo(domingosRecurringByMoto.get(id), domingosMonthByMoto.get(id));
+      const baseModo = preferRecurringDomingosModo(domingosRecurringByMoto.get(id), domingosMonthByMoto.get(id));
+      const normalizedBaseModo = baseModo === 'TODOS' ? 'NINGUNO' : baseModo;
+      const modo = Array.isArray(dias) && dias.length > 0 ? 'COBRAR_TODOS' : normalizedBaseModo;
       return { moto_id: id, dias, domingos_modo: modo };
     });
 
@@ -576,7 +580,8 @@ router.get('/:id/domingos_gracia', async (req, res) => {
       WHERE moto_id = @id AND empresa_id = @empresa_id AND anio = 0 AND mes = 0
     `);
     if (recurring.recordset?.length) {
-      return res.json({ modo: String(recurring.recordset[0].modo || 'NINGUNO'), source: 'recurring' });
+      const modo = String(recurring.recordset[0].modo || 'NINGUNO');
+      return res.json({ modo: modo === 'TODOS' ? 'NINGUNO' : modo, source: 'recurring' });
     }
 
     const anioNum = anio ? Number(anio) : null;
@@ -593,7 +598,8 @@ router.get('/:id/domingos_gracia', async (req, res) => {
           WHERE moto_id = @id AND empresa_id = @empresa_id AND anio = @anio AND mes = @mes
         `);
       if (month.recordset?.length) {
-        return res.json({ modo: String(month.recordset[0].modo || 'NINGUNO'), source: 'month' });
+        const modo = String(month.recordset[0].modo || 'NINGUNO');
+        return res.json({ modo: modo === 'TODOS' ? 'NINGUNO' : modo, source: 'month' });
       }
     }
 
@@ -607,7 +613,8 @@ router.post('/:id/domingos_gracia', async (req, res) => {
   const { id } = req.params;
   const { anio, mes, modo, recurring } = req.body;
   const isRecurring = Boolean(recurring);
-  const modoStr = String(modo || '').toUpperCase();
+  let modoStr = String(modo || '').toUpperCase();
+  if (modoStr === 'TODOS') modoStr = 'NINGUNO';
   if (!DOMINGOS_GRACIA_MODOS.has(modoStr)) return res.status(400).json({ error: 'modo inválido' });
   if (!isRecurring && (!anio || !mes)) return res.status(400).json({ error: 'Datos inválidos' });
 
