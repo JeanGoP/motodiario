@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { Motorcycle, Asociado, CostCenter } from '../types/database';
-import { normalizeSelectedDays, toggleSelectedDayWithLimit, validateExactSelection } from '../utils/graceDays';
+import {
+  type SundayGraceMode,
+  SUNDAY_GRACE_MODES,
+  getSundayGraceDaysInMonth,
+  isSunday,
+  normalizeSelectedDays,
+  toggleSelectedDayWithLimit,
+  validateExactSelection,
+} from '../utils/graceDays';
 import { 
   Plus, 
   Edit2, 
@@ -50,6 +58,7 @@ export function Motorcycles() {
   const [mostrarCalendario, setMostrarCalendario] = useState(false);
   const [diasGraciaSeleccionados, setDiasGraciaSeleccionados] = useState<number[]>([]);
   const [diasGraciaWarning, setDiasGraciaWarning] = useState<string | null>(null);
+  const [domingosGraciaModo, setDomingosGraciaModo] = useState<SundayGraceMode>('NINGUNO');
   const [mesVista, setMesVista] = useState(() => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -60,17 +69,29 @@ export function Motorcycles() {
   }, []);
 
   useEffect(() => {
-    if (editingId && mostrarCalendario) {
-      loadDiasGracia(editingId, mesVista.getFullYear(), mesVista.getMonth() + 1);
-    }
+    if (!editingId) return;
+    api.getDomingosGraciaMoto(editingId, mesVista.getFullYear(), mesVista.getMonth() + 1)
+      .then((r) => {
+        if (r?.modo) setDomingosGraciaModo(r.modo as SundayGraceMode);
+      })
+      .catch(() => {});
+    if (mostrarCalendario) loadDiasGracia(editingId, mesVista.getFullYear(), mesVista.getMonth() + 1);
   }, [editingId, mostrarCalendario, mesVista]);
 
   const loadDiasGracia = async (id: string, anio: number, mes: number) => {
     try {
-      const dias = await api.getDiasGraciaMoto(id, anio, mes);
+      const [dias, domingos] = await Promise.all([
+        api.getDiasGraciaMoto(id, anio, mes),
+        api.getDomingosGraciaMoto(id, anio, mes),
+      ]);
       if (dias) {
-        setDiasGraciaSeleccionados(dias);
+        const filtered = dias.filter((d) => !isSunday(anio, mes - 1, d));
+        if (filtered.length !== dias.length) {
+          setDiasGraciaWarning('Se removieron domingos de los días de gracia manuales porque se configuran en “Domingos de gracia”.');
+        }
+        setDiasGraciaSeleccionados(filtered);
       }
+      if (domingos?.modo) setDomingosGraciaModo(domingos.modo as SundayGraceMode);
     } catch (error) {
       console.error('Error cargando días de gracia:', error);
     }
@@ -114,9 +135,16 @@ export function Motorcycles() {
       const limiteDiasGracia = Number(formData.dias_gracia || 0);
       const normalized = normalizeSelectedDays(diasGraciaSeleccionados, limiteDiasGracia);
       if (normalized.warning) setDiasGraciaWarning(normalized.warning);
+      const selectedWithoutSundays = normalized.selected.filter(
+        (d) => !isSunday(mesVista.getFullYear(), mesVista.getMonth(), d)
+      );
+      if (selectedWithoutSundays.length !== normalized.selected.length) {
+        setDiasGraciaWarning('Se removieron domingos de los días de gracia manuales porque se configuran en “Domingos de gracia”.');
+        setDiasGraciaSeleccionados(selectedWithoutSundays);
+      }
 
       if (mostrarCalendario) {
-        const exact = validateExactSelection(normalized.selected, limiteDiasGracia);
+        const exact = validateExactSelection(selectedWithoutSundays, limiteDiasGracia);
         if (!exact.ok) {
           setDiasGraciaWarning(exact.message);
           return;
@@ -131,11 +159,20 @@ export function Motorcycles() {
         motorcycleId = newMoto.id;
       }
 
+      if (motorcycleId) {
+        await api.setDomingosGraciaMoto(motorcycleId, {
+          anio: mesVista.getFullYear(),
+          mes: mesVista.getMonth() + 1,
+          modo: domingosGraciaModo,
+          recurring: true,
+        });
+      }
+
       if (motorcycleId && mostrarCalendario) {
         await api.setDiasGraciaMoto(motorcycleId, {
           anio: mesVista.getFullYear(),
           mes: mesVista.getMonth() + 1,
-          dias: normalized.selected,
+          dias: selectedWithoutSundays,
           recurring: true,
         });
       }
@@ -207,11 +244,16 @@ export function Motorcycles() {
     setDiasGraciaSeleccionados([]);
     setDiasGraciaWarning(null);
     setMostrarCalendario(false);
+    setDomingosGraciaModo('NINGUNO');
     const d = new Date();
     setMesVista(new Date(d.getFullYear(), d.getMonth(), 1));
   };
 
   const toggleDiaGracia = (dia: number) => {
+    if (isSunday(mesVista.getFullYear(), mesVista.getMonth(), dia)) {
+      setDiasGraciaWarning('Los domingos se configuran en “Domingos de gracia”.');
+      return;
+    }
     const limiteDiasGracia = Number(formData.dias_gracia || 0);
     setDiasGraciaSeleccionados((prev) => {
       const next = toggleSelectedDayWithLimit(prev, dia, limiteDiasGracia);
@@ -234,6 +276,7 @@ export function Motorcycles() {
   });
 
   const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
+  const domingosExentos = getSundayGraceDaysInMonth(mesVista.getFullYear(), mesVista.getMonth(), domingosGraciaModo);
 
   if (loading) {
     return (
@@ -582,6 +625,23 @@ export function Motorcycles() {
                     <option value="6">6 días</option>
                   </select>
                 </div>
+
+                <div>
+                  <label htmlFor="moto_domingos_gracia" className="input-label">Domingos de Gracia</label>
+                  <select
+                    id="moto_domingos_gracia"
+                    className="input-field"
+                    value={domingosGraciaModo}
+                    onChange={(e) => setDomingosGraciaModo(String(e.target.value) as SundayGraceMode)}
+                  >
+                    {SUNDAY_GRACE_MODES.map((m) => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Define si los domingos se cobran o quedan exentos automáticamente.
+                  </p>
+                </div>
               </div>
 
               <div className="mt-6 border-t border-slate-200 pt-6">
@@ -597,6 +657,14 @@ export function Motorcycles() {
 
                 {mostrarCalendario && (
                   <div className="mt-4 bg-slate-50 p-4 rounded-lg border border-slate-200">
+                    <div className="flex flex-wrap items-center gap-2 mb-4">
+                      <span className="text-xs font-semibold text-slate-700">Leyenda:</span>
+                      <span className="text-xs px-2 py-1 rounded-full bg-accent-100 text-accent-800 border border-accent-200">Día de gracia</span>
+                      <span className="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        Domingo exento ({domingosGraciaModo === 'NINGUNO' ? 'ninguno' : domingosGraciaModo === 'TODOS' ? `${domingosExentos.length}` : `${domingosExentos.length} alternados`})
+                      </span>
+                      <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">Domingo (no editable)</span>
+                    </div>
                     <div className="flex justify-between items-center mb-4">
                       <button
                         type="button"
@@ -625,17 +693,26 @@ export function Motorcycles() {
                       ))}
                       {Array.from({ length: getDaysInMonth(mesVista.getFullYear(), mesVista.getMonth()) }).map((_, i) => {
                         const dia = i + 1;
-                        const isSelected = diasGraciaSeleccionados.includes(dia);
+                        const esDomingo = isSunday(mesVista.getFullYear(), mesVista.getMonth(), dia);
+                        const esDomingoExento = esDomingo && domingosExentos.includes(dia);
+                        const isSelected = diasGraciaSeleccionados.includes(dia) && !esDomingo;
+                        const disabled = esDomingo;
                         return (
                           <button
                             key={dia}
                             type="button"
                             onClick={() => toggleDiaGracia(dia)}
+                            disabled={disabled}
                             className={`
                               aspect-square rounded-full flex items-center justify-center text-sm transition-all duration-200
-                              ${isSelected 
-                                ? 'bg-accent-700 text-white font-bold shadow-md transform scale-105' 
-                                : 'hover:bg-slate-200 text-slate-700 hover:scale-105'}
+                              ${disabled ? 'cursor-not-allowed opacity-70' : ''}
+                              ${esDomingoExento
+                                ? 'bg-emerald-100 text-emerald-800 font-bold ring-1 ring-emerald-200'
+                                : isSelected
+                                  ? 'bg-accent-100 text-accent-800 font-bold ring-1 ring-accent-200'
+                                  : esDomingo
+                                    ? 'bg-slate-100 text-slate-600 ring-1 ring-slate-200'
+                                    : 'hover:bg-slate-200 text-slate-700 hover:scale-105'}
                             `}
                           >
                             {dia}
@@ -647,6 +724,11 @@ export function Motorcycles() {
                       <p className="text-xs text-slate-600">
                         Seleccionados: <span className="font-semibold">{diasGraciaSeleccionados.length}</span> / <span className="font-semibold">{Number(formData.dias_gracia || 0)}</span>
                       </p>
+                      {domingosGraciaModo === 'NINGUNO' && domingosExentos.length === 0 && diasGraciaSeleccionados.some((d) => isSunday(mesVista.getFullYear(), mesVista.getMonth(), d)) && (
+                        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 inline-block">
+                          Este mes, algunos días seleccionados caen en domingo y se cobrarán (domingos sin gracia).
+                        </p>
+                      )}
                       {diasGraciaWarning && (
                         <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 inline-block">
                           {diasGraciaWarning}

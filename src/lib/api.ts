@@ -203,6 +203,14 @@ export type PaymentAllocationPreview = {
   };
 };
 
+export type DomingosGraciaModo = 'TODOS' | 'NINGUNO' | 'ALTERNADO';
+
+export type MotorcycleGraceRules = {
+  moto_id: string;
+  dias: number[];
+  domingos_modo: DomingosGraciaModo;
+};
+
 export type Empresa = {
   id: string;
   nombre: string;
@@ -297,6 +305,12 @@ export const api = {
   deleteMotorcycle: (id: string) => request<void>(`/api/motorcycles/${id}`, { method: 'DELETE' }),
   getDiasGraciaMoto: (id: string, anio: number, mes: number) => request<number[]>(`/api/motorcycles/${id}/dias_gracia?anio=${anio}&mes=${mes}`),
   setDiasGraciaMoto: (id: string, payload: { anio: number; mes: number; dias: number[]; recurring?: boolean }) => request<void>(`/api/motorcycles/${id}/dias_gracia`, { method: 'POST', body: JSON.stringify(payload) }),
+  getDomingosGraciaMoto: (id: string, anio: number, mes: number) =>
+    request<{ modo: DomingosGraciaModo; source: 'recurring' | 'month' | 'default' }>(`/api/motorcycles/${id}/domingos_gracia?anio=${anio}&mes=${mes}`),
+  setDomingosGraciaMoto: (id: string, payload: { anio: number; mes: number; modo: DomingosGraciaModo; recurring?: boolean }) =>
+    request<void>(`/api/motorcycles/${id}/domingos_gracia`, { method: 'POST', body: JSON.stringify(payload) }),
+  getGraceRulesMotos: (anio?: number, mes?: number) =>
+    request<MotorcycleGraceRules[]>(`/api/motorcycles/grace_rules${anio && mes ? `?anio=${anio}&mes=${mes}` : ''}`),
 
   // Payments
   getPayments: (from?: string, to?: string) => request<PaymentWithDistribution[]>(`/api/payments${from && to ? `?from=${from}&to=${to}` : ''}`, { useCache: true }),

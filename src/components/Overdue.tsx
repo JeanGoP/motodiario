@@ -2,6 +2,7 @@ import { useEffect, useState, type SVGProps } from 'react';
 import { api } from '../lib/api';
 import { Motorcycle, Asociado, CostCenter } from '../types/database';
 import { AlertTriangle, Calendar, Bell, Ban, CheckCircle } from 'lucide-react';
+import { advanceByChargeableDays, countChargeableDaysBetween } from '../utils/graceDays';
 
 const getBogotaDateOnly = (date: Date = new Date()) =>
   date.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
@@ -30,14 +31,22 @@ export function Overdue() {
 
   const loadOverdueMotorcycles = async () => {
     try {
-      const [allMotos, allAsociados, allPayments] = await Promise.all([
+      const todayDateOnly = getBogotaDateOnly();
+      const todayMs = dateOnlyToUtcMs(todayDateOnly);
+
+      const [allMotos, allAsociados, allPayments, graceRules] = await Promise.all([
         api.getMotorcycles(),
         api.getAsociados(),
-        api.getPayments()
+        api.getPayments(),
+        api.getGraceRulesMotos()
       ]);
 
       const motorcycles = (allMotos || []).filter((m: Motorcycle) => m.status === 'ACTIVE');
       const asociadosById = Object.fromEntries((allAsociados || []).map((a: Asociado) => [a.id, a]));
+      const graceByMotoId = new Map<string, { dias: number[]; modo: 'TODOS' | 'NINGUNO' | 'ALTERNADO' }>();
+      for (const r of graceRules || []) {
+        graceByMotoId.set(String(r.moto_id), { dias: (r.dias || []).map(Number), modo: r.domingos_modo });
+      }
 
       const normalizeDateOnly = (value: string | null | undefined) => {
         if (!value) return '';
@@ -62,27 +71,41 @@ export function Overdue() {
         return new Date(ms).toISOString().slice(0, 10);
       };
 
-      const computePaidUntilMs = (dailyRate: number, rows: { payment_date: string; amount: number }[]) => {
+      const addDaysDateOnly = (value: string, days: number) => {
+        const ms = dateOnlyToUtcMs(value);
+        if (!Number.isFinite(ms)) return '';
+        return utcMsToDateOnly(ms + days * msPerDay);
+      };
+
+      const computePaidUntilDateOnly = (params: {
+        dailyRate: number;
+        rows: { payment_date: string; amount: number }[];
+        recurringGraceDays: number[];
+        sundayMode: 'TODOS' | 'NINGUNO' | 'ALTERNADO';
+      }): string | null => {
+        const { dailyRate, rows, recurringGraceDays, sundayMode } = params;
         const rateCents = Math.round(Number(dailyRate) * 100);
-        if (!Number.isFinite(rateCents) || rateCents <= 0) return NaN;
-        const msPerDay = 1000 * 60 * 60 * 24;
+        if (!Number.isFinite(rateCents) || rateCents <= 0) return null;
         const sorted = [...rows].sort((a, b) => dateOnlyToUtcMs(a.payment_date) - dateOnlyToUtcMs(b.payment_date));
-        let paidUntilMs = NaN;
+        let paidUntil = '';
         for (const r of sorted) {
-          const payMs = dateOnlyToUtcMs(r.payment_date);
-          if (!Number.isFinite(payMs)) continue;
+          const payDate = r.payment_date;
           const amountCents = Math.round(Number(r.amount) * 100);
           const daysPaid = Math.floor(amountCents / rateCents);
           if (daysPaid <= 0) continue;
-          const seed = payMs - msPerDay;
-          const base = Math.max(Number.isFinite(paidUntilMs) ? paidUntilMs : seed, seed);
-          paidUntilMs = base + daysPaid * msPerDay;
+          const seed = addDaysDateOnly(payDate, -1);
+          const base = paidUntil && paidUntil > seed ? paidUntil : seed;
+          paidUntil = advanceByChargeableDays({
+            startExclusive: base,
+            chargeableDays: daysPaid,
+            recurringGraceDays,
+            sundayMode,
+          });
         }
-        return paidUntilMs;
+        return paidUntil || null;
       };
 
       const msPerDay = 1000 * 60 * 60 * 24;
-      const todayMs = dateOnlyToUtcMs(getBogotaDateOnly());
 
       const overdueList: MotorcycleOverdue[] = [];
 
@@ -90,19 +113,37 @@ export function Overdue() {
         // Enrich moto with asociado and centro_costo
         const asociadoFull = asociadosById[moto.asociado_id];
         const motoPayments = paymentsByMotoId.get(moto.id) || [];
-        const paidUntilMs = computePaidUntilMs(Number(moto.daily_rate || 0), motoPayments);
+        const grace = graceByMotoId.get(moto.id) || { dias: [], modo: 'NINGUNO' as const };
+        const paidUntilDateOnly = computePaidUntilDateOnly({
+          dailyRate: Number(moto.daily_rate || 0),
+          rows: motoPayments,
+          recurringGraceDays: grace.dias,
+          sundayMode: grace.modo,
+        });
 
         let daysOverdue = 0;
 
-        if (Number.isFinite(paidUntilMs)) {
-          const diffDays =
-            Number.isFinite(todayMs) && Number.isFinite(paidUntilMs) ? Math.floor((todayMs - paidUntilMs) / msPerDay) : 0;
-          daysOverdue = Math.max(0, diffDays - 1);
+        if (paidUntilDateOnly) {
+          const nextChargeableFrom = addDaysDateOnly(paidUntilDateOnly, 1);
+          daysOverdue = countChargeableDaysBetween({
+            fromInclusive: nextChargeableFrom,
+            toInclusive: todayDateOnly,
+            recurringGraceDays: grace.dias,
+            sundayMode: grace.modo,
+          });
         } else {
           const createdMs = dateOnlyToUtcMs(getBogotaDateOnly(new Date(moto.created_at)));
           const diffDays =
             Number.isFinite(todayMs) && Number.isFinite(createdMs) ? Math.floor((todayMs - createdMs) / msPerDay) : 0;
-          daysOverdue = Math.max(0, diffDays);
+          const createdDateOnly = utcMsToDateOnly(createdMs);
+          daysOverdue = createdDateOnly
+            ? countChargeableDaysBetween({
+              fromInclusive: createdDateOnly,
+              toInclusive: todayDateOnly,
+              recurringGraceDays: grace.dias,
+              sundayMode: grace.modo,
+            })
+            : Math.max(0, diffDays);
         }
 
         if (daysOverdue > 0) {
@@ -113,7 +154,7 @@ export function Overdue() {
               ...asociadoFull,
               centros_costo: asociadoFromApi.centro_costo
             } : undefined,
-            lastPayment: Number.isFinite(paidUntilMs) ? utcMsToDateOnly(paidUntilMs) : undefined,
+            lastPayment: paidUntilDateOnly || undefined,
             daysOverdue,
           });
         }

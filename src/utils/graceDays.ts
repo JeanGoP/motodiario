@@ -46,3 +46,121 @@ export function validateExactSelection(selected: number[], limit: number): { ok:
   }
   return { ok: true, message: null };
 }
+
+export type SundayGraceMode = 'TODOS' | 'NINGUNO' | 'ALTERNADO';
+
+export const SUNDAY_GRACE_MODES: Array<{ value: SundayGraceMode; label: string }> = [
+  { value: 'NINGUNO', label: 'Ningún domingo' },
+  { value: 'TODOS', label: 'Todos los domingos' },
+  { value: 'ALTERNADO', label: 'Alternado' },
+];
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+export const dateToDateOnly = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+export const dateOnlyToDate = (value: string) => {
+  const s = value.includes('T') ? value.split('T')[0] : value;
+  const [y, m, d] = s.split('-').map((p) => Number(p));
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+};
+
+export const isSunday = (year: number, monthIndex: number, dayOfMonth: number) =>
+  new Date(year, monthIndex, dayOfMonth).getDay() === 0;
+
+export const getSundaysInMonth = (year: number, monthIndex: number) => {
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+  const out: number[] = [];
+  for (let d = 1; d <= daysInMonth; d += 1) {
+    if (isSunday(year, monthIndex, d)) out.push(d);
+  }
+  return out;
+};
+
+export const getSundayGraceDaysInMonth = (year: number, monthIndex: number, mode: SundayGraceMode) => {
+  if (mode === 'NINGUNO') return [];
+  const sundays = getSundaysInMonth(year, monthIndex);
+  if (mode === 'TODOS') return sundays;
+  return sundays.filter((_, idx) => idx % 2 === 0);
+};
+
+export const getEffectiveGraceDaysForMonth = (params: {
+  year: number;
+  monthIndex: number;
+  recurringDays: number[];
+  sundayMode: SundayGraceMode;
+}) => {
+  const { year, monthIndex, recurringDays, sundayMode } = params;
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+  const manual = new Set<number>();
+  for (const d of recurringDays || []) {
+    const n = Number(d);
+    if (Number.isFinite(n) && n >= 1 && n <= daysInMonth) manual.add(n);
+  }
+
+  const sundayGrace = new Set(getSundayGraceDaysInMonth(year, monthIndex, sundayMode));
+
+  if (sundayMode === 'NINGUNO') {
+    for (const d of Array.from(manual)) {
+      if (isSunday(year, monthIndex, d)) manual.delete(d);
+    }
+  }
+
+  const effective = new Set<number>([...manual, ...sundayGrace]);
+  return { effective, manual, sundayGrace };
+};
+
+export const addDays = (d: Date, days: number) => {
+  const next = new Date(d);
+  next.setDate(next.getDate() + days);
+  return next;
+};
+
+export const advanceByChargeableDays = (params: {
+  startExclusive: string;
+  chargeableDays: number;
+  recurringGraceDays: number[];
+  sundayMode: SundayGraceMode;
+}) => {
+  const { startExclusive, chargeableDays, recurringGraceDays, sundayMode } = params;
+  const start = dateOnlyToDate(startExclusive);
+  if (!start || !Number.isFinite(chargeableDays) || chargeableDays <= 0) return startExclusive;
+  let remaining = Math.floor(chargeableDays);
+  let cursor = start;
+  while (remaining > 0) {
+    cursor = addDays(cursor, 1);
+    const y = cursor.getFullYear();
+    const m = cursor.getMonth();
+    const day = cursor.getDate();
+    const { effective } = getEffectiveGraceDaysForMonth({ year: y, monthIndex: m, recurringDays: recurringGraceDays, sundayMode });
+    if (effective.has(day)) continue;
+    remaining -= 1;
+  }
+  return dateToDateOnly(cursor);
+};
+
+export const countChargeableDaysBetween = (params: {
+  fromInclusive: string;
+  toInclusive: string;
+  recurringGraceDays: number[];
+  sundayMode: SundayGraceMode;
+}) => {
+  const { fromInclusive, toInclusive, recurringGraceDays, sundayMode } = params;
+  const from = dateOnlyToDate(fromInclusive);
+  const to = dateOnlyToDate(toInclusive);
+  if (!from || !to) return 0;
+  if (from.getTime() > to.getTime()) return 0;
+
+  let cursor = new Date(from);
+  let count = 0;
+  while (cursor.getTime() <= to.getTime()) {
+    const y = cursor.getFullYear();
+    const m = cursor.getMonth();
+    const day = cursor.getDate();
+    const { effective } = getEffectiveGraceDaysForMonth({ year: y, monthIndex: m, recurringDays: recurringGraceDays, sundayMode });
+    if (!effective.has(day)) count += 1;
+    cursor = addDays(cursor, 1);
+  }
+  return count;
+};

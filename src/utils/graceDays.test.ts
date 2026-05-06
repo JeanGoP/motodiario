@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeSelectedDays, toggleSelectedDayWithLimit, validateExactSelection } from './graceDays';
+import {
+  advanceByChargeableDays,
+  countChargeableDaysBetween,
+  getSundayGraceDaysInMonth,
+  normalizeSelectedDays,
+  toggleSelectedDayWithLimit,
+  validateExactSelection,
+} from './graceDays';
 
 describe('graceDays', () => {
   it('restringe la selección a exactamente N días', () => {
@@ -36,5 +43,44 @@ describe('graceDays', () => {
     expect(validateExactSelection([], 0)).toEqual({ ok: true, message: null });
     expect(validateExactSelection([1], 2).ok).toBe(false);
     expect(validateExactSelection([1, 2], 2)).toEqual({ ok: true, message: null });
+  });
+
+  it('calcula domingos de gracia: TODOS', () => {
+    const sundays = getSundayGraceDaysInMonth(2026, 0, 'TODOS');
+    expect(sundays.length).toBeGreaterThan(0);
+    expect(sundays[0]).toBeGreaterThanOrEqual(1);
+    expect(sundays[sundays.length - 1]).toBeLessThanOrEqual(31);
+  });
+
+  it('calcula domingos de gracia: NINGUNO', () => {
+    expect(getSundayGraceDaysInMonth(2026, 0, 'NINGUNO')).toEqual([]);
+  });
+
+  it('calcula domingos de gracia: ALTERNADO', () => {
+    const all = getSundayGraceDaysInMonth(2026, 0, 'TODOS');
+    const alt = getSundayGraceDaysInMonth(2026, 0, 'ALTERNADO');
+    expect(alt.length).toBeGreaterThan(0);
+    expect(alt.length).toBeLessThanOrEqual(all.length);
+    expect(alt).toEqual(all.filter((_, idx) => idx % 2 === 0));
+  });
+
+  it('avance por días cobrables respeta domingos de gracia', () => {
+    const end = advanceByChargeableDays({
+      startExclusive: '2026-03-01',
+      chargeableDays: 7,
+      recurringGraceDays: [],
+      sundayMode: 'TODOS',
+    });
+    expect(end).toBe('2026-03-09');
+  });
+
+  it('conteo de días cobrables excluye domingos de gracia', () => {
+    const days = countChargeableDaysBetween({
+      fromInclusive: '2026-03-02',
+      toInclusive: '2026-03-08',
+      recurringGraceDays: [],
+      sundayMode: 'TODOS',
+    });
+    expect(days).toBe(6);
   });
 });

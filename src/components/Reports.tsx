@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { FileText, Download, Calendar, DollarSign, Filter, ChevronLeft, ChevronRight, Ban } from 'lucide-react';
 import { Motorcycle, Asociado, CostCenter, Deactivation, Payment, PaymentDistribution } from '../types/database';
+import { getSundayGraceDaysInMonth } from '../utils/graceDays';
 
 const getBogotaDateOnly = (date: Date = new Date()) =>
   date.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
@@ -44,7 +45,8 @@ type ReportType =
   | 'distributions'
   | 'cash_receipts'
   | 'monthly_income'
-  | 'debt_summary';
+  | 'debt_summary'
+  | 'sunday_grace';
 
 type PreviewCell = string | number | null | undefined;
 type PreviewRow = Record<string, PreviewCell>;
@@ -74,6 +76,7 @@ export function Reports() {
     { id: 'cash_receipts', label: 'Reporte de Recibos de Caja', description: 'Reporte de recibos de caja y anticipos', icon: FileText },
     { id: 'monthly_income', label: 'Resumen Financiero Mensual', description: 'Ingresos agrupados por mes con desglose de participaciones', icon: DollarSign },
     { id: 'debt_summary', label: 'Consolidado de Deuda', description: 'Resumen de deuda total agrupada por asociado', icon: FileText },
+    { id: 'sunday_grace', label: 'Domingos de Gracia', description: 'Domingos exentos de pago por moto (según configuración)', icon: Calendar },
   ];
 
   const exportToCSV = () => {
@@ -541,6 +544,63 @@ export function Reports() {
     }
   };
 
+  const generateSundayGraceReport = async () => {
+    setLoading(true);
+    try {
+      const from = dateFrom.includes('T') ? dateFrom.split('T')[0] : dateFrom;
+      const [y, m] = from.split('-').map((p) => Number(p));
+      if (!y || !m) {
+        alert('Fecha inválida');
+        return;
+      }
+
+      const monthIndex = m - 1;
+      const domingosMes = getSundayGraceDaysInMonth(y, monthIndex, 'TODOS');
+      const fechasDomingosMes = domingosMes.map((d) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+
+      const [motos, asociadosList, costCentersList, graceRules] = await Promise.all([
+        api.getMotorcycles(),
+        api.getAsociados(true),
+        api.getCentrosCosto(),
+        api.getGraceRulesMotos(y, m),
+      ]);
+
+      const centrosById = Object.fromEntries((costCentersList || []).map((c: CostCenter) => [c.id, c]));
+      const asociadosById = Object.fromEntries((asociadosList || []).map((a: Asociado) => [a.id, a]));
+      const graceByMotoId = new Map<string, { modo: 'TODOS' | 'NINGUNO' | 'ALTERNADO' }>();
+      for (const r of graceRules || []) {
+        graceByMotoId.set(String(r.moto_id), { modo: r.domingos_modo });
+      }
+
+      const rows: PreviewRow[] = (motos || []).map((moto: Motorcycle) => {
+        const asociado = asociadosById[moto.asociado_id];
+        const centroCosto = asociado ? centrosById[asociado.centro_costo_id] : null;
+        const modo = graceByMotoId.get(moto.id)?.modo || 'NINGUNO';
+        const exentos = getSundayGraceDaysInMonth(y, monthIndex, modo);
+        const fechasExentas = exentos.map((d) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+        const fechasCobradas = fechasDomingosMes.filter((f) => !fechasExentas.includes(f));
+
+        return {
+          'Centro de Costo': centroCosto?.nombre || 'N/A',
+          'Asociado': asociado?.nombre || 'N/A',
+          'Documento': asociado?.documento || 'N/A',
+          'Placa': moto.plate,
+          'Domingos de gracia (modo)': modo,
+          'Domingos exentos': fechasExentas.length ? fechasExentas.join(' | ') : 'Ninguno',
+          'Domingos cobrados': fechasCobradas.length ? fechasCobradas.join(' | ') : 'Ninguno',
+        };
+      });
+
+      setPreviewData(rows);
+      setGeneratedDate(getBogotaDateOnly());
+    } catch (error) {
+      console.error(error);
+      alert('Error al generar reporte de domingos de gracia');
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   const handleGenerate = () => {
     switch (reportType) {
@@ -564,6 +624,9 @@ export function Reports() {
         break;
       case 'debt_summary':
         generateDebtSummaryReport();
+        break;
+      case 'sunday_grace':
+        generateSundayGraceReport();
         break;
     }
   };
