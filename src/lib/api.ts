@@ -168,6 +168,35 @@ async function request<T = unknown>(path: string, options?: RequestInit & { useC
   }
 }
 
+async function requestBlob(path: string, options?: RequestInit): Promise<Blob> {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const url = `${baseUrl}${normalizedPath}`;
+  const method = (options?.method || 'GET').toUpperCase();
+  try {
+    const headers = new Headers(options?.headers || undefined);
+    const token = typeof window !== 'undefined' ? window.localStorage.getItem('token') : null;
+    if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
+    const empresaId = getEmpresaId(token);
+    if (empresaId) headers.set('x-empresa-id', empresaId);
+
+    const res = await fetch(url, { ...options, method, headers });
+    if (!res.ok) {
+      const contentType = res.headers.get('content-type') || '';
+      const body = contentType.includes('application/json') ? await res.json().catch(() => null) : await res.text().catch(() => '');
+      const err = new Error(`HTTP ${res.status}`) as Error & { status?: number; body?: unknown; url?: string; method?: string };
+      err.status = res.status;
+      err.body = body;
+      err.url = url;
+      err.method = method;
+      throw err;
+    }
+    return await res.blob();
+  } catch (err) {
+    if (isDev) console.error('[API] Blob request error:', err);
+    throw err;
+  }
+}
+
 export type CashReceipt = {
   id: string;
   asociado_id: string;
@@ -209,6 +238,15 @@ export type MotorcycleGraceRules = {
   moto_id: string;
   dias: number[];
   domingos_modo: DomingosGraciaModo;
+};
+
+export type MotoEntregaAdjuntoMeta = {
+  id: string;
+  nombre_archivo: string;
+  mime_type: string;
+  size_bytes: number;
+  creado_por: string | null;
+  creado_en: string;
 };
 
 export type Empresa = {
@@ -311,6 +349,13 @@ export const api = {
     request<void>(`/api/motorcycles/${id}/domingos_gracia`, { method: 'POST', body: JSON.stringify(payload) }),
   getGraceRulesMotos: (anio?: number, mes?: number) =>
     request<MotorcycleGraceRules[]>(`/api/motorcycles/grace_rules${anio && mes ? `?anio=${anio}&mes=${mes}` : ''}`),
+
+  getMotoEntregaAdjuntos: (id: string) =>
+    request<MotoEntregaAdjuntoMeta[]>(`/api/motorcycles/${id}/entrega_adjuntos`),
+  uploadMotoEntregaAdjuntos: (id: string, payload: { archivos: Array<{ nombre_archivo: string; mime_type: string; data_base64: string }> }) =>
+    request<{ ok: true; uploaded: number }>(`/api/motorcycles/${id}/entrega_adjuntos`, { method: 'POST', body: JSON.stringify(payload) }),
+  downloadMotoEntregaAdjunto: (id: string, adjuntoId: string) =>
+    requestBlob(`/api/motorcycles/${id}/entrega_adjuntos/${adjuntoId}/download`),
 
   // Payments
   getPayments: (from?: string, to?: string) => request<PaymentWithDistribution[]>(`/api/payments${from && to ? `?from=${from}&to=${to}` : ''}`, { useCache: true }),

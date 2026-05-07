@@ -47,7 +47,7 @@ app.use(cors({
   optionsSuccessStatus: 204
 }));
 app.options('*', cors());
-app.use(express.json());
+app.use(express.json({ limit: '25mb' }));
 
 // Log de depuración para ver qué ruta llega realmente a Netlify
 app.use((req, res, next) => {

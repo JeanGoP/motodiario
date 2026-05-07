@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { api } from '../lib/api';
+import { useEffect, useRef, useState } from 'react';
+import { api, type MotoEntregaAdjuntoMeta } from '../lib/api';
 import { Motorcycle, Asociado, CostCenter } from '../types/database';
 import {
   type SundayGraceMode,
@@ -20,11 +20,22 @@ import {
   X, 
   Filter,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Paperclip,
+  Download
 } from 'lucide-react';
 
 type MotorcycleWithAsociado = Motorcycle & {
   asociado?: Asociado & { centros_costo?: CostCenter };
+};
+
+type EntregaAdjuntoDraft = {
+  key: string;
+  nombre_archivo: string;
+  mime_type: string;
+  size_bytes: number;
+  data_base64: string;
+  preview_url: string | null;
 };
 
 export function Motorcycles() {
@@ -63,6 +74,11 @@ export function Motorcycles() {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
+  const entregaInputRef = useRef<HTMLInputElement | null>(null);
+  const [entregaDrafts, setEntregaDrafts] = useState<EntregaAdjuntoDraft[]>([]);
+  const [entregaExisting, setEntregaExisting] = useState<MotoEntregaAdjuntoMeta[]>([]);
+  const [entregaError, setEntregaError] = useState<string | null>(null);
+  const [entregaBusy, setEntregaBusy] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -79,6 +95,20 @@ export function Motorcycles() {
       loadDiasGracia(editingId, mesVista.getFullYear(), mesVista.getMonth() + 1);
     }
   }, [editingId, mostrarCalendario, mesVista, formData.dias_gracia]);
+
+  useEffect(() => {
+    if (!showModal) return;
+    setEntregaError(null);
+    if (!editingId) {
+      setEntregaExisting([]);
+      return;
+    }
+    setEntregaBusy(true);
+    api.getMotoEntregaAdjuntos(editingId)
+      .then((rows) => setEntregaExisting(rows || []))
+      .catch(() => setEntregaExisting([]))
+      .finally(() => setEntregaBusy(false));
+  }, [showModal, editingId]);
 
   const loadDiasGracia = async (id: string, anio: number, mes: number) => {
     try {
@@ -122,6 +152,97 @@ export function Motorcycles() {
       console.error('Error loading data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const formatBytes = (n: number) => {
+    const bytes = Number(n);
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let idx = 0;
+    let v = bytes;
+    while (v >= 1024 && idx < units.length - 1) {
+      v /= 1024;
+      idx += 1;
+    }
+    return `${v.toFixed(idx === 0 ? 0 : 1)} ${units[idx]}`;
+  };
+
+  const fileToDraft = (file: File): Promise<EntregaAdjuntoDraft> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
+      reader.onload = () => {
+        const result = String(reader.result || '');
+        const base64 = result.includes(',') ? result.split(',')[1] : result;
+        const mime = file.type || 'application/octet-stream';
+        const previewUrl = mime.startsWith('image/') ? `data:${mime};base64,${base64}` : null;
+        resolve({
+          key: `${Date.now()}_${Math.random().toString(16).slice(2)}`,
+          nombre_archivo: file.name,
+          mime_type: mime,
+          size_bytes: file.size,
+          data_base64: base64,
+          preview_url: previewUrl,
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+
+  const handleEntregaFiles = async (files: FileList | null) => {
+    setEntregaError(null);
+    if (!files || files.length === 0) return;
+    const maxFiles = 5;
+    const maxBytes = 5 * 1024 * 1024;
+    const allowed = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+    const currentCount = entregaDrafts.length;
+    if (currentCount >= maxFiles) {
+      setEntregaError(`Máximo ${maxFiles} archivos.`);
+      return;
+    }
+
+    setEntregaBusy(true);
+    try {
+      const selected = Array.from(files).slice(0, Math.max(0, maxFiles - currentCount));
+      const drafts: EntregaAdjuntoDraft[] = [];
+      for (const f of selected) {
+        if (f.size > maxBytes) {
+          setEntregaError(`"${f.name}" supera el máximo de 5MB.`);
+          continue;
+        }
+        if (!allowed.has(String(f.type || '').toLowerCase())) {
+          setEntregaError(`"${f.name}" tiene un tipo no permitido.`);
+          continue;
+        }
+        drafts.push(await fileToDraft(f));
+      }
+      setEntregaDrafts((prev) => [...prev, ...drafts]);
+      if (entregaInputRef.current) entregaInputRef.current.value = '';
+    } catch (e) {
+      setEntregaError(e instanceof Error ? e.message : 'Error leyendo archivos');
+    } finally {
+      setEntregaBusy(false);
+    }
+  };
+
+  const downloadEntregaAdjunto = async (adj: MotoEntregaAdjuntoMeta) => {
+    if (!editingId) return;
+    setEntregaError(null);
+    setEntregaBusy(true);
+    try {
+      const blob = await api.downloadMotoEntregaAdjunto(editingId, adj.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = adj.nombre_archivo || 'adjunto';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setEntregaError(e instanceof Error ? e.message : 'No se pudo descargar el archivo');
+    } finally {
+      setEntregaBusy(false);
     }
   };
 
@@ -169,6 +290,16 @@ export function Motorcycles() {
           mes: mesVista.getMonth() + 1,
           modo: domingosGraciaModo,
           recurring: true,
+        });
+      }
+
+      if (motorcycleId && entregaDrafts.length > 0) {
+        await api.uploadMotoEntregaAdjuntos(motorcycleId, {
+          archivos: entregaDrafts.map((d) => ({
+            nombre_archivo: d.nombre_archivo,
+            mime_type: d.mime_type,
+            data_base64: d.data_base64,
+          })),
         });
       }
 
@@ -231,6 +362,11 @@ export function Motorcycles() {
     setDiasGraciaWarning(null);
     setMostrarCalendario(false);
     setDomingosGraciaModo('NINGUNO');
+    setEntregaDrafts([]);
+    setEntregaExisting([]);
+    setEntregaError(null);
+    setEntregaBusy(false);
+    if (entregaInputRef.current) entregaInputRef.current.value = '';
     const d = new Date();
     setMesVista(new Date(d.getFullYear(), d.getMonth(), 1));
   };
@@ -626,6 +762,104 @@ export function Motorcycles() {
                     <p className="text-xs text-slate-500 mt-1">
                       Aplica solo cuando los días de gracia globales están en 0.
                     </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6 border-t border-slate-200 pt-6">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Paperclip className="w-4 h-4 text-slate-600" />
+                      <h4 className="text-sm font-bold text-slate-900">Constancia de entrega</h4>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Adjunta fotos o documentos (JPG/PNG/WEBP/PDF). Máximo 5 archivos, 5MB cada uno.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3">
+                  <input
+                    ref={entregaInputRef}
+                    type="file"
+                    multiple
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    capture="environment"
+                    disabled={entregaBusy}
+                    onChange={(e) => handleEntregaFiles(e.target.files)}
+                    className="input-field"
+                  />
+                  {entregaError && (
+                    <p className="mt-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 inline-block">
+                      {entregaError}
+                    </p>
+                  )}
+                </div>
+
+                {(entregaDrafts.length > 0 || entregaExisting.length > 0) && (
+                  <div className="mt-4 space-y-3">
+                    {entregaDrafts.length > 0 && (
+                      <div>
+                        <div className="text-xs font-semibold text-slate-700 mb-2">Por subir</div>
+                        <div className="space-y-2">
+                          {entregaDrafts.map((d) => (
+                            <div key={d.key} className="flex items-center gap-3 bg-white border border-slate-200 rounded-lg p-2">
+                              {d.preview_url ? (
+                                <img src={d.preview_url} alt={d.nombre_archivo} className="w-10 h-10 object-cover rounded border border-slate-200" />
+                              ) : (
+                                <div className="w-10 h-10 rounded border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-600 text-xs">
+                                  PDF
+                                </div>
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <div className="text-sm font-medium text-slate-900 truncate">{d.nombre_archivo}</div>
+                                <div className="text-xs text-slate-500">{formatBytes(d.size_bytes)}</div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setEntregaDrafts((prev) => prev.filter((x) => x.key !== d.key))}
+                                className="p-2 rounded hover:bg-slate-100 text-slate-600"
+                                aria-label="Quitar archivo"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {entregaExisting.length > 0 && (
+                      <div>
+                        <div className="text-xs font-semibold text-slate-700 mb-2">Ya guardados</div>
+                        <div className="space-y-2">
+                          {entregaExisting.map((a) => (
+                            <div key={a.id} className="flex items-center gap-3 bg-white border border-slate-200 rounded-lg p-2">
+                              <div className="w-10 h-10 rounded border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-600 text-xs">
+                                {String(a.mime_type || '').includes('pdf') ? 'PDF' : 'IMG'}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="text-sm font-medium text-slate-900 truncate">{a.nombre_archivo}</div>
+                                <div className="text-xs text-slate-500">{formatBytes(Number(a.size_bytes || 0))}</div>
+                              </div>
+                              <button
+                                type="button"
+                                disabled={entregaBusy}
+                                onClick={() => downloadEntregaAdjunto(a)}
+                                className="p-2 rounded hover:bg-slate-100 text-slate-600 disabled:opacity-50"
+                                aria-label="Descargar archivo"
+                              >
+                                <Download className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        {entregaBusy && (
+                          <div className="mt-2 text-xs text-slate-500">Cargando adjuntos…</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
