@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
-import { Plus, Search, X, User, Users, KeyRound } from 'lucide-react';
+import { Plus, Search, X, User, Users, KeyRound, Ban, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 type Empresa = { id: string; nombre: string; codigo: string; activo: boolean };
@@ -115,6 +115,18 @@ export function AdminUsers() {
     }
   };
 
+  const toggleUsuarioActivo = async (u: Usuario) => {
+    const next = !u.activo;
+    const actionLabel = next ? 'activar' : 'desactivar';
+    if (!confirm(`¿Seguro que deseas ${actionLabel} el usuario "${u.nombre}"?`)) return;
+    try {
+      await api.setUsuarioActivo(u.id, { empresa_id: empresaId, activo: next });
+      await loadUsuarios(empresaId);
+    } catch (error: unknown) {
+      alert('Error: ' + (error instanceof Error ? error.message : 'Ha ocurrido un error'));
+    }
+  };
+
   const empresaNombre = useMemo(() => empresas.find(e => e.id === empresaId)?.nombre || '', [empresas, empresaId]);
   const canChangePasswords = user?.correo === 'admin@motodiario.local';
   const filteredUsuarios = usuarios.filter(u =>
@@ -191,8 +203,8 @@ export function AdminUsers() {
               <div><span className="text-slate-500">Empresa:</span> <span className="font-medium">{empresaNombre}</span></div>
               <div><span className="text-slate-500">ID:</span> <span className="font-mono text-xs">{u.id}</span></div>
             </div>
-            {canChangePasswords && (
-              <div className="flex gap-3 pt-4 border-t border-slate-100 mt-4">
+            <div className="flex gap-3 pt-4 border-t border-slate-100 mt-4">
+              {canChangePasswords && (
                 <button
                   onClick={() => openChangePassword(u)}
                   className="btn btn-secondary flex-1 justify-center border-transparent bg-slate-50 hover:bg-white shadow-none hover:shadow-sm"
@@ -200,8 +212,25 @@ export function AdminUsers() {
                   <KeyRound className="w-4 h-4 mr-2" />
                   Cambiar contraseña
                 </button>
-              </div>
-            )}
+              )}
+              <button
+                onClick={() => toggleUsuarioActivo(u)}
+                disabled={u.id === user?.id}
+                className="btn btn-secondary flex-1 justify-center border-transparent bg-slate-50 hover:bg-white shadow-none hover:shadow-sm disabled:opacity-50"
+              >
+                {u.activo ? (
+                  <>
+                    <Ban className="w-4 h-4 mr-2" />
+                    Desactivar
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 mr-2" />
+                    Activar
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         ))}
       </div>

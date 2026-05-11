@@ -155,6 +155,62 @@ router.put('/usuarios/:id/password', async (req, res) => {
   }
 });
 
+router.put('/usuarios/:id', async (req, res) => {
+  const { id } = req.params;
+  const { activo, empresa_id } = req.body || {};
+  if (activo === undefined || activo === null) return res.status(400).json({ error: 'activo requerido' });
+
+  try {
+    const admin = await getAdminScope(req);
+    if (!admin.ok) return res.status(admin.status).json({ error: admin.error });
+
+    const targetEmpresaId = admin.isSuperAdmin
+      ? String(empresa_id || req.empresaId || '').trim()
+      : String(admin.tokenEmpresaId || '').trim();
+    if (!targetEmpresaId) return res.status(400).json({ error: 'Falta empresa_id' });
+
+    const pool = await getPool();
+    const u = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .input('empresa_id', sql.UniqueIdentifier, targetEmpresaId)
+      .query(`SELECT TOP 1 id, correo, rol, activo FROM usuarios WHERE id = @id AND empresa_id = @empresa_id`);
+    const row = u.recordset?.[0] || null;
+    if (!row) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    const nextActivo = !!activo;
+    if (String(row.id) === String(admin.userId) && !nextActivo) {
+      return res.status(409).json({ error: 'No puedes desactivar tu propio usuario' });
+    }
+
+    const isAdminRole = String(row.rol || '').toLowerCase() === 'admin';
+    const isCurrentlyActive = !!row.activo;
+    if (isAdminRole && isCurrentlyActive && !nextActivo) {
+      const countAdmins = await pool.request()
+        .input('empresa_id', sql.UniqueIdentifier, targetEmpresaId)
+        .query(`SELECT COUNT(*) AS n FROM usuarios WHERE empresa_id = @empresa_id AND rol = N'admin' AND activo = 1`);
+      const n = Number(countAdmins.recordset?.[0]?.n || 0);
+      if (n <= 1) return res.status(409).json({ error: 'No puedes desactivar el último admin activo de la empresa' });
+    }
+
+    const upd = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .input('empresa_id', sql.UniqueIdentifier, targetEmpresaId)
+      .input('activo', sql.Bit, nextActivo)
+      .query(`
+        UPDATE usuarios
+        SET activo = @activo
+        OUTPUT inserted.id, inserted.nombre, inserted.correo, inserted.rol, inserted.activo, inserted.creado_en
+        WHERE id = @id AND empresa_id = @empresa_id
+      `);
+
+    const updated = upd.recordset?.[0] || null;
+    if (!updated) return res.status(404).json({ error: 'Usuario no encontrado' });
+    return res.json(updated);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/login', async (req, res) => {
   const { correo, password } = req.body;
   if (!correo || !password) {
