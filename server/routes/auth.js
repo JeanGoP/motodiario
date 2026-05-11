@@ -184,7 +184,7 @@ router.put('/usuarios/:id', async (req, res) => {
 
     const isAdminRole = String(row.rol || '').toLowerCase() === 'admin';
     const isCurrentlyActive = !!row.activo;
-    if (isAdminRole && isCurrentlyActive && !nextActivo) {
+    if (!admin.isSuperAdmin && isAdminRole && isCurrentlyActive && !nextActivo) {
       const countAdmins = await pool.request()
         .input('empresa_id', sql.UniqueIdentifier, targetEmpresaId)
         .query(`SELECT COUNT(*) AS n FROM usuarios WHERE empresa_id = @empresa_id AND rol = N'admin' AND activo = 1`);
